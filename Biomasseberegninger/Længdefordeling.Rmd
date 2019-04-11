@@ -1,0 +1,162 @@
+---
+geometry: top=1.5cm, bottom=1.5cm, left=1cm, right=1cm
+output: pdf_document
+---
+
+```{r define_input, echo=FALSE}
+
+#Parameters
+year<- 2014 # @paramYear 
+cruise <- 'Musse Sis Horsens' # @paramCruise
+gearQuality <- 'V'
+trip <- 1
+species <- "BMS"
+redsk_dim=1
+
+```
+
+```{r set_libraries, include=FALSE}
+
+#Libraries
+library(sqldf)
+library(RODBC)
+library(stringi)
+
+```
+
+
+```{r getdata, echo=FALSE, message=FALSE, warning=FALSE}
+
+
+channel <- odbcConnect("FishLineDW")
+data <- sqlQuery(channel, paste("SELECT    Sample.sampleId, Sample.year, Sample.cruise, Sample.trip, Sample.remark, Sample.station, 
+                                           Sample.stationName, Sample.latPosStartText, Sample.lonPosStartText, Sample.latPosEndText, 
+                                           Sample.lonPosEndText, Sample.latPosStartDec, Sample.lonPosStartDec, Sample.latPosEndDec, 
+                                           Sample.lonPosEndDec, Sample.fishingtime, Sample.distancePositions, Sample.gearQuality, 
+                                           SpeciesList.speciesCode, SpeciesList.dfuBase_Category, SpeciesList.weightStep0, 
+                                           SpeciesList.weightStep1, SpeciesList.weightStep2, SpeciesList.weightStep3, 
+                                           SpeciesList.raisingFactor, Animal.representative, Animal.individNum, Animal.length, 
+                                           Animal.number, Animal.weight, SpeciesList.speciesListId, Animal.animalId, Sample.depthAveGear
+                                 FROM      Animal RIGHT OUTER JOIN
+                                           SpeciesList ON Animal.speciesListId = SpeciesList.speciesListId RIGHT OUTER JOIN
+                                           Sample ON SpeciesList.sampleId = Sample.sampleId
+                                 WHERE     Sample.year = (",year, ") AND
+                                           Sample.cruise = ('",cruise, "') AND
+                                           Sample.gearQuality = ('",gearQuality, "') ", sep=""), stringsAsFactors=FALSE)                         
+close(channel)
+
+    
+```
+
+```{r, echo=FALSE, warning=FALSE,message=FALSE}
+
+#Korrektion 2011
+#I 2011 er østers- og muslingtrækkene taget på samme tur, men hvis træktid=4min, så OES ellers BMS;
+
+#Korrektion 2011 - kun 2011?
+#I 2011 er østers- og muslingtrækkene taget på samme tur, men hvis træktid=4min, så OES ellers BMS;
+data$stationType <- ifelse(year!=2011,species,ifelse(year==2011 & data$fishingtime < 4,"BMS","OES"))
+
+
+#### DistancePosition corrections 2012 ####
+#BMS
+if (year == 2012 & cruise=='HF BMS mar') {
+    data[data$station %in% c('3848','3851','3855','3859','3866','3900','4117')]$distancePositions <- 0.06
+    data[data$station %in% c('3901')]$distancePositions <- 0.05
+    data[data$station %in% c('4110,4114')]$distancePositions <- 0.07
+    data[data$station %in% c('4109')]$distancePositions <- 0.08
+    data[data$station %in% c('4154','4156')]$distancePositions <- 0.03
+    data[data$station %in% c('4084')]$distancePositions <- 0.01
+    data[data$station %in% c('4105')]$distancePositions <- 0.011
+    data[data$station %in% c('3848','4184','4219','4240')]$distancePositions <- 0.230
+}
+
+#OES
+data[year == 2012 & cruise=='HF OES mar' & data$station %in% c('3848','4184','4219','4240')]$distancePositions <- 0.230
+
+
+# keep only rows with stationtype=species 
+data2 <- data[data$stationType==species,]
+
+
+
+```
+
+```{r, echo=FALSE, warning=FALSE,message=FALSE}
+
+
+
+data2$Befisket_Areal_m2=data2$distancePositions*1852*redsk_dim
+
+
+if(year==2011 & data$station %in% c('3213','3241','3262','3489') ) {Befisket_Areal_m2 <- 400
+} else if(year==2011 & data$station %in% c('3313','3407','3426','3527') ) {Befisket_Areal_m2 <- 100}
+
+data2$TotalWeight_kg <- as.numeric(apply(data[,c("weightStep0","weightStep1","weightStep2","weightStep3")], 
+                                        1, function(x) min(x[1], x[2], x[3], x[4], na.rm=TRUE)))*data$raisingFactor
+
+data2$TotalNumber <- data2$number*data2$raisingFactor
+data2$Length_cm <- data2$length/10
+data2$SOP_Length <- data2$Length_cm*data2$number*data2$raisingFactor
+
+index <- data2$speciesCode!=species
+data2$speciesCode[index==TRUE] <- "AAA"
+data2$Length_cm[index==TRUE] <- NA; data2$TotalWeight_kg[index==TRUE] <- NA; data2$TotalNumber[index==TRUE] <- NA
+
+
+```
+
+```{r OES , echo=FALSE, warning=FALSE,message=FALSE}
+
+
+
+data3 <- data2 
+
+if (species=="OES") {
+
+data3$fastst <- apply(data3[,c("stationName","year","remark")], 1, function(x) 
+                   if (is.na(x[1]) & x[2]!= 2006 & grepl("KM", x[3])==FALSE) { gsub("[^0-9]","",x[3])}
+              else if (is.na(x[1]) & x[2]== 2006 & grepl("A", x[3])==FALSE) { gsub("[^0-9]","",x[3])}
+              else if (is.na(x[1])) {substr(x[3],8,12) }
+              else {NA})
+
+data4 <- data3[!(grepl("KM", data3$remark)==TRUE),]
+
+data4[is.na(data4$stationName),]$stationName <- data4[is.na(data4$stationName),]$fastst
+data4$Area <- ifelse(data4$cruise=="Lim 1",data4$trip,as.character(data4$stationName))
+
+}
+
+```
+
+```{r, echo=FALSE, warning=FALSE,message=FALSE}
+
+
+if (species=="BMS") {
+      data_table <- sqldf('select    sampleId, stationType, year, cruise, trip, station, stationName, latPosStartText,lonPosStartText, 
+                                     latPosStartDec, lonPosStartDec, fishingtime, Befisket_Areal_m2, speciesCode,  
+                                  	 TotalWeight_kg, Length_cm, sum(TotalNumber) as Number
+                          from       data2
+                          group by   sampleId, stationType, year, cruise, trip, station, stationName, latPosStartText,lonPosStartText, 
+                                     latPosStartDec, lonPosStartDec, fishingtime, Befisket_Areal_m2, speciesCode,  
+                                     TotalWeight_kg, Length_cm')
+} else if (species=="OES") {
+   data_table <- sqldf('select    sampleId, stationType, year, cruise, trip, station, stationName, Area, latPosStartText,lonPosStartText, 
+                                     latPosStartDec, lonPosStartDec, fishingtime, depthAveGear, Befisket_Areal_m2, speciesCode,  
+                                     TotalWeight_kg, Length_cm, sum(TotalNumber) as Number
+                          from       data4
+                          group by   sampleId, stationType, year, cruise, trip, station, stationName, Area, latPosStartText,lonPosStartText, 
+                                     latPosStartDec, lonPosStartDec, fishingtime, depthAveGear, Befisket_Areal_m2, speciesCode,  
+                                     TotalWeight_kg, Length_cm')
+}
+
+```
+
+```{r, echo=FALSE, warning=FALSE,message=FALSE}
+
+#Write csv
+write.csv(data_table, file=paste("X:/Line/Data/Skaldyr/Results/Længdefordeling_",year,"_",cruise,"_",
+                                 species,"_Længde_",format(Sys.time(), "%d%b%Y"),".csv",sep=""),row.names=FALSE)
+
+```
+

@@ -1,0 +1,53 @@
+
+---
+fontsize: 12pt
+geometry: top=2cm, bottom=2cm, left=2cm, right=2cm,headsep=1cm
+header-includes:
+- \usepackage{booktabs}
+- \usepackage{longtable}
+- \usepackage{floatrow}
+- \usepackage[T1]{fontenc}
+- \usepackage[danish]{babel}
+- \usepackage[utf8]{inputenc}
+- \usepackage{graphicx}
+- \usepackage{fancyhdr}
+- \pagestyle{fancy}
+- \fancyhf{}
+- \fancyfoot{}
+- \usepackage{pifont}
+- \usepackage{amssymb}
+- \usepackage[table]{xcolor}
+- \usepackage{ragged2e}
+- \usepackage{catchfile}
+- \usepackage{array}
+- \usepackage[export]{adjustbox}
+- \usepackage{multirow}
+- \linespread{1.15}
+- \usepackage{tabularx}
+- \usepackage{tcolorbox}
+- \usepackage{lipsum}
+- \usepackage{float}
+output:
+  pdf_document: default
+  word_document: default
+  fig_caption: false
+---
+
+\renewcommand{\familydefault}{\sfdefault}
+\sffamily
+
+\renewcommand{\familydefault}{\sfdefault}
+\sffamily
+
+```{r define_input, echo=FALSE}
+
+#Parameters
+dummy_data <- data.frame(Name = c("Firstname Lastname1","Firstname Lastname2","Firstname Lastname3","Firstname Lastname4","Firstname Lastname5","Firstname Lastname6","Firstname Lastname7","Firstname Lastname8","Firstname Lastname2","Firstname Lastname3","Firstname Lastname9","Firstname Lastname10","Firstname Lastname11","Firstname Lastname12"),
+Institute = c("DTU-Aqua","DTU-Aqua","DTU-Aqua","DTU-Aqua","DTU-Aqua","DTU-Aqua","GN","DTU-Aqua","DTU-Aqua","DTU-Aqua","DTU-Aqua","DTU-Aqua","FN","FGFRI"),
+Function_tasks = c("Cruise-leader","Assistant cruise-leader","Length measurements","Individual fish measurements","Individual fish measurements","Night assistant cruise leader","Length measurements","Cruise-leader","Assistant cruise-leader","Maturity estimates","Individual fish measurements","Night assistant cruise leader","Maturity estimates","Night assistant cruise leader"),
+Leg = c(1,1,1,1,1,1,1,2,2,2,2,2,2,2))
+
+write.csv(dummy_data,file = "participants.csv",row.names = F,quote = T,fileEncoding = "UTF-8")
+
+```
+

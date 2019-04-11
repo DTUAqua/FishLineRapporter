@@ -1,0 +1,235 @@
+---
+classoption: landscape
+geometry: top=1.4cm, bottom=1.2cm, left=0.8cm, right=0.8cm
+output: pdf_document
+---
+
+
+```{r, echo=FALSE, include=FALSE}
+
+
+rm(list=ls(all=TRUE)) 
+
+
+#Libraries
+library(sqldf)
+library(RODBC)
+library(latticeExtra)
+library(plotrix)
+require(grid)
+require(gridExtra)
+library(ggmap)
+library(gplots) 
+library(maptools)
+library(directlabels)
+library(tcltk)
+library(quantreg)
+library(ggrepel)
+
+
+
+#------------------------------------------- GET DATA --------------------------------------------------
+
+#Set parameters
+year_start <- 2015
+year_end <- 2015
+year <- c(year_start:year_end)
+species <- c("TOR")
+area <- c('20','4A','4B') 
+data_part <- c(1000) #Obtional parameter
+n_out <- 15 # number of outliers - default is 15
+
+
+query<-paste("SELECT     Animal.animalId, Animal.year, Animal.dateGearStart, Animal.tripType, Animal.cruise, Animal.trip, Animal.station, 
+                         animal.dfuArea, Animal.speciesCode, Animal.individNum, Animal.length, Animal.number AS length_number,
+                         Animal.lengthMeasureUnit, datename(qq, Animal.dateGearStart) AS quartergearstart,
+                         Animal.sizeSortingEU, Animal.landingCategory, (Animal.weight/Animal.number)*1000 AS weight, 
+                         Age.age, Age.number AS Age_Number
+             FROM        Animal LEFT OUTER JOIN
+                         Age ON Animal.animalId = Age.animalId
+             WHERE       Animal.year IN ('", paste(year,collapse = "','"),"') AND 
+                         Animal.speciesCode IN ('", paste(species,collapse = "','"),"') AND
+                         Animal.dfuArea IN ('", paste(area,collapse = "','"),"') AND
+                         Animal.individNum != 0 "
+             , sep = "")
+
+query
+#
+
+#Importing data
+channel <- odbcConnect("FishLineDW")
+data <- sqlQuery(channel, paste(query),stringsAsFactors=FALSE)
+close(channel)
+
+
+
+
+```
+
+
+```{r define functions, echo=FALSE,message=FALSE}
+
+############# MULTIPLE LEGEND PLOT #####################
+#Funktion needed for plotting
+
+g_legend <- function(a.gplot){
+            tmp <- ggplot_gtable(ggplot_build(a.gplot))
+            leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
+            legend <- tmp$grobs[[leg]]
+            return(legend)}
+
+```
+
+
+
+```{r prepare data, echo=FALSE,message=FALSE}
+
+# New data set for modification and corrections
+# Crete ID from data variables and EID as a continuous  nuber
+data1 <- data[order(as.integer(data$animalId)),]
+data1$ID <- paste(data1$year,data1$cruise,data1$trip,data1$station,data1$individNum,sep=",")
+data1$ID <- gsub("NA", "", data1$ID)
+data1$EID <- 1:nrow(data1)
+
+#Show only part of data - convenient if want to exclude extreeme outliers
+#if (length(data_part)!=0) {data1 <- data1[data1$length<data_part,] }
+```
+
+
+```{r, fig.width=16, fig.height=11.3, echo=FALSE, results = "asis", cache=FALSE,message=FALSE, warning=FALSE}
+
+#Select data with both age and length data
+data2 <- data1[complete.cases(data1[,c("length","weight")]),]
+#n_out <- ifelse(nrow(data2)<n_out,nrow(data2),n_out)
+
+#Left panel: length vs weight, right panel: log(length) vs log(weight)
+datalog <- data2; datalog$weight <- log(datalog$weight);datalog$length <- log(datalog$length) 
+
+#Calculate residuals for each individual
+ols <- rq(weight ~ length, data = datalog)
+res <- resid(ols)
+datalog <- cbind(datalog, "res"=abs(res))
+
+#res_mean <- mean(data2$res); #res_std <- sd(data2$res)
+data_error <- datalog[datalog$res %in% tail(sort(datalog$res),n=n_out),]
+data_error_norm <- data2[data2$ID %in% data_error$ID,]
+
+if (length(data_part)!=0) {data2 <- data2[data2$length<=data_part,];
+						   datalog <- datalog[datalog$length<=log(data_part),]
+						   data_error <- data_error[data_error$length<=log(data_part),]}
+#Plot length-weight - left panel: raw data, right panel: log data
+p1 <- ggplot(data2, aes(x=length, y=weight, colour=as.character(dfuArea)))
+p1_a <- p1 + geom_point(size=4,shape=18)+labs(x ='Længde (mm)', y ='Vægt (g)') + theme_bw() + 
+             ggtitle('a') + theme(plot.title=element_text(hjust=0)) + theme(legend.position="bottom")+ theme(legend.key = element_blank())
+p1_b <- p1_a + theme(legend.text = element_text(size = 14),legend.title = element_text(size=14))+
+               labs(size="Antal", colour="Område")+
+               theme(legend.key = element_blank(),
+                     axis.title = element_text(size = 14),
+                     axis.text = element_text(size=14),
+                     legend.text = element_text(size=14),
+                     legend.title = element_text(size=14),
+                     plot.title=element_text(face="bold", size=18)) +guides(colour = guide_legend(override.aes = list(size=6)))
+
+p2 <- ggplot(datalog, aes(x=length, y=weight, colour=as.character(dfuArea))) 
+p2_b <- p2 + geom_point(size=4,shape=18)+labs(x ='log(Længde)', y ='log(Vægt)') + theme_bw() +
+             ggtitle('b') + theme(plot.title=element_text(hjust=0)) + 
+             geom_text_repel(data = data_error,aes(label = EID),segment.size = 0, 
+                             box.padding = unit(0.15, "lines"),color='black')+
+             theme(legend.key = element_blank(),
+                   axis.title = element_text(size = 14),
+                   axis.text = element_text(size=14),
+                   legend.text = element_text(size=14),
+                   legend.title = element_text(size=14),
+                   plot.title=element_text(face="bold", size=18))
+
+
+
+#Plot the two panels
+grid.arrange(arrangeGrob(p1_b + theme(legend.position="none"),p2_b + theme(legend.position="none"),nrow=1),
+             g_legend(p1_b), nrow=2,heights=c(10, 1),top=textGrob(paste0("Tjek outliers - vægt vs. længde - ",species,"\n",min(year)
+                                                                   ," - ",max(year)) ,gp=gpar(fontsize=18)))
+
+
+################## PLOT AGE AND WEIGHT ####################
+
+cat("\\newpage")
+
+#Select data with both age and length data
+data2_age <- data1[complete.cases(data1[,c("length","age")]),]
+n_out <- ifelse(nrow(data2_age)<n_out,nrow(data2_age),n_out)
+
+# Loop through each age in data and calculate residuals. 
+# Each age is considered as a normal distribution,
+# and the mean and residuals are calculated for each of them.
+# The loop can be set up to use standard deviations in staed. 
+# These values vary significantly depending on species and data, 
+# why this will need corrections (K value) per species and possibly per age..
+error_index <- character()
+error_info <- data.frame()
+j <- 1
+for (i in sort(unique(data2_age$age))) {
+      data_age <- data2_age[data2_age$age==i,]
+      data2_age[rownames(data_age),"res"] <- abs(data_age$length-mean(data_age$length,na.rm=TRUE))
+      error_info[j,"age"] <- i
+      j <- j+1
+      #K <- 4#if (i %in% c(3:5)) {K <- 3} else if (i %in% c(6)) {K <- 1.1} else {K <- 2}
+      #error_info[j,"mean_length"] <- mean(data_age$length,na.rm=TRUE)
+      #error_info[j,"std_length"] <- sd(data_age$length,na.rm=TRUE)
+      #data_Age_error <- data_age[data_age$length<(mean_age-(2*std_age)) | data_age$length>(mean_age+(2*std_age)),]
+      #error_index <-c(error_index,row.names(data_Age_error))
+}
+
+#Take 15 individuals with the largest residuals 
+data_error_age <- data2_age[data2_age$res %in% tail(sort(data2_age$res),n=n_out),]
+
+#Calculate number of individuals per age per length - to use in plot symbol size
+if (nrow(data2_age) > 0 ) { 
+  data2_age[rownames(data2_age) %in% rownames(data_error_age),"ID"] <-  NA 
+  data_age_num   <- sqldf('select    length, age, sum(Age_Number) as number,dfuArea
+                             from      data2_age
+                             group by  length,age')
+
+# Plot age vs. length.
+# 15 Individuals with the largest residuls are marked with ID. 
+if (length(data_part)!=0) {data_age_num <- data_age_num[data_age_num$length<=data_part,]
+						   data_error_age <- data_error_age [data_error_age $length<=data_part,]}
+p1 <- ggplot(data_age_num,aes(x=length, y=age))+ theme_bw(base_size = 5)
+p1_a <- p1 +  geom_point(aes(size=as.numeric(number), colour=as.character(dfuArea)),shape=18)+ 
+              geom_text_repel(data = data_error_age,aes(label = EID), segment.color = "#FF0000", segment.size = 0,
+                              box.padding = unit(0.15, "lines"))+scale_size_continuous(range = c(4,9))+
+        labs(x ='Længde (cm)', y ='Alder (år)')+
+        theme(legend.position="bottom")+
+        ggtitle(paste0("Tjek outliers - alder vs. længde - ",species,"\n",min(year)," - ",max(year) ))+        
+        theme(legend.key = element_blank(),
+              axis.title = element_text(size = 14),
+              axis.text = element_text(size=14),
+              legend.text = element_text(size=14),
+              legend.title = element_text(size=14),
+              plot.title=element_text(size=19, vjust=2.6))+ 
+        labs(size="Antal", colour="Område")+guides(colour = guide_legend(override.aes = list(size=6)))
+
+plot(p1_a) } 
+
+################## ERROR OUTPUT ####################
+
+# MAke error data.
+# The largest residuals for each plot is merged, such that individuals that 
+# have errors in both are only presented once.
+
+
+errors <- merge(data_error_norm,data_error_age[,-ncol(data_error_age)],all=TRUE)
+if (nrow(errors)>0) {
+    #Assign type of error
+    errors[errors$ID %in% data_error_norm$ID,"Type"] <- "Længde-vægt"
+    errors[errors$ID %in% data_error_age$ID,"Type"] <- "Længde-alder"
+    errors[errors$ID %in% data_error_age$ID & errors$ID %in% data_error_norm$ID,"Type"] <- "Længde-alder + Længde-vægt"
+    
+    #output list of events with the largest outliers
+    errors <- errors[with(errors, order(EID)), c(20,1:19,21)] 
+    write.csv(errors,file=paste0("X:\\Line\\Quality-programs\\Tjek_outliers\\output\\",species,"_",min(year),"-",max(year),
+                                ".csv"),row.names=FALSE)
+}
+
+
+
+```

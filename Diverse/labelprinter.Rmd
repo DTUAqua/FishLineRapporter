@@ -1,0 +1,106 @@
+---
+fontsize: 12pt
+geometry: margin=1in
+header-includes:
+- \usepackage{booktabs}
+- \usepackage{longtable}
+- \usepackage{floatrow}
+- \usepackage[T1]{fontenc}
+- \usepackage[danish]{babel}
+- \usepackage[utf8]{inputenc}
+- \usepackage{graphicx}
+- \floatsetup[table]{capposition=top}
+- \usepackage{fancyhdr}
+- \pagestyle{fancy}
+- \fancyhf{}
+- \usepackage[table]{xcolor}
+- \usepackage{ragged2e}
+- \usepackage{catchfile}
+- \usepackage{array}
+- \usepackage[export]{adjustbox}
+- \usepackage{multirow}
+- \linespread{1.15}
+- \usepackage{tabularx}
+- \usepackage{tcolorbox}
+- \usepackage{lipsum}
+output:
+  pdf_document: default
+  word_document: default
+---
+
+
+
+\renewcommand{\familydefault}{\sfdefault}
+\sffamily
+
+```{r define_input, echo=FALSE}
+
+#Parameters
+# year<- @paramYear
+# cruise <- @paramCruise
+# trip <- @paramTrip
+# station <- @paramStation
+# species_trip <-@paramSpecies
+
+year<- 2018
+cruise <- 'SEAS'
+trip <- 1586
+station <- 158601
+species_trip <-c("RSP","TOR","ISG","RTG")
+```
+
+
+```{r set_libraries, include=FALSE}
+if (!require(RODBC)) {
+  install.packages("RODBC", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(RODBC)
+}
+if (!require(dplyr)) {
+  install.packages("dplyr", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(dplyr)
+}
+
+
+```
+
+
+```{r}
+dbQuery <- paste0("SELECT s.[year],s.cruise
+      ,s.[trip]
+	  ,s.station
+      ,s.[dateGearStart]
+      ,s.[speciesCode]
+	  ,s.individNum
+	  ,sa.platform1
+	  ,s.animalId
+     FROM [FishLineDW].[dbo].Animal as s
+	 left join FishLineDW.dbo.Trip as sa
+	 on s.cruise = sa.cruise
+	 and s.trip = sa.trip
+
+	 where s.year = ",year,"
+	 and s.cruise = '",cruise,"'
+	 and s.trip = '",trip,"'
+	 and s.station = '",station,"'
+	 and individNum is not null")
+
+
+channel <- odbcConnect("FishlineDW")
+species <- sqlQuery(channel, dbQuery, stringsAsFactors=F)
+close(channel)
+
+if (length(species_trip)>0){
+  species <- species[species$speciesCode %in% species_trip,]
+}
+
+
+```
+
+
+```{r}
+output <- species %>% 
+  arrange(speciesCode, individNum)
+
+write.table(output)
+```
+

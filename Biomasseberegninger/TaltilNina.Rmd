@@ -1,0 +1,84 @@
+
+
+---
+geometry: top=1.5cm, bottom=1.5cm, left=1cm, right=1cm
+output: pdf_document
+---
+
+
+
+\renewcommand{\familydefault}{\sfdefault}
+\sffamily
+
+
+```{r define_input, echo=FALSE}
+
+#Parameters
+year<- 2015 # @paramYear 
+cruise <- 'LF OES apr.' # @paramCruise
+
+```
+
+
+```{r set_libraries, include=FALSE}
+
+#Libraries
+library(sqldf)
+library(RODBC)
+library(stringi)
+
+```
+
+
+
+```{r getdata, echo=FALSE, message=FALSE, warning=FALSE}
+
+
+channel <- odbcConnect("FishLineDW")
+
+bms <- sqlQuery(channel, paste("SELECT    SpeciesList.year, SpeciesList.cruise, SpeciesList.trip, SpeciesList.station, 
+                                          Sample.gearQuality, Sample.stationName, SpeciesList.speciesCode, 
+                                          SpeciesList.landingCategory,SpeciesList.weightStep0, SpeciesList.weightStep1, 
+                                          SpeciesList.weightStep2, SpeciesList.weightStep3, SpeciesList.raisingFactor, 
+                                          Animal.length, Animal.lengthMeasureUnit, Animal.number, Animal.representative, 
+                                          Sample.fishingtime, Sample.latPosStartText, Sample.lonPosStartText, 
+                                          Sample.latPosEndText, Sample.lonPosEndText, Sample.distancePositions, Sample.depthAvg
+                                FROM      SpeciesList INNER JOIN
+                                          Sample ON SpeciesList.sampleId = Sample.sampleId LEFT OUTER JOIN
+                                          Animal ON SpeciesList.speciesListId = Animal.speciesListId
+                                WHERE     SpeciesList.year = (",year, ") AND
+                                          SpeciesList.cruise = ('",cruise, "')  
+                                ORDER BY  SpeciesList.station  ", sep=""),stringsAsFactors=FALSE)
+                              
+
+
+```
+
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+bms$SubSampleWeight <- as.numeric(apply(bms, 1, function(x) min(x[9], x[10], x[11], x[12], na.rm=TRUE)))
+bms$SampleWeight <- bms$SubSampleWeight*bms$raisingFactor
+bms$SubSampleNumber <- bms$number
+bms$SampleNumber <- bms$SubSampleNumber*bms$raisingFactor
+
+bms2 <- bms[c(1:8,13:28)]
+
+```
+
+
+
+```{r writeData, echo=FALSE, message=FALSE, warning=FALSE}
+
+
+
+#Write csv
+write.csv(bms2, file=paste("X:/Line/Data/Skaldyr/Results/",cruise,format(Sys.time(), "%d%b%Y"),".csv",sep=""),row.names=FALSE)
+
+
+```
+
+
+\section{Udtræk: `r cruise` `r year`}
+Foretaget den \today.

@@ -1,0 +1,802 @@
+
+---
+fontsize: 11pt
+geometry: top=2cm, bottom=2cm, left=1.5cm, right=1.5cm,headsep=1cm
+header-includes:
+- \usepackage{booktabs}
+- \usepackage{longtable}
+- \usepackage{floatrow}
+- \usepackage[T1]{fontenc}
+- \usepackage[danish]{babel}
+- \usepackage[utf8]{inputenc}
+- \usepackage{graphicx}
+- \usepackage{fancyhdr}
+- \pagestyle{fancy}
+- \fancyhf{}
+- \fancyfoot{}
+- \usepackage{pifont}
+- \usepackage{amssymb}
+- \usepackage[table]{xcolor}
+- \usepackage{ragged2e}
+- \usepackage{catchfile}
+- \usepackage{array}
+- \usepackage[export]{adjustbox}
+- \usepackage{multirow}
+- \linespread{1.15}
+- \usepackage{tabularx}
+- \usepackage{tcolorbox}
+- \usepackage{lipsum}
+- \usepackage{float}
+- \usepackage{lastpage}
+output:
+  pdf_document: default
+  fig_caption: yes
+  keep_tex: yes
+---
+
+\renewcommand{\familydefault}{\sfdefault}
+\sffamily
+
+\setlength{\LTleft}{-20cm plus -1fill}
+\setlength{\LTright}{\LTleft}
+
+\lhead{\footnotesize \color{darkgray}  Kvalitet og Status - Havneindsamling}
+\rhead{\footnotesize  \color{darkgray} SIDE \color{red} \thepage\ \color{darkgray} AF \color{darkgray} \pageref*{LastPage} }
+
+```{r define_input, echo=FALSE, include=FALSE}
+
+#Parameters
+# year<- 2017
+# quarter <- 3
+# cruise <- "IN-CHAR"
+
+year<- @paramYear
+quarter <- @paramQuarter
+cruise <- @paramCruise
+
+cruise0 <- cruise
+if (cruise %in% c("IN-CHAR","IN-LYNG")){
+  cruise <- c("IN-CHAR","IN-LYNG")
+}
+```
+
+```{r set_libraries, include=FALSE, warning=FALSE}
+
+#Libraries
+    if (!require(RSQLite)) {
+  install.packages("RSQLite", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(RSQLite)
+}
+if (!require(bit)) {
+  install.packages("bit", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(bit)
+}
+if (!require(sqldf)) {
+  install.packages("sqldf", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(sqldf)
+}
+if (!require(RODBC)) {
+  install.packages("RODBC", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(RODBC)
+}
+if (!require(plyr)) {
+  install.packages("plyr", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(plyr)
+}
+if (!require(xtable)) {
+  install.packages("xtable", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(xtable)
+}
+#library(ggmap)
+if (!require(gplots)) {
+  install.packages("gplots", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(gplots)
+}
+require(grid)
+if (!require(ggrepel)) {
+  install.packages("ggrepel", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(ggrepel)
+}
+if (!require(reshape2)) {
+  install.packages("reshape2", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(reshape2)
+}
+if (!require(stringr)) {
+  install.packages("stringr", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(stringr)
+}
+if (!require(data.table)) {
+  install.packages("data.table", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(data.table)
+}
+if (!require(plyr)) {
+  install.packages("plyr", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(plyr)
+}
+if (!require(dplyr)) {
+  install.packages("dplyr", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(dplyr)
+}
+if (!require(pander)) {
+  install.packages("pander", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(pander)
+}
+if (!require(Hmisc)) {
+  install.packages("Hmisc", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(Hmisc)
+}
+if (!require(tidyr)) {
+  install.packages("tidyr", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(tidyr)
+}
+#library(shapefiles)
+#library(mapplots)
+#library(maptools)
+
+```
+
+```{r functions, include=FALSE}
+
+# Some usefull mini functins..
+
+round2 = function(x) trunc(x+0.5)
+sumNA = function(x) sum(x,na.rm=T)
+
+# For building tables..
+
+mylatex <- function (...) {
+  o <- capture.output(latex(...))
+  o <- grep('^%', o, inv=T, value=T)
+  cat(o, sep='\n')
+}
+detach(package:Hmisc)
+
+
+```
+
+
+
+```{r echo = F}
+library(knitr)
+opts_chunk$set(fig.lp = '')
+```
+
+
+```{r include=FALSE, cache=FALSE} 
+
+################### Collecting data from Fishline #############################
+
+channel <- odbcConnect("FishLineDW")
+
+# Sample data
+sample <- sqlQuery(channel,
+                   paste("SELECT   tripId, trip, station, fishingtime, 
+                                   latPosStartDec AS lat, lonPosStartDec AS lon,
+                                   latPosStartText AS latT, lonPosStartText AS lonT, 
+                                   catchRegistration, speciesRegistration, gearType, 
+                                   selectionDevice, meshSize, dfuArea, 
+                                   statisticalRectangle, quarterGearStart as qtr,
+                                   remark
+                          FROM     Sample
+                          WHERE    year = (",year,") AND
+                                   cruise in ('",paste0(cruise,collapse="','"), "') ", sep = ""), 
+                   stringsAsFactors=FALSE
+                  
+                 )
+
+# Specieslist
+speciesList <- sqlQuery(channel,
+                        paste("SELECT  trip, station,speciesCode, landingCategory,
+                                       number,raisingFactor, weightStep0, 
+                                       weightStep1, weightStep2, weightStep3,
+                                       treatmentFactor, totalWeight, trip,
+                                       quarterGearStart as qtr, dfuArea, 
+                                       sizeSortingEU
+                               FROM    SpeciesList
+                               WHERE   year = (",year,") AND
+                                       cruise in ('",paste0(cruise,collapse="','"), "')  ", sep = ""), 
+                        stringsAsFactors=FALSE
+                        )
+
+# Animal 
+animal <- sqlQuery(channel,
+                   paste("SELECT    animalID, year, cruise, trip,station, 
+                                    speciesCode, dfuArea, number, length, 
+                                    weight, landingCategory, individNum, 
+                                    representative, quarterGearStart as qtr,
+                                    sizeSortingEU
+                          FROM      Animal
+                          WHERE     year = (",year,") AND
+                                    cruise in ('",paste0(cruise,collapse="','"), "') ", sep = ""),
+                   stringsAsFactors=FALSE
+                   )
+# Species names
+l_species <- sqlQuery(channel,
+                      paste("SELECT   speciesCode, dkName
+                             FROM     L_Species", sep = ""), stringsAsFactors=FALSE
+                      )
+
+# Trip info
+tripIds <- unique(sample$tripId) 
+
+trip <- sqlQuery(channel,
+                 paste("SELECT     year, trip, cruise, dateEnd as dateLand, platform1, 
+                                   logBldNr, samplingMethod,samplingType,
+                                   fisheryType,remark, DATEPART(quarter,dateEnd) as qtr, 
+                                   dateSample, harbourSample, harbourLanding
+                        FROM       Trip
+                        WHERE      tripId IN ('",paste(tripIds,collapse = "','") ,"')", 
+                       sep = ""), stringsAsFactors=FALSE
+                 )
+
+close(channel)
+
+
+``` 
+
+```{r minimum_landing_size, include=FALSE, cache=FALSE} 
+
+areatable <- 
+    data.frame(dfuArea = c("22","23","24","25","26","27","28","29","30","31","32","4A","4B","4C","20","21",NA),
+               farvand = c("Vestlige Østersø","Vestlige Østersø","Vestlige Østersø","Østlige Østersø","Østlige Østersø","Østlige Østersø","Østlige Østersø","Østlige Østersø", "Østlige Østersø", "Østlige Østersø", "Østlige Østersø", "Nordsøen","Nordsøen","Nordsøen","Skagerrak","Kattegat","Andre områder"))
+areatable$farvand <- factor(areatable$farvand, levels = c("Nordsøen","Kattegat","Skagerrak","Vestlige Østersø","Østlige Østersø","Andre områder"))
+
+# data <- left_join(data0, areatable, by = "dfuArea")
+
+
+# MLS <- data.frame("art" = c("Brill","Cod","Dab","Flounder","Haddock","Hake","Herring","Ling","Atlantic mackerel","Nephrops","Plaice","Saith","Salmon","Sole","Trout","Turbut","Whiting"),
+# "speciesCode"	= c("SLH","TOR","ISG","SKR","KUL","KLM","SIL","LNG","MAK","DVH","RSP","MSJ","LKS","TNG","ORD","PGH","HVL"),																
+# "Skagerrak" = c(30,30,25,25.5,27,30,18,NA,20,13,27,30,60,24,40,30,23),
+# "Kattegat" = c(30,30,25,25.5,27,30,18,NA,20,13,27,30,60,24,40,30,23),
+# "Nordsøen" = c(30,35,25,25.5,30,27,20,30,30,8.5,27,35,60,24,40,30,27),
+# "Vestlige_Østersø" = c(30,35,25,23,27,30,NA,NA,NA,13,25,30,60,24,40,30,NA),
+# "Østlige_Østersø" = c(30,35,25,23,27,30,NA,NA,NA,13,25,30,60,24,40,30,NA),
+# note = NA)
+# 
+# 
+# MLS2010 <- tidyr::gather(MLS,area, length, -note, -speciesCode, -art)
+# MLS2010$note[MLS2010$speciesCode=="SKR" & MLS2010$area=="Baltic"] <- "23 in SD 22-25"
+# MLS2010$length_mm <- MLS2010$length*10
+
+```
+
+
+\thispagestyle{empty}
+
+\vspace*{2cm} 
+
+\textbf{\LARGE Kvartalstjek og status på havneindsamlingerne}
+        
+\vspace{3cm}   
+
+\textbf{\LARGE `r quarter`. Kvartal `r year`}\
+\vspace{0.5cm}
+
+\textbf{\Large Togt:}
+\textbf{\Large `r cruise0`}\
+
+
+
+
+\newpage
+
+\renewcommand{\contentsname}{Indhold}
+\tableofcontents
+
+\newpage
+
+
+
+\part{Mangler, indtastningsfejl og outliers}
+
+\section{Ture}
+
+\subsection{Tid og sted}
+
+Tabellen herunder viser de ture, hvor nogle informationer om turen mangler. 
+
+
+\small
+\renewcommand{\arraystretch}{1.1}
+\renewcommand{\tabcolsep}{8pt}
+
+```{r data_out2, results='asis',echo=FALSE,message=FALSE,warning=FALSE,fig.pos='H'}
+
+# Check for missing trip informations -----------------------------------------
+
+# The table checks for missing variables about the trip...
+
+trip_input <- trip[trip$qtr == quarter,
+                   c("trip", "dateSample", "harbourLanding", "samplingMethod",
+                     "samplingType", "fisheryType", "logBldNr", "remark")]
+
+row.names(trip_input) <- trip[trip$qtr==quarter,]$trip
+
+trip_input[trip_input$fisheryType==1,"fisheryType"] <- "Konsum"
+trip_input[trip_input$fisheryType==2,"fisheryType"] <- "Industri"
+
+trip_input$fisheryType <- as.character(trip_input$fisheryType)
+trip_input[is.na(trip_input$remark) | trip_input$remark=="\r\n","remark"] <- "-"
+
+trip_input$dateSample <- format(trip_input$dateSample,format='%m/%d/%Y')
+
+
+colnames(trip_input) <- c("\\bf Tur","\\bf Land- dato","\\bf Land- havn",
+                          "\\bf Metode","\\bf Flere skibe?", "\\bf Type",
+                          "\\bf Log- nummer","\\bf Bemærkning")
+
+mis_trip <- trip_input[!complete.cases(trip_input),]
+
+mis_trip[is.na(mis_trip)] <- "\\color{red} \\textsl{Mangler}"
+
+###############################################################################
+
+#Make table
+
+if (nrow(mis_trip)>0) {
+
+library(Hmisc)
+     mylatex(mis_trip[,-1],file='',booktabs =T,rowlabel="\\bf Tur",where = 'H',
+             collabel.just=c("p{0.5in}","p{0.5in}","p{0.5in}","p{0.6in}",
+                             "p{0.3in}","p{0.6in}","p{1in}"), longtable = TRUE,
+             col.just=c("l","l","l","l","l","l","p{2in}"), lines.page = 5000)
+detach(package:Hmisc)
+     
+  
+}
+```
+
+
+\section{Stationer}
+
+
+\subsection{Position og redskab}
+
+I tabllen nedenfor er vist de stationer, hvor det ikke har været muligt at assosiere et ICES område og/eller square til de indtastetde koordinater. Stationerne for alle ture er også vist på kortet i figur \ref{fig:mapstat}, hvor stationer uden område og square er vist med grønt, mens øvrige stationer er markeret med blåt. Derudover er stationsnavne, der afviger fra den normale form på seks cifre, markeret med rødt i tabellen. 
+
+\renewcommand{\tabcolsep}{12pt}
+
+
+```{r stations, results='asis', echo = FALSE, message = FALSE, warning = FALSE, fig.pos='H'}
+
+# Check for missing gear and missing/correct position  ------------------------
+
+stat_input <- sample[sample$qtr == quarter, c("trip", "station", "dfuArea",
+                            "statisticalRectangle", "gearType", "meshSize")]
+
+stat_input[stat_input$gearType %in% c("LL", "LLD", "LLS") & 
+             is.na(stat_input$meshSize), "meshSize"] <- "-"
+
+mis_stat <- stat_input[!complete.cases(stat_input), ]
+
+if (nrow(mis_stat) > 0) {
+
+mis_stat[is.na(mis_stat)] <- "\\color{red} \\textsl{Mangler}"
+
+mis_stat <- mis_stat[order(mis_stat$trip,mis_stat$station),] 
+colnames(mis_stat) <- c("\\bf Tur", "\\bf Station", "\\bf ICES område",
+                        "\\bf ICES square", "\\bf Redskab", "\\bf Maskevidde")
+
+###############################################################################
+
+#Make table
+
+library(Hmisc)
+     mylatex(mis_stat,file='', booktabs =T, rowlabel = "", rowname="",
+             where='H', collabel.just="l",position='none',
+             longtable= TRUE, lines.page=5000)
+detach(package:Hmisc)
+     
+}
+
+```
+
+
+
+```{r include=FALSE, cache=FALSE} 
+
+################### Collecting data from Fishline #############################
+
+query <- paste("SELECT    animalID, year, cruise, trip,station,
+                                    speciesCode, dfuArea, number, length,
+                                    weight, landingCategory, individNum,
+                                    representative, quarterGearStart as qtr,
+                                    sizeSortingEU
+                          FROM      Animal
+                          WHERE     year = (",year,") AND
+                                    cruise in ('",paste0(cruise,collapse="','"), "') ", sep = "")
+message(query)
+channel <- odbcConnect("FishLineDW")
+
+
+# Animal 
+animal0 <- sqlQuery(channel,query,stringsAsFactors=FALSE)
+                   
+                                    
+close(channel)
+
+animal <- left_join(animal0, areatable, by = "dfuArea")
+``` 
+
+
+\newpage
+
+\section{Individfisk}
+
+\subsection{Længde-vægt forhold}
+
+I graferne nedenfor er plottet længde-vægt forhold for alle individfisk fra turene. I rød er markeret individer indsamler i det valgte år, kvartal og togt, mens individer i blå er taget fra den øvrige database, samme kvartal og togt, men fra de seneste fem år. Ved nogle stationer står også stationsnummeret, hvilket gælder for stationer, der afviger fra det typiske længde-vægt forhold. Da dette udregnes automatisk, kan det dog godt forekomme at individer med helt fine længde-vægt forhold betragtes som outliers. \
+
+I den efterfølgende tabel er listet de individer, hvor der forekommer at være en stor afvigelse mellem disse og den øvrige database i længde-vægt-forholdet. De listedet er arter er markeret med statiosnnumre i plottene ovenfor. 
+
+
+```{r ,echo=FALSE,include=FALSE, cache=FALSE}
+
+# Cheach length-weight relation -----------------------------------------------
+
+animal_ind <- animal[animal$qtr==quarter & animal$individNum>0 & 
+                       !is.na(animal$individNum),
+                     c("trip","station","speciesCode","dfuArea",
+                       "landingCategory","length","weight")] 
+
+
+animal_ind$log_length <- log(animal_ind$length)
+animal_ind$log_weight <- log(animal_ind$weight)
+
+animal_ind2 <- animal_ind[complete.cases(animal_ind[,
+                                         c("log_length","log_weight")]),]
+
+
+###############################################################################
+
+# retrieve data for the last five years on the relevant species
+
+spec_ind <- as.character(unique(animal_ind$speciesCode))
+
+year_min <- year - 4
+
+query <- paste("SELECT     year, trip, station, dfuArea, speciesCode,
+                                         landingCategory, individNum, length,
+                                         (weight/number)*1000 AS weight
+                              FROM       Animal
+                              WHERE      year BETWEEN (",year_min,") AND (",year,") AND
+                                         speciesCode IN ('", paste(spec_ind,collapse = "','"),"') AND
+                                         cruise in  ('",paste0(cruise,collapse="','"),"')  AND
+                                         individNum > 0 AND
+                                         quarterGearStart = (",quarter,") AND
+                                         length IS NOT NULL AND weight IS NOT NULL "
+                                       , sep = "")
+message(query)
+channel <- odbcConnect("FishLineDW")
+db_dat_ind <- sqlQuery(channel, query, stringsAsFactors=FALSE)
+close(channel)
+
+
+db_dat_ind$log_length <- log(db_dat_ind$length)
+db_dat_ind$log_weight <- log(db_dat_ind$weight)
+
+```
+
+
+\renewcommand{\arraystretch}{1}
+
+```{r ,echo=FALSE,results='asis', cache=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=7}
+
+# Plot length - weight relations ----------------------------------------------
+
+# Pre define data set of outliers 
+db_diff <- db_dat_ind[0,c(1:3,5:9)]
+db_diff$diffId = numeric()
+
+#Loop through each species and plot
+
+for (i in spec_ind) {
+    db_spec <- db_dat_ind[db_dat_ind$speciesCode==i,]
+    
+    
+    # Get the 10 worst outliers using cooks distance
+    lim <- 10 
+    
+    db_spec$cd <- cooks.distance(lm(log_length ~ log_weight,
+                                    data = db_spec))*db_spec$weight
+    # Assigne number 1-10 to the ten worst outliers
+    db_spec[ db_spec$cd >= db_spec$cd[order(db_spec$cd, decreasing=TRUE)][lim] ,"diffId"] <- 
+      1:nrow(db_spec[ db_spec$cd >= db_spec$cd[order(db_spec$cd, decreasing=TRUE)][lim] ,])
+    
+    p_ind <- ggplot(data=db_spec, aes(x=length, y=weight, label=station)) + 
+                    geom_point(data=db_spec,aes(color="all"),pch=18,size=5)+
+                    geom_point(data=db_spec[db_spec$year==year,],
+                               aes(color="qtr"),pch=18,size=5)+
+      theme_minimal(base_size = 18)+
+      labs(x = "Længde (mm)", y="Vægt (g)", 
+           title=paste(" Art:", i,"- Kvartal:", quarter, sep=" "))+
+      theme(axis.title.y = element_text(vjust = 2),
+            axis.title.x = element_text(vjust = -1),
+            axis.line = element_line(colour = "black"),
+            legend.title = element_text(size = 12, face = 'bold'),
+            legend.position="right",
+            plot.title = element_text(face="bold",margin = margin(t = 10, b = -25)),
+            panel.grid.major = element_line(colour="grey", size=0.5),
+            panel.grid.major.x = element_blank(),
+            plot.margin=unit(c(0.5,0,0.5,0.5), "cm"))+
+            scale_color_manual(values=c("cadetblue3","red"), name = "",
+                               labels=c("Øvrig database","Valgt kvartal og år"))+
+      geom_text(aes(label=as.character(diffId)),hjust=-0.5,vjust=0.4)
+         
+  
+      plot(p_ind)
+  
+      # Make table of outliers
+      db_diff <- rbind(db_diff,db_spec[!is.na(db_spec$diff),
+                                       c("year", "trip", "station", "speciesCode",
+                                         "diffId", "landingCategory", "individNum",
+                                         "length", "weight")])
+
+}
+
+      
+if (nrow(db_diff)>0) {
+  
+      # Output table of outliers
+  
+      cat("\\newpage") 
+      
+      db_diff <- db_diff[order(db_diff$speciesCode,db_diff$diffId),]
+      
+      colnames(db_diff) <- c("\\bf År", "\\bf Tur","\\bf Station","\\bf Art","\\bf Plot ID","\\bf Landings- kategori", 
+                             "\\bf individ- nummer","\\bf Længde (mm)","\\bf Vægt (g)")
+       
+      library(Hmisc)
+      mylatex(db_diff,file='',booktabs =T,rowlabel="",rowname="",longtable= TRUE,
+              collabel.just=c("l","l","l","l","l","p{0.6in}","p{0.6in}","p{0.4in}","p{0.4in}"), lines.page=5000)
+      detach(package:Hmisc)
+
+}
+
+```
+
+
+\newpage{}
+\subsection{Længe-alder forhold}
+
+I de følgende grafer er plottet længde-alder-forhold for alle individfisk fra turene. Rød markerer data for indsamlede arter i det valgte år. Blå angiver data for samme arter de foregående 5 år. Numrene på graferne henviser til enkeltfisk, hvor forholdet mellem alder og længde stikker ud fra mængden af andre indsamlede fisk af samme art og med samme alder. Fiskene er outliers fundet med interquartile range, og de 10 outliers der er længst fra den øvre eller nedre grænse, der definerer outliers, er markeret med tallene 1-10. De kan ses i detaljer i efterfølgende tabel. Dette udregnes automatisk, og det kan derfor forekomme at individer med helt fine længde-alder forhold betragtes som outliers.
+
+```{r age, include=FALSE, cache=FALSE} 
+
+################### Collecting data from Fishline #############################
+
+query <- paste(
+"SELECT    animalID, year, cruise, trip,station,
+                                    speciesCode, dfuArea, number, length,
+                                    age, landingCategory, individNum,
+                                    representative, quarterGearStart as qtr,
+                                    sizeSortingEU
+                          FROM      Age
+                          WHERE     year = (",year,") AND
+                                    --quarterGearStart = (",quarter,") AND
+                                    cruise in ('",paste0(cruise,collapse="','"), "') ", sep = "")
+
+message(query)
+
+channel <- odbcConnect("FishLineDW")
+# Age 
+age0 <- sqlQuery(channel,query,stringsAsFactors=FALSE)
+close(channel)
+
+age <- left_join(age0, areatable, by = "dfuArea")
+
+``` 
+
+```{r ,echo=FALSE,include=FALSE, cache=FALSE}
+
+# Chach length-age relation -----------------------------------------------
+
+age_ind <- age[,c("year","trip","station","speciesCode","dfuArea",
+                       "landingCategory","length","age")] 
+
+age_ind2 <- filter(age_ind, length >= 0 & age >= 0)
+# age_ind[complete.cases(age_ind[,c("length","age")]),]
+
+
+###############################################################################
+
+# retrieve data for the last five years
+
+spec_ind <- as.character(unique(age_ind2$speciesCode))
+message(spec_ind)
+year_min <- year - 4
+
+five_year_query <- paste("SELECT [year],[cruise],[trip],[station],[quarterGearStart] as qtr,[speciesCode],[landingCategory],[individNum],[number],[length],[age],[sexCode]
+  FROM [FishLineDW].[dbo].[Age]
+WHERE year BETWEEN (",year_min,") AND (",year,") 
+AND speciesCode IN ('", paste(spec_ind,collapse = "','"),"')
+AND cruise in ('",paste0(cruise,collapse="','"),"') 
+--AND individNum > 0
+AND quarterGearStart = (",quarter,")
+AND length IS NOT NULL 
+ANd age IS NOT NULL",sep="")
+
+message(five_year_query)
+channel <- odbcConnect("FishLineDW")
+db_dat_ind <- sqlQuery(channel, five_year_query, stringsAsFactors=FALSE)
+close(channel)
+
+# db_dat_ind$log_length <- log(db_dat_ind$length)
+# db_dat_ind$log_age <- log(db_dat_ind$age)
+
+db_dat_ind <- db_dat_ind[!is.na(db_dat_ind$sexCode),]
+
+with_individNum <- db_dat_ind %>% filter(individNum>0)
+no_individNum <- db_dat_ind %>% filter(individNum==0 | is.na(individNum))
+```
+
+
+\renewcommand{\arraystretch}{1}
+
+```{r ,echo=FALSE,results='asis', cache=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=7}
+
+# Plot length - age relations ----------------------------------------------
+ 
+
+length_age <- function(dataset, include_individNum = TRUE){
+        # Takes two arguments, 
+        # Dataset is a data frame generated by an SQL request
+        # include_indicidNum defaults to TRUE which includes the value individNum in the table. 
+        #   Using FALSE as second argument will remove the value individNum from the output table.
+    
+        # Pre define data set of outliers 
+        db_diff <- dataset[0,c(1:8)]
+        db_diff$diffId = numeric()
+        
+        dataset[dataset$year==year,"year_group"] <- "qtr"
+        dataset[dataset$year!=year,"year_group"] <- "all"
+
+        
+        #Loop through each species and plot
+        for (i in spec_ind) {
+            db_spec <- dataset %>% filter(speciesCode == i, age < 25) %>% group_by(age,length)
+            # db_spec <- dataset[dataset$speciesCode==i,]
+            
+            if (nrow(db_spec)>0){
+                message(paste(i,
+                          nrow(db_spec),
+                          nrow(db_spec[db_spec$year==year,]),
+                          nrow(db_spec[db_spec$year!=year,])))
+            # # creates data for plotting outliers in custom colours
+            # db_spec <<- db_spec %>% group_by(age,length)
+            
+                db_spec <- ddply(db_spec, .(age),
+                              mutate,
+                              Q1 = quantile(length, 0.25),
+                              median = quantile(length, 0.5),
+                              Q3 = quantile(length, 0.75),
+                              IQR = Q3-Q1,
+                              upper.limit = Q3+1.5*IQR,
+                              lower.limit = Q1-1.5*IQR,
+                              outlier_row = ifelse(test = (length<lower.limit | length > upper.limit),
+                                               yes = row_number(),
+                                               no = NA ),
+                             outlier_dist = ifelse(!is.na(outlier_row),
+                                                   (ifelse(length<median,
+                                                         (length/lower.limit)^-1,
+                                                         length/upper.limit)),NA))
+            
+                 db_spec$outlier <- row_number(-db_spec$outlier_dist)
+
+                 message(head(db_spec))
+                 
+            db_spec$age <- factor(db_spec$age, levels = unique(db_spec$age))
+             message(head(db_spec))
+            
+            
+            
+            p_ind <- ggplot(data=db_spec, aes(x=as.numeric(age), y=length)) +
+              #  geom_violin(scale = "area", draw_quantiles = c(0.25, 0.5, 0.75), aes(x = as.factor(age),fill=sexCode), alpha = 0.1)+
+                guides(alpha=FALSE)+
+                geom_point(data = db_spec[(db_spec$year!=year),], aes(color=year_group), pch=18, size=5, position="identity")+
+                geom_point(data = db_spec[(db_spec$year==year),], aes(color=year_group), pch=18, size=5, position="identity")+
+                geom_text_repel(data=db_spec[(db_spec$outlier<=10),],
+                                aes(label=as.character(outlier)),hjust=-0.5,vjust=0.4)+
+                theme_minimal(base_size = 18)+
+                labs(y = "Længde (mm)", x="Alder (år)", title=paste(" Art:", i,"- Kvartal:", quarter, sep=" "))+
+                theme(axis.title.y = element_text(vjust = 2),
+                      axis.title.x = element_text(vjust = -1),
+                      axis.line = element_line(colour = "black"),
+                      legend.title = element_text(size = 12, face = 'bold'),
+                      legend.position="right",
+                      plot.title = element_text(face="bold",margin = margin(t = 10, b = -25)),
+                      panel.grid.major = element_line(colour="grey", size=0.5),
+                      panel.grid.major.x = element_blank(),
+                      plot.margin=unit(c(0.5,0,0.5,0.5), "cm"))+
+                scale_color_manual(values=c("all"="cadetblue3","qtr"="red"), name = "",
+                                   labels=c("Øvrig database","Valgt kvartal og år"))+
+                coord_flip()
+                
+                 
+          
+              plot(p_ind)
+                
+              # Make table of outliers
+              if (include_individNum==TRUE & any(!is.na(db_spec$outlier))){
+              db_diff <- rbind(db_diff,db_spec[(db_spec$outlier<=10),
+                                               c("year", "trip", "station", "speciesCode",
+                                                 "outlier", "landingCategory", "individNum",
+                                                 "length", "age")])
+                    }
+              else if(include_individNum!=TRUE & any(!is.na(db_spec$outlier))){
+                  db_diff <- rbind(db_diff,db_spec[(db_spec$outlier<=10),
+                                               c("year", "trip", "station", "speciesCode",
+                                                 "outlier", "landingCategory",
+                                                 "length", "age")])
+                    }
+            }
+        }
+
+              
+        if (nrow(db_diff)>0) {
+            
+              db_diff <- db_diff[order(db_diff$outlier),]
+          
+              # Output table of outliers
+          
+              cat("\\newpage") 
+              
+              # db_diff <- db_diff[order(db_diff$speciesCode,db_diff$outlier),]
+
+              db_diff <- db_diff %>% arrange(speciesCode, outlier)
+              
+              library(Hmisc)
+              
+              if (include_individNum==TRUE){
+              colnames(db_diff) <- c("\\bf År", "\\bf Tur","\\bf Station","\\bf Art","\\bf Plot ID","\\bf Landings- kategori", "\\bf individ- nummer","\\bf Længde (mm)","\\bf Alder (år)")
+              db_diff <- unique(db_diff) # generates 9 versions of each outlierid for some reason
+              
+              mylatex(db_diff,
+                      file='',
+                      booktabs =T,
+                      rowlabel="",
+                      rowname="",
+                      longtable= TRUE,
+                      collabel.just=c("l","l","l","l","l","p{0.6in}","p{0.6in}","p{0.4in}","p{0.4in}"), 
+                      lines.page=5000)
+             
+              
+              }
+              else if(include_individNum!=TRUE){
+                  colnames(db_diff) <- c("\\bf År", "\\bf Tur","\\bf Station","\\bf Art","\\bf Plot ID","\\bf Landings- kategori", "\\bf Længde (mm)","\\bf Alder (år)")
+                  
+              
+              mylatex(db_diff,
+                      file='',
+                      booktabs =T,
+                      rowlabel="",
+                      rowname="",
+                      longtable= TRUE,
+                      collabel.just=c("l","l","l","l","l","p{0.6in}","p{0.4in}","p{0.4in}"), 
+                      lines.page=5000)
+              
+              }
+              detach(package:Hmisc)
+              
+              
+        
+        }
+        
+    }
+
+if (nrow(with_individNum) > 0){
+    message("Runs function")
+    cat("\\subsubsection{Fisk med indvividnummer}")
+    length_age(with_individNum)
+    db_diff <- with_individNum[0,c(1:8)]
+}else{
+    message("No data to present")
+    cat("Der findes endnu ikke vægtangivelser fra dette togt.")}
+if (nrow(no_individNum)>0){
+    cat("\\subsubsection{Fisk uden indvividnummer}")
+    cat("I grafen nedenfor ses indsamlet data for fisk der ikke har et individnummer i FiskeLine, f.eks. tobis. Grunden til det mangelende individnummer er at alderen er indtastet under LAV i Fiskeline. Rød angiver data for arter indsamlet i år. Blå angiver indsamlet data for disse arter for de seneste 5 år. I den efterfølgende tabel er de fremhævede outliers i plottene angivet. Outliers er i disse plots datapunkter udenfor #IQR.\\newline{}")
+    length_age(no_individNum,FALSE)
+}else{
+    message("No data to present")}
+
+```

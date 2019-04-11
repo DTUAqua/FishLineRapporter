@@ -1,0 +1,33 @@
+*.aux
+*.out
+*.log
+*.toc
+*.pdf
+*.xlsx
+*.csv
+*.csv*
+*.docx
+*.xls
+*.tex
+
+# R History
+.RData
+.RHistory
+
+# Kort-filer
+*.dbf
+*.prj
+*.sbn
+*.shp
+*.shp.xml
+*.sbx
+*.cpg
+*.dbf
+*.prj
+*.shx
+*.lock
+
+# output
+*.png
+
+*/old_versions/*

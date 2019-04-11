@@ -1,0 +1,1484 @@
+---
+fontsize: 11pt
+geometry: top=0.7in, bottom=1.1in, left=0.8in, right=0.8in
+header-includes:
+- \usepackage{booktabs}
+- \usepackage{longtable}
+- \usepackage{floatrow}
+- \usepackage{float}
+- \usepackage[T1]{fontenc}
+- \usepackage[danish]{babel}
+- \usepackage[utf8]{inputenc}
+- \usepackage{graphicx}
+- \usepackage{fancyhdr}
+- \pagestyle{fancy}
+- \fancyhf{}
+- \fancyfoot[R]{\thepage}
+- \usepackage[table]{xcolor}
+- \usepackage{rotating}
+- \usepackage{ragged2e}
+- \usepackage{array}
+- \usepackage[export]{adjustbox}
+- \usepackage{multirow}
+- \linespread{1.15}
+- \usepackage{tabularx}
+- \usepackage{makecell}
+- \usepackage{etoolbox} #For latex "if-statements"
+- \usepackage{colortbl, xcolor}
+- \usepackage{lscape}
+- \usepackage{helvet}
+- \setlength{\intextsep}{10pt plus 0.0pt minus 10.0pt}
+- \setlength{\headsep}{0.6in}
+- \usepackage{tcolorbox}
+- \usepackage{lastpage}
+- \usepackage{enumerate}
+output:
+  pdf_document:
+    fig_caption: yes
+    keep_tex: yes
+  classoption: a4paper
+---
+
+\renewcommand{\headrulewidth}{0pt}
+
+\newcommand{\myitem}{\item[\checkmark]}
+
+\fancypagestyle{companypagestyle}{
+    \fancyhf{}
+    \fancyfoot[L]{
+    \parbox[b]{\dimexpr\linewidth\relax}{\vspace{1cm}
+    {\color{red}\rule{\dimexpr\linewidth\relax}{0.4pt}}\\
+    {\footnotesize \color{gray} www.aqua.dtu.dk \hfill DTU AQUA, Kemitorvet, Building 202\\[-0.15cm]
+           +45 3588 3300 \hfill 2800 Kgs. Lyngby, Denmark}}
+    }
+    \fancyfoot[R]{
+    \parbox[b]{0cm}{}
+    }
+}
+
+
+
+
+
+\pagenumbering{arabic}
+\pagestyle{companypagestyle}
+
+\renewcommand{\familydefault}{\sfdefault}
+\def\Tiny{\fontsize{5pt}{5pt}\selectfont}
+
+\sffamily
+
+\renewcommand\floatpagefraction{0}
+\renewcommand\textfraction{0}   
+
+
+\def\figurename{Figure}
+\def\tablename{Table}
+
+
+```{r set_libraries, include=FALSE}
+
+
+# install package pacman if necessary, to use function p_load
+if (!require("pacman")){
+  install.packages("pacman",repos = "http://cran.us.r-project.org")
+  library(pacman)
+}
+
+# p_load loads and, if necessary, installs missing packages
+p_load(sqldf, RODBC, ggplot2, reshape, plyr, data.table, 
+       xtable, lubridate, reshape2, grid, gridExtra,
+       gplot, Hmisc, stringr, dismo, raster, marmap, rgdal, maptools,rasterVis,shapefiles,
+       calibrate,plotrix,base,mapplots)
+
+
+detach(package:Hmisc)
+
+```
+
+
+
+```{r table_setup, echo=FALSE, results='asis',message=FALSE,warning=FALSE}
+
+######### Setup to use in xtable prints ###################### 
+
+bold <- function(x) {paste('{\\textbf{',x,'}}', sep ='')}
+gray <- function(x) {paste('{\\textcolor{gray}{',x,'}}', sep ='')}
+
+addtorow          <- list()
+addtorow$pos      <- list()
+addtorow$pos[[1]] <- c(0)
+addtorow$command  <- c(paste("\\hline \n",
+                             "\\endhead \n",
+                             "\\hline \n",
+                             #"{\\footnotesize Continued on next page} \n",
+                             "\\endfoot \n",
+                             "\\endlastfoot \n",sep=""))
+
+round2 = function(x) trunc(x+0.5)
+
+```
+
+
+
+```{r define_input, include=FALSE, echo=FALSE}
+
+### USER DEFINED VARIABLES
+
+##########################################################
+
+# Depending on if the program is run i R or Fiskeline,
+# use the first (Fiskeline) or second block (R).
+# The parameter method_run determines the settings.
+# Fiskeline block should be commented out in R, since will
+# not accept the symbol "@"
+
+##########################################################
+
+
+method_run <- "R"
+
+if (method_run == "R") {
+    year <- 2016
+    cruise <- "BITS-1"
+    
+    paramCruiseLeaderL1 <- "Henrik Degel"
+    paramCruiseAssistantL1 <- "Stina B. S. Hansen"
+    paramCruiseLeaderL2 <- "Henrik Degel"
+    paramCruiseAssistantL2 <- "Susanne Hansen"
+    
+    paramDepPort <- "København"
+    paramArrPort <- "Ystad"
+    paramExcDate <- "01-01-2017"
+    paramExcPort <- "Rønne"
+    
+    inlcude_years <- "no"  
+    paramPlannedHauls <- 60
+    str_weather <- "Text"
+    str_guest <- "Text"
+    str_oxygen <- "Oxygen conditions on this survey"
+    str_gear  <- "Gear performance on this survey"
+    str_other  <- "Text"
+      
+} else if (method_run == "FiskeLine") {
+  
+     # year <- @paramYear
+     # cruise <- @paramCruise
+     # paramPlannedHauls <- @paramPlannedHauls
+     # 
+     # str_weather <- @paramWeather
+     # str_guest <- @paramGuest
+     # str_oxygen <- @paramOxygen
+     # str_gear  <- @paramGear
+     # str_other  <- @paramOther
+     #  
+     # paramDepPort <- @paramDepPort
+     # paramArrPort <- @paramArrPort
+     # paramExcDate <- @paramExcDate
+     # paramExcPort <- @paramExcPort
+     # 
+     # paramCruiseLeaderL1 <- @paramCruiseLeaderL1
+     # paramCruiseAssistantL1 <- @paramCruiseAssistantL1
+     # paramCruiseLeaderL2 <- @paramCruiseLeaderL2
+     # paramCruiseAssistantL2 <- @paramCruiseAssistantL2
+     # 
+  
+}
+
+
+inlcude_years = "no"
+
+
+
+
+```
+
+
+
+
+```{r info_cruise, echo=FALSE, message=FALSE, warning=FALSE,include=FALSE}
+
+query1<-paste("SELECT Trip.year,Trip.contactPersonName,Trip.contactPersonId , Trip.trip, Trip.cruise, tripLeaderName, dateStart, dateEnd,
+                      platform1,DATEPART(quarter, dateStart) as quarter
+
+              FROM Trip
+              WHERE     (Trip.year = ",year," and Trip.cruise='",cruise,"')"
+             ,sep = "")
+query1
+
+
+query2 <-paste("SELECT     year, cruise, speciesCode, representative, individNum, 
+                           number, length, weight,statisticalRectangle as ICESsquare,
+                           speciesList_sexCode, sexCode, maturityIndex
+                FROM       Animal
+                WHERE     (Animal.year=",year," and Animal.cruise='",cruise,"')"
+                            ,sep = "")
+query2
+
+query4<-paste("SELECT Sample.station, Sample.stationName, Sample.fishingtime, Sample.latPosStartDec AS lat, Sample.lonPosStartDec AS lon, 
+                      Sample.gearType,Sample.gearQuality,Sample.haulType, Sample.selectionDevice,Sample.meshSize, Sample.dfuArea,
+                      Sample.statisticalRectangle,Sample.quarterGearStart,
+                      Sample.netOpening,Sample.wireLength as warpLength, Sample.otterBoardDist as DoorSpread,
+                      Sample.depthAvg,Sample.windDirection,Sample.windSpeed, Sample.dateGearStart, Sample.wingSpread, Sample.tripId
+              FROM Sample
+              WHERE     (Sample.year=",year," and Sample.cruise='",cruise,"')"
+              ,sep = "")
+query4
+
+
+channel <- odbcConnect("FishLineDW")
+data1 <- sqlQuery(channel, paste(query1),stringsAsFactors=FALSE)
+data_animal <- sqlQuery(channel, paste(query2),stringsAsFactors=FALSE)
+data_sample <- sqlQuery(channel, paste(query4),stringsAsFactors=FALSE)
+close(channel)
+
+
+
+quarter <- data1$quarter  
+
+channel <- odbcConnect("DanaDBDW") # OR "DanaDBDW"/"DanaDB_DW"
+CruiseSIS <- sqlQuery(channel, paste("SELECT     cruiseID, shipCode, cruiseYear, cruiseNo, cruiseDays, cruiseName, startDate
+                                      FROM       CruiseInformation
+                                      WHERE      (cruiseYear = ",year,") AND 
+                                                 (cruiseName LIKE '%",substr(data1$cruise,1,4),"%') AND 
+                                                 (cruiseName LIKE '%",tolower(substr(data1$cruise,1,4)),"%') AND
+                                                 (DATEPART(quarter, startDate) = ",quarter,") AND
+                                                 (cruiseName NOT LIKE '%SVE%') AND (cruiseName NOT LIKE '%SWE%')
+                                                     ",sep=""), stringsAsFactors=FALSE) 
+close(channel)
+
+  
+channel <- odbcConnect("DanaDB")
+wind <- sqlQuery(channel, paste("SELECT     ShipData.sampleID, ShipData.ParamCode, ShipData.Result as value, SampleLog.logTime, 
+                                            SampleLog.cruiseID, CruiseInformation.cruiseName, 
+                                            DATEPART(quarter, CruiseInformation.startDate) AS qrt, CruiseInformation.cruiseYear,
+                                            DATEPART(d, SampleLog.logTime) AS day,DATEPART(m, SampleLog.logTime) AS month
+                                 FROM       ShipData INNER JOIN
+                                            SampleLog ON ShipData.sampleID = SampleLog.sampleID INNER JOIN
+                                            CruiseInformation ON SampleLog.cruiseID = CruiseInformation.cruiseID
+                                 WHERE      (SampleLog.sampleCode = 'metD') AND (ShipData.ParamCode IN ('windDirCor', 'windSpCor')) AND
+                                            (CruiseInformation.cruiseYear = ",year,") AND 
+                                            (SampleLog.cruiseID=",CruiseSIS$cruiseID,") 
+                                                 ",sep=""), stringsAsFactors=FALSE)
+close(channel)
+
+wind <- wind[wind$logTime<data1$dateEnd & wind$value>=0 & wind$value<=360,]
+
+wind_speed <- ddply(wind[wind$ParamCode=="windSpCor",] , .(day,month), summarize, max_wind = max(value),mean_wind=mean(value) )
+L15wind_days <- nrow(wind_speed[wind_speed$mean>15,])
+#wind_dir <- ddply(wind[wind$ParamCode=="windDirCor",] , .(day,month), summarize, mean_dir = mean(value), sd=sd(value))
+#wind_dir[wind_dir$mean_dir>=315 | wind_dir$mean_dir<45,"Dir"] <- "N"
+#wind_dir[wind_dir$mean_dir>=45 & wind_dir$mean_dir<135,"Dir"] <- "E"
+#wind_dir[wind_dir$mean_dir>=135 & wind_dir$mean_dir<225,"Dir"] <- "S"
+#wind_dir[wind_dir$mean_dir>=225 & wind_dir$mean_dir<315,"Dir"] <- "W"
+
+data1 <- with(data1, data1[order(data1$dateStart),])
+
+
+cruise2 <- ifelse(cruise %in% c('Torsk','2262-Torsk'),"Torsk",ifelse(tolower(cruise)=='tunger',"Tunger",substr(cruise,1,4)))
+Quarter <- unique(quarter(data1$dateStart),quarter(data1$dateEnd) )
+StartDate <- ifelse(nrow(data1)==1,format(data1$dateStart,"%d-%m-%Y"),format(data1$dateStart[1],"%d-%m-%Y"))
+EndDate <- ifelse(nrow(data1)==1,format(data1$dateEnd,"%d-%m-%Y"),format(data1$dateEnd[nrow(data1)],"%d-%m-%Y"))
+
+cruiseNo <- paste(CruiseSIS$cruiseNo,substr(CruiseSIS$cruiseYear,3,4),sep="/")
+
+
+StartTime <- paste0(format(data1$dateStart,"%H"),":00")
+EndTime <- paste0(format(data1$dateEnd,"%H"),":00")
+
+
+
+cruiseName <- ifelse(substr(cruise,1,4) %in% c("IBTS","BITS","KASU"),substr(cruise,1,4),cruise)
+ship <- ifelse(substr(cruise,1,4) %in% c("IBTS","BITS"),"R/V DANA",ifelse(substr(cruise,1,4)=="KASU","Havfisken",paste(unique(data1$platform1), collapse=', ' )))  
+
+cruise_title2 <- ifelse(substr(cruise,1,4)=="IBTS","International Bottom Trawl Survey",ifelse(substr(cruise,1,4)=="BITS",
+                                                                                              "Baltic International Trawl Survey",""))
+#cruise_title <- ifelse(substr(cruise,1,4) %in% c("IBTS","BITS","KASU"),paste0(cruiseName," ",Quarter[1],"Q"," ",year),cruiseName)
+cruise_title <- ifelse(length(unique(Quarter))==1,paste0(cruiseName," ",Quarter,"Q"," ",year),
+                   paste(cruiseName, paste0(Quarter,"Q"," ",year, collapse = "\\& ")))
+
+TripNum <- ifelse(nrow(data1)>1,"MT","ST")
+
+```
+
+<!-- definere forside -->
+
+
+
+
+\thispagestyle{empty}
+
+
+
+\vspace*{-2.5cm}
+
+
+
+\begin{figure}[H]
+        \flushright
+        \includegraphics[width=5cm]{logo_ver4.png}
+\end{figure}
+
+\vspace*{0.5cm}
+
+
+
+\noindent\textcolor{gray}{\rule{0.6\textwidth}{1pt}}\par
+\vspace*{-0.6cm}
+\noindent\textcolor{gray}{\rule{0.8\textwidth}{1pt}}\par
+
+
+\textcolor{gray}{\Large DTU Aqua - Cruise report}
+
+\vspace*{4.5cm}
+
+
+
+\textbf{\Huge `r cruise_title`}\
+
+\vspace*{-0.3cm}
+
+\textbf{\it{\Large `r cruise_title2`}}\
+
+\vspace*{1cm}
+
+\textbf{\Huge `r ship` DENMARK}\
+
+\vspace*{0.5cm}
+
+\textbf{\it{\large Cruise no. `r cruiseNo`}}\
+
+\textbf{\it{\large`r StartDate` to `r EndDate`}}
+
+
+
+\vfill
+
+\begin{figure}[H]
+        \flushleft
+        \includegraphics[width=10cm]{aqua_uk.png}
+\end{figure}
+
+\vspace{-3.1cm}
+\begin{flushright}              
+DTU Aqua\\
+Kemitorvet, Building 202\\
+2800 Kgs. Lyngby\\
+Denmark
+\end{flushright}
+
+
+
+
+
+
+\newpage
+
+
+<!-- define header -->
+
+\lhead{\footnotesize \color{gray}  CRUISE REPORT, `r cruise_title`}
+\rhead{\footnotesize \color{gray} PAGE \thepage\ OF \pageref{LastPage}}
+
+
+\vspace*{0.01cm}
+
+\renewcommand{\contentsname}{Contents}
+\tableofcontents
+
+\newpage
+
+
+
+\section{Cruise summary}
+
+
+\newcolumntype{s}{>{\hsize=.4\hsize}X}
+\newcolumntype{u}{>{\hsize=1\hsize}X}
+\newcolumntype{t}{>{\hsize=0.6\hsize}X}
+\newcolumntype{K}{>{\hsize=0.2\hsize}X}
+\newcolumntype{L}{>{\hsize=3\hsize}r}
+
+
+\vspace{-0.5cm}
+
+
+
+\renewcommand{\arraystretch}{1}
+\renewcommand{\tabcolsep}{5pt}
+\begin{tabularx}{0.93\textwidth}{utst}
+        &\textbf{}   & \textbf{} &  \textbf{} \\
+\it{Cruise} & `r cruiseName`  &  &  \\
+\it{Cruise number} & `r cruiseNo`  & &  \\
+\it{Reseach vessel(s)}   & `r ship` &   &  \\
+\it{Year and quarter}   & `r paste0(Quarter[1],"Q")` `r year`&   &  \\
+\it{Country}    & Denmark & & 
+\end{tabularx}
+
+
+
+\vspace{0.3cm}
+
+\subsubsection*{Location and time}
+
+\vspace{-0.2cm}
+
+
+\rowcolors{1}{}{white}
+
+
+\newcommand{\abTN}{`r TripNum`}
+
+\newcommand{\aORbTN}[1]{%
+        \edef\mytemp{{#1}}%
+        \expandafter\ifstrequal\mytemp{ST}{
+
+\renewcommand{\arraystretch}{1.1}
+\renewcommand{\tabcolsep}{5pt}
+\begin{tabularx}{0.93\textwidth}{utst}
+        &\textbf{Date}   & \textbf{Time} &  \textbf{Port} \\
+\hline
+\it{Departure} & `r StartDate`  & `r StartTime` & `r paramDepPort` \\
+\it{Arrival}   & `r EndDate`    & `r EndTime`   & `r paramArrPort` \\
+\it{Staff and crew exchange}    & `r paramExcDate` & & `r paramExcPort`
+\end{tabularx}
+
+
+  }{} %
+    \expandafter\ifstrequal\mytemp{MT}{
+        
+        
+        
+        
+        
+        }{}%
+}
+
+
+
+\aORbTN{\abTN}
+
+
+
+```{r tripInfo, results='asis',echo=FALSE,message=FALSE,warning=FALSE}
+
+
+if (TripNum=="MT") {
+
+    tripInfo <- data1[,c("trip","dateStart","dateEnd","platform1")]
+
+    tripInfo$dateStart <- paste0(format(data1$dateStart,"%d-%m-%Y %H"),":00")
+    tripInfo$dateEnd <- paste0(format(data1$dateEnd,"%d-%m-%Y %H"),":00")
+    
+ 
+    trip_table <- xtable(tripInfo)
+    colnames(trip_table) <- c("Trip no.","Start date and time", "End date and time","Ship")
+    align(trip_table) <- "lp{3cm}p{5cm}p{5cm}p{2.5cm}"
+    
+    print(trip_table,include.rownames=FALSE, sanitize.colnames.function=bold)
+          #tabular.environment = "longtable", 
+  #        floating = FALSE,
+   #       include.colnames=TRUE,
+    #      include.rownames=FALSE,
+     #     add.to.row = addtorow, 
+     #     sanitize.colnames.function=bold, 
+    #      booktabs=T,
+    #      comment=FALSE,
+     #     caption.placement = "top")
+
+}
+     
+
+```
+
+
+```{r weatherInfom, include=FALSE,echo=FALSE,message=FALSE,warning=FALSE}
+
+
+channel <- odbcConnect("DanaDBDW") # OR "DanaDBDW"/"DanaDB_DW"
+stations <- sqlQuery(channel, paste("SELECT     gearDataID, cruiseID, gearNo, haulNo, stationNo, gearCode, status, timeStart, courseStart, botDepStart,
+                                               speedWatStart, speedBotStart, navSysStart, squareStart, gearDistLog, gearDistPos, gearDur, wireLength, 
+                                               gearDepth, trawlGap, trawlSlack, timeStop,posLatStartDec as latStart, posLonStartDec as lonStart,
+                                               courseStop, botDepStop, speedWatStop, speedBotStop, navSysStop, squareStop, atmPres, airTemp, 
+                                               windDir, windSpeed, seaHeaviness, seaCurrent, remarks, dataRemarks
+                                    FROM       GearData
+                                    WHERE      (cruiseID = ",CruiseSIS$cruiseID,")
+                                                   ",sep=""), stringsAsFactors=FALSE)
+close(channel)
+
+stations$gearCode <- str_trim(stations$gearCode)
+
+N_BONGO <- nrow(stations[stations$gearCode=="BONGO" & stations$status!="Fail",])
+N_BONKA <- nrow(stations[stations$gearCode=="bon.ka" & stations$status!="Fail" ,])
+N_CTD <- nrow(stations[stations$gearCode=="SEA" & stations$status!="Fail",])
+N_WP2 <- nrow(stations[stations$gearCode=="WP2" & stations$status!="Fail",])
+N_APT <- nrow(stations[stations$gearCode=="apt" & stations$status!="Fail" ,])
+N_APPI <- nrow(stations[stations$gearCode=="appi" & stations$status!="Fail" ,])
+N_BOM <- nrow(stations[stations$gearCode=="BOM" & stations$status!="Fail" ,])
+N_MULTI <- nrow(stations[stations$gearCode=="BIONES" & stations$status!="Fail" ,])
+N_IKMT <- nrow(stations[stations$gearCode=="IKMT" & stations$status!="Fail" ,])
+N_AKU <- nrow(stations[stations$gearCode=="AKU" & stations$status!="Fail" ,])
+N_TV3s <- nrow(stations[stations$gearCode=="TV3" & stations$status!="Fail" ,])
+N_TV3u <- nrow(stations[stations$gearCode=="TV3" & stations$status=="Fail" & !is.na(stations$status),])
+N_GOVs <- nrow(stations[stations$gearCode=="GOV" & stations$status!="Fail" ,])
+N_GOVu <- nrow(stations[stations$gearCode=="GOV" & stations$status=="Fail" & !is.na(stations$status),])
+
+
+
+
+
+```
+
+
+\subsubsection*{Participants}
+
+\vspace{0.2cm}
+
+\renewcommand{\arraystretch}{1}
+\renewcommand{\tabcolsep}{10pt}
+
+```{r participants1, results='asis',echo=FALSE,message=FALSE,warning=FALSE}
+read.csv.unknown.sep <- function(file,numCol){
+    for (i in c(",",";","","_")){
+        f <- read.csv(file, header=TRUE, sep = i)
+        if (ncol(f)==numCol){
+            return(f)}
+        }    
+    }
+
+participants <- read.csv.unknown.sep("participants.csv",4)  
+participants <- participants[!is.na(participants$Leg),]
+participants$order <- as.integer(rownames(participants))
+
+NoLeg1 <- nrow(participants[participants$Leg==1,])
+NoLeg2 <- nrow(participants[participants$Leg==2,])
+participants2 <- participants[with(participants, order(order)),!(names(participants) %in% c("Leg","order"))]
+
+colnames(participants2) <- c("Name","Institute", "Function and tasks")
+#rownames(participants2) <-  paste0(1:nrow(participants2)," ",participants2$Name)
+
+participants3 <- participants2[,c("Institute", "Function and tasks")]
+
+
+rgroup <- c("Leg 1","Leg 2")
+n.rgroup <- c(NoLeg1,NoLeg2)
+
+
+     library(Hmisc)
+      mylatex <- function (...) {
+          o <- capture.output(latex(...))
+          # this will strip /all/ line-only comments; or if you're only
+          #  interested in stripping the first such comment you could
+          #  adjust accordingly
+          o <- grep('^%', o, inv=T, value=T)
+          cat(o, sep='\n')
+      }
+
+     mylatex(participants2,file='',booktabs =T,col.just = c("l","l","l","l"), rgroup =rgroup ,rowname="",
+     n.rgroup=n.rgroup , rowlabel="Leg",colnamesTexCmd="bfseries",rgroupTexCmd="itshape",where='H',collabel.just=c("l","l"),center='none')
+      
+
+    detach(package:Hmisc)
+
+     
+
+yn_guest <- ifelse(str_guest!="","yes","no")
+yn_weather <- ifelse(str_weather!="","yes","no")
+yn_gear <- ifelse(str_gear!="","yes","no")
+yn_oxygen <- ifelse(str_oxygen!="","yes","no")
+yn_other <- ifelse(str_other!="","yes","no")
+
+
+```
+
+\newpage
+
+
+\section{Introduction}
+
+
+The Danish research vessel Dana R/V was built in 1980-81 and is a
+versatile multipurpose vessel with five large laboratories and 38
+cabins. The Baltic cod stock has been monitored annually since 1982
+through bottom trawl surveys carried out by most countries surrounding
+the Baltic. The national research vessels have each surveyed part of the
+area with some overlap in coverage and applied a depth stratified
+sampling design. However, different gears and design were applied and in
+1985 ICES established a Study Group on Young Fish Surveys in the Baltic
+in order to standardize the surveys. After agreement a common standard
+trawl gear and standard sampling procedures were implemented in 2000
+resulting in the consistrent coverage of the western and central Baltic Sea.
+
+To calibrate the national surveys from before 2000 with the TV3 gear
+used from 2000, a set of conversion factors are produced by making
+comparative hauls. The work with standardizing gear and creating
+conversion factors for old data was done under the EU project ISDBITS
+and gear specifications and conversion factors can be found in the
+report (ISDBITS 2001).
+
+The type of trawl is called "TV3L" with 930 meshes in the opening. The design and
+construction of the standard trawls are given in ICES (1997) and can
+also be found in the BITS manual (Anon. 2000). Until November 2007
+Denmark was still using the rock hopper gear on hard fishing ground but
+since 2008 only the standard TV3L has been used.
+
+The BITS is conducted as a depth-stratified survey. The strata are based
+on Sub divisions and depth layers. Each year the necessary stations are
+randomly selected before the beginning of the international trawl
+surveys from a list of clear haul data. These stations are a stratified random selected
+sub-sample of the possible trawl tracks. The standard haul is a 30
+minute haul with a towing speed of 3 knots. Trawling is only taking
+place during daylight, defined as the time between 15 minutes past
+sunrise until 15 minutes before sunset.
+
+
+
+\section{Objectives}
+        
+\subsection{Daytime}
+
+\begin{itemize}
+\item{To estimate the abundance and the year class strength of the Baltic cod and flatfish stocks in ICES Sub-divisions 21-32. The 4st quarter survey is together with 
+      the spring survey the Danish contribution to the "Baltic International Trawl Survey" (BITS) and takes place mainly in Sub-division 25 and 26. The main goal of the surveys is to provide the Baltic
+      assessment working group fishery independent data to use for assessment in ICES the working group in April. Furthermore, all fish species are 
+      species determination, measured and weighted.}
+\item{To measure temperature, salinity and oxygen at the fishing location. The measurements are conducted with a CTD. Calibration of the CTD is 
+      conducted before the survey.}
+\item{To take individual samples of cod to analyses of age determination, sex, weight and liver condition. Data is used to produce maturity ogive, 
+      mean weights per age and condition which is used for Eastern Baltic stock assessment.}
+\end{itemize}
+
+\subsection{Nighttime}
+
+\begin{itemize}
+\item{To investigate the abundance and distribution of zooplankton in the central Baltic Sea. The analysis is conducted with a bongo net were the 
+      stations are allocated in accordance to the Kiel grid net covering most of SD 25. Trawling speed is 3 kn and the three nets are 150, 335 
+      and 500 $\mu$m in cod end.}
+\item{To investigate the distribution of juvenile cod caught in a IKMT.}
+\item{To catch live zooplankton with a WP2 net.}
+\end{itemize}
+
+
+\newpage
+
+\section{This Survey}
+During the cruise, apart from recording a complete set of factual
+information concerning haul information, gear performance, catch
+results, hydrographic information etc., the cruise leader keeps a
+logbook taking notes about circumstances (unusual gear performance,
+special catches, non-conformities etc. during the survey. The haul
+summary below is the overview from this logbook.  
+
+        
+\subsection{Haul summary}
+        
+\begin{center}        
+\begin{tcolorbox}[colback=white!5,colframe=black!40!black,width=0.93\textwidth,left=0mm,right=0mm,arc=0pt]       
+\begin{center}
+  \renewcommand{\arraystretch}{1.2}
+  \begin{tabularx}{0.90\textwidth}{@{}lrr@{}}
+        \textbf{Number of planned hauls:} & `r paramPlannedHauls` &
+  \end{tabularx}
+\end{center}
+        
+
+        
+\begin{center}
+  \renewcommand{\arraystretch}{1.3}
+  \renewcommand{\tabcolsep}{9pt}
+  \begin{tabularx}{0.90\textwidth}{@{}p{10.3cm}LLs}
+         & \thead{Index \\qualified} & \thead{Non-index \\qualified} &  \\
+        \hline
+        \textbf{Number of succesfull trawl hauls:}                           &`r N_TV3s` & &  \\
+        \textbf{Number of invalid trawl hauls:}                              & & `r N_TV3u`& \\
+        \textbf{Number of "No oxygen trawl hauls"\quad(assumed zero-catch):} & `r N_AKU`& & \\[0.3cm]
+        \hline
+        \textbf{SUM} & `r N_AKU + N_TV3s` &`r N_TV3u` &
+  \end{tabularx}
+\end{center}
+        
+
+
+\begin{center}
+  \renewcommand{\arraystretch}{1.3}
+  \renewcommand{\tabcolsep}{9pt}
+  \begin{tabularx}{0.90\textwidth}{@{}p{11cm}LLs}
+         & & &  \\
+        \hline
+        \textbf{Number of trawl related CTD stations performed:} &  `r nrow(subset(data_sample,gearQuality=="V"))`& & \\  
+        \textbf{Number of NON-trawl related CTD stations performed:} & `r N_CTD-(nrow(subset(data_sample,gearQuality=="V")))` & &\\
+        \textbf{Number of successful BONGO hauls carried out:} & `r N_BONGO` & &\\
+        \textbf{Number of successful IKMT hauls carried out:} & `r N_IKMT`& &\\
+        \textbf{Number of successful Appi hauls carried out:} & `r N_APPI`& &\\
+        \textbf{Number of successful WP2 hauls carried out:}  & `r N_WP2`& &\\
+        \textbf{Number of successful BOM hauls carried out:}  & `r N_BOM`& &\\
+        \textbf{Number of successful Multi-NET hauls carried out:} & `r N_MULTI`& &
+  \end{tabularx}
+\end{center}
+\end{tcolorbox}
+\end{center}
+
+\subsection{Cruise leaders and assistants}
+
+A cruise leader and an assistant cruise leader are appointed for each leg of the cruise. 
+The Cruise leader is responsible for all matters which are connected to scientific issues during the cruise. 
+The assistant cruise leader assists this task and should be able to take over the responsibilities of the cruise leader if necessary. 
+
+\subsubsection{Cruise leaders and assistants on the survey}
+
+\begin{enumerate}[leftmargin=0.1cm]
+\item [\textbf{Leg 1}] Cruise leader:  \textsl{`r paramCruiseLeaderL1`} \quad - \quad Assistant: \textsl{`r paramCruiseAssistantL1`}
+\item [\textbf{Leg 2}] Cruise leader:  \textsl{`r paramCruiseLeaderL2`} \quad - \quad Assistant: \textsl{`r paramCruiseAssistantL2`}
+\end{enumerate}
+	   		
+
+```{r include=FALSE}
+
+# valid <- nrow(pos[stations$gearCode=="TV3" & pos$status!="Fail" ,])
+# invalid <- nrow(pos[stations$gearCode=="TV3" & pos$status=="Fail" & !is.na(pos$status) & !is.na(pos$gearCode),])
+# aku <- nrow(pos[stations$gearCode=="AKU" ,])
+
+
+```
+
+
+\subsection{Itinerary}
+A survey map with allocated trawl stations is shown in Fig. \ref{fig:map} and in Fig. \ref{fig:mapBongo} a map of allocated bongo stations is presented. 
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis', fig.width=10, fig.height=8,fig.cap=paste0("Survey map with trawl stations. During the cruise ",N_TV3s," hauls were conducted, ",N_TV3u," invalid and ",N_AKU," with low oxygen. ",ship," Denmark, ",cruise_title,".\\label{fig:map}"),fig.pos='h'}
+
+
+pos <- stations[stations$gearCode %in% c('TV3','AKU'),c("gearCode","status","gearDur","latStart","lonStart")]
+
+
+
+pos2 <- data_sample[,c("station","stationName","gearType","gearQuality","lat","lon","dfuArea")]
+pos2[is.na(pos$stationName),"stationName"] <- pos2[is.na(pos$stationName),"station"] 
+
+channel <- odbcConnect("DanaDB")
+gps <- sqlQuery(channel, paste("
+                               SELECT     logTime, posLatDec, posLonDec
+                               FROM       dbo.SampleLog 
+                               WHERE      cruiseID=",CruiseSIS$cruiseID,"  ",
+                               sep = ""))
+close(channel)
+
+
+gps <- gps[ order(gps$logTime , decreasing = TRUE ),]
+coordinates(gps) <- c("posLonDec", "posLatDec")
+route <- SpatialLines(list(Lines(list(Line(gps)), "id")))
+
+
+#coast <- read.shapefile('Y:/Dynamisk/GEOdata/BasicLayers/CoastLines/Europe/europe_wgs84')
+coast <- read.shapefile('europe')
+
+latlon <- CRS("+proj=longlat +datum=WGS84")
+utm32N <- CRS("+proj=utm +zone=32 +datum=WGS84")
+
+
+xlim <- c(min(pos$lonStart)-0.6,max(pos$lonStart)+0.6)
+ylim <- c(min(pos$latStart)-0.4,max(pos$latStart)+0.4)
+
+
+
+########
+col <- terrain.colors(12)
+
+
+#####################################################################################################
+##
+##  Draw the map
+##
+#####################################################################################################
+
+basemap(xlim=xlim, ylim=ylim, main = "",xlab=expression("Longitude"*~degree*"E"),ylab=expression("Latitude"*~degree*"N") ) #, bg="white")
+
+draw.shape(coast, col="cornsilk", border="transparent", xlim=xlim, ylim=ylim)
+
+draw.rect(col="grey")
+
+#plot(route, lwd=0.01, add=T)
+#lines(route, lwd=.2, col="black")
+par(cex = 0.9)
+#text(x=pos[pos$gearQuality=="V","lon"], y=pos[pos$gearQuality=="V","lat"], 
+#     labels=pos[pos$gearQuality=="V","stationName"], adj = c(1,1),cex=0.8)
+
+
+points(pos[pos$gearCode=="TV3" & pos$status!="Fail","lonStart"], 
+	   pos[pos$gearCode=="TV3" & pos$status!="Fail","latStart"], pch=16, col="blue", cex=.9)
+points(pos[pos$gearCode=="TV3" & pos$status=="Fail" & !is.na(pos$status),"lonStart"], 
+       pos[pos$gearCode=="TV3" & pos$status=="Fail" & !is.na(pos$status),"latStart"], pch=16, col="dark orange", cex=.9)
+points(pos[pos$gearCode=="AKU" & !is.na(pos$status),"lonStart"], pos[pos$gearCode=="AKU" & !is.na(pos$status),"latStart"], pch=16, col="darkgreen", cex=.9)
+
+par(cex = 0.2)
+#pointLabel(x, y, as.character(round(x,5)), offset = 0, cex = .7)
+  pointLabel(x=pos2$lon, y=pos2$lat,labels=as.character(pos2$stationName),cex=3,offset=-1,allowSmallOverlap = FALSE)
+
+par(cex = 0.9)
+
+legend( x="bottomright", title = "Stations",
+        legend=c("valid tow", "invalid tow","No oxygen haul"),
+        pch=c(16, 16, 16), col = c("blue", "dark orange","darkgreen"),
+        cex = 0.9)
+
+
+```
+
+
+
+\subsection{Gear performance}
+
+The gear performance is monitored during any trawl station. All relevant parameters describing the gear geometry during the fishing 
+is logged to verify that the observed trawl geometry values are within the defined ranges for acceptance.
+
+\newcommand{\abGE}{`r yn_gear`}
+\newcommand{\aORbGE}[1]{%
+        \edef\mytemp{{#1}}%
+        \expandafter\ifstrequal\mytemp{yes}{
+			  `r str_gear`
+        }
+        \expandafter\ifstrequal\mytemp{no}{
+			  `r "                                                           "`
+        }{} %
+}
+\aORbGE{\abGE}
+
+
+```{r bongoMap, echo=FALSE, message=FALSE, warning=FALSE, results='asis', fig.width=10, fig.height=8,fig.cap=paste0("Allocated bongo, IKMT, Aptstein und WP2 stations. Bongo stations are assigned with station numbers but other hauls types are not. ",ship," Denmark, ",cruise_title,".\\label{fig:mapBongo}")}
+
+#BONGO map
+
+
+posBONGO <- stations[stations$gearCode %in% c("BONGO","apt","WP2","IKMT"),c("gearCode","status","gearDur","latStart","lonStart","timeStart","gearNo")]
+
+#pdf("X:/Line/Togtrapport/BITS/bongo/BITS4Q2015_4.pdf")
+xlim <- c(min(posBONGO$lonStart)-0.4,max(posBONGO$lonStart)+0.4)
+ylim <- c(min(posBONGO$latStart)-0.2,max(posBONGO$latStart)+0.2)
+
+
+col <- terrain.colors(12)
+
+basemap(xlim=xlim, ylim=ylim, main = "",xlab=expression("Longitude"*~degree*"E"),ylab=expression("Latitude"*~degree*"N") ) #, bg="white")
+draw.shape(coast, col="cornsilk", border="transparent", xlim=xlim, ylim=ylim)
+draw.rect(col="grey")
+
+points(posBONGO[posBONGO$gearCode=="IKMT",5], posBONGO[posBONGO$gearCode=="IKMT",4], pch=16, col="dark orange", cex=.9)
+points(posBONGO[posBONGO$gearCode=="BONGO",5], posBONGO[posBONGO$gearCode=="BONGO",4], pch=16, col="darkgreen", cex=.9)
+points(posBONGO[posBONGO$gearCode=="apt",5], posBONGO[posBONGO$gearCode=="apt",4], pch=16, col="dark red", cex=.9)
+points(posBONGO[posBONGO$gearCode=="WP2",5], posBONGO[posBONGO$gearCode=="WP2",4], pch=16, col="dark blue", cex=.9)
+
+
+Bongo <- posBONGO[str_trim(posBONGO$gearCode) %in% c("BONGO"),]
+rownames(Bongo) <- 1:nrow(Bongo)
+Bongo2 <- Bongo[0,]
+for (i in 1:nrow(Bongo)) {
+    if (i>nrow(Bongo)) break
+    testDif <- data.frame(difLat=abs(Bongo[i,4]-Bongo[,4]),difLon=abs(Bongo[i,5]-Bongo[,5]),
+                          sum=abs(Bongo[i,4]-Bongo[,4])+abs(Bongo[i,5]-Bongo[,5]),
+                          lat=Bongo[,4],num=Bongo$gearNo)
+  
+    
+    if (any(testDif$difLat<0.06 & testDif$difLon<0.08 & testDif$sum<0.09 & testDif$difLat!=0)) {
+        gear <- as.list(testDif[(testDif$difLat<0.06 & testDif$difLon<0.08 & testDif$sum<0.09 & testDif$difLat!=0),"num"])
+        Bongo2 <- rbind(Bongo2,Bongo[Bongo$gearNo %in% gear,])
+        Bongo <- Bongo[!(Bongo$gearNo %in% gear),]
+    }
+}
+
+text(Bongo$lonStart,Bongo$latStart,Bongo$gearNo, pos=3,cex=0.6,offset=0.3)
+if (nrow(Bongo2)>0) {
+  text(Bongo2$lonStart,Bongo2$latStart,Bongo2$gearNo, pos=1,cex=0.6,offset=0.3)}
+
+types <- c("BONGO","IKMT","apt","WP2")
+types2 <- unique(posBONGO$gearCode)
+
+type_index <- which(types %in% types2)
+type_cols <- c("darkgreen","dark orange","dark red","dark blue")
+
+legend( x="bottomright", title = "Station and gear type",
+        legend=c("Bongo","IKMT","Apt","WP2")[type_index],
+        pch=rep(16,length(type_index)), col = type_cols[type_index],
+        cex = 0.9)
+
+
+#dev.off()
+
+
+```
+
+
+\subsection{Oxygen Conditions}
+
+Oxygen conditions are monitored in connection with each trawl haul. 
+If the oxygen contend is below 1.5 ml/l it can be decided not to carry out any trawling procedure if it previous 
+under the cruise has been verified by trawling that no fish is staying in this water mass (same Sub-division and same depth strata). 
+The station is then recorded as an assumed zero-catch station. If the cruise leader has any reason to trawl anyway, normal trawling 
+is carried out at the station. 
+
+\newcommand{\abOX}{`r yn_oxygen`}
+\newcommand{\aORbOX}[1]{%
+        \edef\mytemp{{#1}}%
+        \expandafter\ifstrequal\mytemp{yes}{
+			`r str_oxygen`
+        }{} %
+}
+\aORbOX{\abOX}
+
+
+\newcommand{\abWC}{`r yn_weather`}
+\newcommand{\aORbWC}[1]{%
+        \edef\mytemp{{#1}}%
+        \expandafter\ifstrequal\mytemp{yes}{
+           	\subsection{Weather conditions}
+			 `r str_weather` 
+			 
+			 Wind speed and direction are presented in Fig. \ref{fig:wind}. Number of days with an average wind speed larger than 15 m/s: `r L15wind_days`.
+        }{} %
+        \expandafter\ifstrequal\mytemp{no}{
+           	\subsection{Weather conditions}
+	   		 Wind speed and direction are presented in Fig. \ref{fig:wind}. Number of days with an average wind speed larger than 15 m/s: `r L15wind_days`.
+        }{} %
+
+}
+\aORbWC{\abWC}
+
+
+
+
+```{r depth_gear_info2, echo=FALSE, message=FALSE, warning=FALSE, results='asis', fig.width=7, fig.height=8,fig.cap=c('test'), fig.retina=1}
+
+
+#paste("Wind speed and wind direction along the cruise track,",ship,"Denmark,",cruise_title,".")
+gear_inf <- with(data_sample, data_sample[order(data_sample$dateGearStart) ,])
+
+
+
+######### WIND SPEED AND DIRECTION ############### 
+
+    w1 <-  ggplot(wind[wind$ParamCode=="windSpCor",], aes(x=logTime,y=value)) + 
+                  theme_bw()+geom_line(color="red")+labs(y='Wind speed (m/s)')+
+                  theme(axis.text.x=element_blank(),axis.title.x=element_blank())+ scale_x_datetime(date_breaks = "2 day", date_labels = "%d/%m")
+    
+    w2 <-  ggplot(wind[wind$ParamCode=="windDirCor" & wind$value<=360,], aes(x=logTime,y=value)) + 
+                  theme_bw()+geom_line(color="red")+labs(x='Date',y=expression(paste("Wind direction (", {}*degree, ")") ))+
+                  scale_x_datetime(date_breaks = "2 day", date_labels = "%d/%m")#+theme(axis.text.x=element_text(angle = 30,hjust=1))
+
+  
+    gw1<- ggplot_gtable(ggplot_build(w1))
+    gw2<- ggplot_gtable(ggplot_build(w2))
+    
+    maxWidth = unit.pmax(gw1$widths[2:3], gw2$widths[2:3])
+    gw1$widths[2:3] <- maxWidth
+    gw2$widths[2:3] <- maxWidth
+
+
+    blank<-rectGrob(gp=gpar(col="white")) # make a white spacer grob
+
+```
+
+
+```{r test3, echo=FALSE, message=FALSE, warning=FALSE, results='asis', fig.width=8, fig.height=7,fig.cap=paste0("Wind speed and wind direction along the cruise track, ",ship," Denmark, ",cruise_title,".\\label{fig:wind}")}
+
+knitr::opts_chunk$set(fig.pos = 'H')
+grid.arrange(gw1,blank,gw2,heights=c(0.48, 0.02, 0.50), nrow=3, clip=TRUE)
+
+
+```
+
+
+\newcommand{\abGU}{`r yn_guest`}
+\newcommand{\aORbGU}[1]{%
+        \edef\mytemp{{#1}}%
+        \expandafter\ifstrequal\mytemp{yes}{
+           	\subsection{Guests on board}
+            There is a long and strong tradition to have scientific colleagues from other countries onboard in exchange during 
+            the survey.  The reason for that is the facilitating of cooperation and standardization of procedures across
+            participating countries. Guests on this survey: `r str_guest`
+        }{} %
+}
+\aORbGU{\abGU}
+
+
+
+
+\newcommand{\abOT}{`r yn_other`}
+\newcommand{\aORbOT}[1]{%
+        \edef\mytemp{{#1}}%
+        \expandafter\ifstrequal\mytemp{yes}{
+           	\subsection{Other}
+			`r str_other`
+        }{} %
+}
+\aORbOT{\abOT}
+
+
+
+
+<!--
+
+\begin{figure}[h]
+        \includegraphics[width=0.9\textwidth]{X:/Line/Togtrapport/input/BongoMap.png}
+         \caption{Map of allocated Bongo Stations.}
+         \label{fig:mapBongo}
+\end{figure}
+
+-->
+
+
+
+
+\newpage
+
+
+
+```{r catch_data, echo=FALSE, message=FALSE, warning=FALSE,include=FALSE}
+
+########## Collecting data from Fishline ###########
+
+query1<-paste("SELECT    SpeciesListRaised.speciesCode, SUM(SpeciesListRaised.numberTotal) as cruiseNumberTotal,
+                         SUM(SpeciesListRaised.weightTotal) as cruiseWeightTotal
+              FROM       SpeciesListRaised
+              WHERE      (SpeciesListRaised.year=",year," and 
+                          SpeciesListRaised.cruise='",cruise,"')
+              GROUP BY   speciesCode"
+              ,sep = "")
+query1
+
+query1b <-paste("SELECT    SpeciesListRaised.speciesCode, dfuArea as area, SUM(SpeciesListRaised.numberTotal) as cruiseNumberTotal,
+                         SUM(SpeciesListRaised.weightTotal) as cruiseWeightTotal
+              FROM       SpeciesListRaised
+              WHERE      (SpeciesListRaised.year=",year," and 
+                          SpeciesListRaised.cruise='",cruise,"')
+              GROUP BY   speciesCode,dfuArea"
+              ,sep = "")
+query1b
+
+
+query1b
+
+query2<-paste("SELECT L_Species.speciesCode, L_Species.ukName as Species,L_Species.dkName as dkSpecies,  L_Species.latin 
+              FROM L_Species"
+              ,sep = "")
+query2
+
+
+channel <- odbcConnect("FishLineDW")
+data_catch <- sqlQuery(channel, paste(query1),stringsAsFactors=FALSE)
+data_catch_area <- sqlQuery(channel, paste(query1b),stringsAsFactors=FALSE)
+close(channel)
+channel <- odbcConnect("FishLine")
+species_names <- sqlQuery(channel, paste(query2),stringsAsFactors=FALSE)
+close(channel)
+
+
+```
+
+
+\newpage
+
+
+\section{Catch on survey}
+
+
+\subsection{Compelete list of species}
+
+
+
+\footnotesize
+
+\renewcommand{\arraystretch}{1}
+\renewcommand{\tabcolsep}{8pt}
+
+```{r catch_table, results='asis',echo=FALSE,message=FALSE,warning=FALSE}
+
+if (substr(cruise,1,4)=="KASU") {
+  
+    Catch_cruise <- merge(species_names,data_catch_area[!(data_catch_area$speciesCode %like% "^AF"),], by="speciesCode",all.y=TRUE)
+    
+    Catch_cruise2 <- Catch_cruise[with(Catch_cruise, order(area,latin)),!(names(Catch_cruise) %in% c("speciesCode"))]
+    Catch_cruise2 <- Catch_cruise2[,c("latin", "Species","dkSpecies","cruiseNumberTotal","cruiseWeightTotal","area")]
+    Catch_cruise2[Catch_cruise2$latin=="Scyphozoa" & !is.na(Catch_cruise2$latin),"dkSpecies" ] <- "Storgopler"
+    
+   # colnames(Catch_cruise2) <- c("Latin name","English name","Danish name","Number","Weight (kg)","area")
+#    rownames(Catch_cruise2) <- 1:nrow(Catch_cruise2)
+    
+    rgroup <- unique(Catch_cruise2$area)
+   # n.rgroup <- c()
+   # rgroupName <- c()
+    for (i in 1:length(rgroup)) { 
+      assign(paste0("area_", i),Catch_cruise2[Catch_cruise2$area==rgroup[i],]) 
+    #  n.rgroup[i] <- nrow(Catch_cruise2[Catch_cruise2$area==rgroup[i],]);
+     # rgroupName[i] <- paste("Area", rgroup[i])
+      
+      Catch_table <- xtable(Catch_cruise2[Catch_cruise2$area==rgroup[i],!(names(area_1)=="area")],digits=0,
+                            caption=paste("Species caught in area",rgroup[i] ))
+      colnames(Catch_table) <- c("Latin name","English name", "Danish name","Number", "Weight (kg)")
+      align(Catch_table) <- "lp{4.5cm}p{3.5cm}p{3.5cm}rr"
+   
+    print(Catch_table,
+          tabular.environment = "longtable", 
+          floating = FALSE,
+          include.colnames=TRUE,
+          include.rownames=FALSE,
+          add.to.row = addtorow, 
+          sanitize.colnames.function=bold, 
+          booktabs=T,
+          comment=FALSE,
+          caption.placement = "top")
+}
+
+} else{ 
+  
+  
+    
+    Catch_cruise <- merge(species_names,data_catch[!(data_catch$speciesCode %like% "^AF"),], by="speciesCode",all.y=TRUE)
+
+    Catch_cruise2 <- Catch_cruise[,c("latin","Species","dkSpecies","cruiseNumberTotal","cruiseWeightTotal")]
+    Catch_cruise2[Catch_cruise2$latin=="Scyphozoa" & !is.na(Catch_cruise2$latin),"dkSpecies" ]<- "Storgopler"
+    Catch_cruise2 <- Catch_cruise2[with(Catch_cruise2, order(latin)), ]
+
+    
+     library(Hmisc)
+     
+     Catch_cruise2$cruiseNumberTotal <- as.character(round2(Catch_cruise2$cruiseNumberTotal))
+     Catch_cruise2$cruiseWeightTotal <- as.character(round(Catch_cruise2$cruiseWeightTotal,2))
+     
+     Catch_cruise2[Catch_cruise2$cruiseNumberTotal==0,]$cruiseNumberTotal <- "-"
+     colnames(Catch_cruise2) <- c("Latin name","English name", "Danish name","Number", "Weight (kg)")
+     rownames(Catch_cruise2) <- 1:nrow(Catch_cruise2)
+
+     mylatex(Catch_cruise2,file='',booktabs =T,rowlabel="",size="footnotesize",col.just=c("l","l","l","r","r"),
+             collabel.just=c("l","l","l","r","r"),colnamesTexCmd="bfseries",where='H',center='none',digits=0,
+             caption=paste0("Species caught on the survey ",ship," Denmark, ",cruise_title,"."))
+      
+
+    detach(package:Hmisc)
+
+    
+    
+}
+
+
+```
+
+
+\captionsetup{font=normal}
+
+
+
+```{r cod_lengths, echo=FALSE, message=FALSE, warning=FALSE,include=FALSE}
+
+########## Collecting data from Fishline ###########
+
+query1<-paste0("SELECT    AnimalRaised.trip, AnimalRaised.year, AnimalRaised.speciesCode, AnimalRaised.dfuArea,
+                         AnimalRaised.numberTotalPerLength, AnimalRaised.length, AnimalRaised.station
+              FROM       AnimalRaised
+              WHERE      (AnimalRaised.year BETWEEN ",year-9," AND ",year," and 
+                         AnimalRaised.cruise='",cruise,"' and 
+                         AnimalRaised.speciesCode IN ('TOR','TNG'))")
+query1
+
+query2<-paste0("SELECT    Sample.year, count(Sample.station) as tot_stat 
+               FROM      Sample
+               WHERE     (Sample.year BETWEEN ",year-9," AND ",year," and 
+                         Sample.cruise='",cruise,"' AND
+                         Sample.gearQuality='V')
+               GROUP BY  Sample.year ")
+
+
+query2
+
+
+channel <- odbcConnect("FishLineDW")
+data_TORTNG <- sqlQuery(channel, paste(query1),stringsAsFactors=FALSE)
+data_stat <- sqlQuery(channel, paste(query2),stringsAsFactors=FALSE)
+close(channel)
+
+
+CodPerStation <- sqldf('SELECT     data_TORTNG.year, data_TORTNG.length,sum(data_TORTNG.numberTotalPerLength) as numberPerYear,data_stat.tot_stat,
+                                   sum(data_TORTNG.numberTotalPerLength)/data_stat.tot_stat as NumPerLenPerYear
+                        FROM       data_TORTNG inner join data_stat on data_TORTNG.year=data_stat.year
+                        WHERE      data_TORTNG.speciesCode="TOR"
+                        GROUP BY   data_TORTNG.year, data_TORTNG.length')
+
+
+
+min_year <- min(CodPerStation$year)
+max_year <- max(CodPerStation$year)
+
+Cod_weight <- as.integer(round(data_catch[data_catch$speciesCode=='TOR',]$cruiseWeightTotal))
+Sole_weight <- as.integer(round(data_catch[data_catch$speciesCode=='TNG',]$cruiseWeightTotal))
+
+Cod_oto <- nrow(data_animal[!is.na(data_animal$individNum) & data_animal$speciesCode=='TOR',])
+Cod_num <- sum(data_animal[is.na(data_animal$individNum) & data_animal$speciesCode=='TOR',]$number)
+
+Sole_oto <- nrow(data_animal[!is.na(data_animal$individNum) & data_animal$speciesCode=='TNG',])
+Sole_num <- sum(data_animal[is.na(data_animal$individNum) & data_animal$speciesCode=='TNG',]$number)
+
+```
+
+
+
+
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE,results='asis'}
+
+#THIS SECTION IS ONLY INCLUDED FOR IBTS
+
+######  ABUNDANCE INDICES #######
+if (substr(cruise,1,4)=="IBTS") {
+  cat('\\newpage')
+  cat('\\vspace{0.4cm}')
+	cat('\\section{Single fish data}')
+  SF_text <- "Single fish data (length, weight, sex
+and maturity) and otoliths were collected for the main commercial species (cod, haddock,whiting, Norway pout, saithe, herring, sprat, mackerel and plaice) as well as  for monkfish, turbot, brill, witch flounder, sole and lemon sole (Table 2). The main commercial species are stratified per roundfish area."
+} else SF_text <- ""
+```
+
+
+`r SF_text`
+
+\renewcommand{\arraystretch}{1}
+\setlength\arraycolsep{0.2pt}
+\renewcommand{\tabcolsep}{7pt}
+
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis', fig.width=14, fig.height=6, fig.pos="H"}
+
+#THIS SECTION IS ONLY INCLUDED FOR IBTS CRUISES
+
+if (substr(cruise,1,4)=="IBTS") {
+        cat('\\vspace{0.5cm}')
+	
+      
+      #Read relation roundfish areas and square
+      #RF_square <- read.table("X:\\Line\\Togtrapport\\join_RFareas_ICESareas_selected.txt",sep="",header=TRUE)
+      
+            RFS1 <- c("48E6","49E6","50E6","51E6","52E6","48E7","49E7","50E7","51E7","52E7","47E8","48E8","49E8","50E8",
+                "51E8","52E8","47E9","48E9","49E9","50E9","51E9","52E9","44F0","45F0","46F0","47F0","48F0","49F0",
+                "50F0","51F0","52F0","44F1","45F1","46F1","47F1","48F1","49F1","50F1","51F1","52F1","45F2","46F2",
+                "47F2","48F2","49F2","50F2","51F2","52F2","45F3","46F3","47F3","48F3","49F3","50F3","51F3","52F3",
+                "45F4","40F0","41F0","42F0","43F0","39F1","40F1","41F1","42F1","43F1","39F2","40F2","41F2","42F2",
+                "43F2","44F2","40F3","41F3","42F3","43F3","44F3","40F4","41F4","42F4","43F4","44F4","41E6","42E6",
+                "43E6","44E6","45E6","46E6","47E6","41E7","42E7","43E7","44E7","45E7","46E7","47E7","41E8","42E8",
+                "43E8","44E8","45E8","46E8","41E9","42E9","43E9","44E9","45E9","46E9","40E6","40E7","38E8","39E8",
+                "40E8","36E9","37E9","38E9","39E9","40E9","36F0","37F0","38F0","39F0","37F1","38F1","31F0","32F0",
+                "34F0","35F0","31F1","32F1","33F1","34F1","35F1","36F1","33F2","34F2","35F2","36F2","31F2","32F2",
+                "37F2","38F2","31F3","32F3","33F3","34F3","35F3","36F3","37F3","38F3","39F3","31F4","32F4","33F4",
+                "34F4","35F4","36F4","37F4","38F4","39F4","33F5","34F5","35F5","36F5","37F5","38F5","39F5","35F6",
+                "36F6","37F6","38F6","39F6","35F7","36F7","37F7","38F7","39F7","35F8","36F8","37F8","38F8","39F8",
+                "35F9","36F9","40F5","41F5","42F5","43F5","44F5","40F6","41F6","42F6","43F6","40F7","41F7","42F7",
+                "43F7","40F8","41F8","42F8","43F8","44F8","45F8","46F8","47F8","48F8","43F9","44F9","45F9","46F9",
+                "47F9","48F9","44G0","45G0","46G0","47G0","48G0","44G1","45G1","46G1","47G1","48G1","41G0","42G0",
+                "43G0","41G1","42G1","43G1","41G2","42G2","43G2")
+      RFS2 <- c(rep(1,57),rep(2,25),rep(3,26),rep(4,16),rep(5,14),rep(6,46),rep(7,16),rep(8,22),rep(9,9))
+      RF_square_val <- data.frame("ICESsquare"=RFS1,"Rfarea"=RFS2)
+      RF_square <- RF_square_val 
+      
+      single_fish <- merge(data_animal[!is.na(data_animal$individNum),],RF_square, by="ICESsquare", all.x=TRUE)
+      single_fish <- merge(single_fish,species_names, by="speciesCode", all.x=TRUE)
+      
+      single_fish2 <- ddply(single_fish, .(Species,Rfarea), summarize, Tot_num=sum(number) )
+      single_fish2$Rfarea <- paste0("Area: ",single_fish2$Rfarea)
+      single_fish2 <- single_fish2[with(single_fish2, order(Rfarea)), ]
+      
+      
+      
+      SF_wide <- dcast(single_fish2, Species ~ Rfarea)
+      SF_wide2 <- cbind(SF_wide,"Total"=rowSums(SF_wide[,-1], na.rm = TRUE))
+      
+      RFAfish <- c("Herring","Sprat","Cod","Haddock","Whiting","Mackerel","Saithe","Plaice","Norway pout")
+      SF_wide2$type <- ifelse(SF_wide2$Species %in% RFAfish,"A","B")
+      NoRFA <- nrow(SF_wide2[SF_wide2$type=="A",])
+      SF_wide2 <- SF_wide2[with(SF_wide2, order(type, Species)), -ncol(SF_wide2)]
+      SF_wide2[(NoRFA+1):nrow(SF_wide2),2:(ncol(SF_wide2)-1)] <- NA
+      SF_wide3 <- rbind(SF_wide2,Sum=c("Sum",rep("",7),sum(SF_wide2$Total)))
+      rgroup <- c("Stratified by roundfish area","Not stratified by roundfish area","All species")
+      n.rgroup <- c(NoRFA,nrow(SF_wide3)-NoRFA-1,1)
+      SF_wide3[is.na(SF_wide3$Species),] <- "-"
+      rownames(SF_wide3) <- SF_wide3$Species
+      
+      
+      
+      
+          library(Hmisc)
+
+      mylatex(SF_wide3[,-1],file='',booktabs =T,rgroup = rgroup,n.rgroup=n.rgroup,rowlabel="Species",size="footnotesize",
+            col.just = c("r","r","r","r","r","r","r","r"),colnamesTexCmd="bfseries",rgroupTexCmd="itshape",where='H',
+            caption="Number of single fish data (length, weight, sex and maturity) and samples for ageing.",center='none')
+                  
+      
+      detach(package:Hmisc)
+      
+}
+
+
+```
+
+
+
+\newcommand{\abTWO}{`r cruise2`}
+
+\rowcolors{1}{}{white}
+
+\newcommand{\aORbTWO}[1]{%
+        \edef\mytemp{{#1}}%
+        \expandafter\ifstrequal\mytemp{BITS}{
+        
+                    \newpage
+                    
+                    \subsection{Cod catch and length distribution}
+                    
+                    \renewcommand{\arraystretch}{1.2}
+                    \begin{tabularx}{\textwidth}{@{}lrr@{}}
+                    \textbf{Total kgs of cod catched:} &  `r Cod_weight` & \\
+                    \textbf{Total number of cod measured:} &  `r Cod_num` & \\
+                    \textbf{Total number of cod otoliths collected:} & `r Cod_oto` &
+                    \end{tabularx}
+                  
+                    \vspace{0.4cm}
+                    
+                    In Fig. \ref{fig:cod} the length distributions of cod per ICES statiscal area are presented.
+                    
+                    \vspace{1cm}
+        }{} %
+        \expandafter\ifstrequal\mytemp{Torsk}{
+        
+         \newpage
+                    
+                    \section{Cod catch}
+                    
+                    \renewcommand{\arraystretch}{1.2}
+                    \begin{tabularx}{\textwidth}{@{}lrr@{}}
+                    \textbf{Total kgs of cod catched:} &  `r Cod_weight` & \\
+                    \textbf{Total number of cod measured:} &  `r Cod_num` & \\
+                    \textbf{Total number of cod otoliths collected:} & `r Cod_oto` &
+                    \end{tabularx}
+                  
+                    \vspace{1cm}
+                    
+                    
+        
+        
+        
+        
+        }{}%
+        \expandafter\ifstrequal\mytemp{Tunger}{
+        
+         \newpage
+                    
+                    \section{Sole catch}
+                    
+                    \renewcommand{\arraystretch}{1.2}
+                    \begin{tabularx}{\textwidth}{@{}lrr@{}}
+                    \textbf{Total kgs of sole catched:} &  `r Sole_weight` & \\
+                    \textbf{Total number of sole measured:} &  `r Sole_num` & \\
+                    \textbf{Total number of sole otoliths collected:} & `r Sole_oto` &
+                    \end{tabularx}
+                  
+                    \vspace{1cm}
+                    
+                    
+        
+        
+        
+        
+        }{}%
+}
+
+
+\aORbTWO{\abTWO}
+
+
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE,results='asis', fig.width=15, fig.height=10,fig.cap=paste0("Cod length distribution per area for ",ship," Denmark, ",cruise_title,".\\label{fig:cod}"), fig.pos="H"}
+
+#THIS SECTION IS ONLY INCLUDED FOR BITS CRUISES
+
+if (cruise2 %in% c("BITS","Torsk","Tunger")) {
+  
+ spec <- ifelse(cruise2 %in% c("BITS","Torsk"),"TOR","TNG")
+
+ speciesDat <- ddply(data_TORTNG[data_TORTNG$year==year &data_TORTNG$speciesCode==spec,],.(year,length,dfuArea),
+                            summarize,number=sum(numberTotalPerLength))
+  
+ 
+ expand1 <- expand.grid(year=year, length=unique(speciesDat$length),dfuArea=levels(factor(speciesDat$dfuArea)), number=0)
+ speciesDat2 <- rbind(speciesDat,expand1)
+ 
+ p <- ggplot(speciesDat2, aes(x=length, y=number)) 
+ plot1  <- p + geom_bar(stat="identity",aes(fill=factor(dfuArea)), position ="dodge")+
+                     scale_fill_discrete(name="ICES Area ")+
+                      theme_classic(base_size =22, base_family = "")+
+                      labs(x = "Length (mm)", y="Number")+
+                      theme(axis.title.y = element_text(vjust = 2),
+                            axis.title.x = element_text(vjust = -1),
+                            axis.line = element_line(colour = "black"),
+                            panel.grid.major.x = element_blank(),
+                            panel.grid.major.y =  element_line(colour="grey", size=0.5),
+                            panel.border = element_rect(colour = "black", fill=NA, size=0.8),
+                            legend.justification = c(1, 1), legend.position = c(1, 1),
+                            legend.background = element_rect(size=0.6, linetype="solid", colour ="black"))+
+              scale_x_continuous(breaks = seq(100, round_any(max(speciesDat2$length), 100, f = ceiling), by = 100))
+              #+ scale_y_continuous(breaks = seq(0, round_any(max(speciesDat$number), 1000, f = ceiling), by = 500)) 
+  
+    plot(plot1)
+    
+
+}
+
+```
+
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis', fig.width=14, fig.height=6,fig.cap="Cod length distributions.", fig.pos="H"}
+
+#THIS SECTION IS ONLY INCLUDED FOR BITS CRUISES
+
+if (substr(cruise,1,4)=="BITS" & inlcude_years=="yes") {
+
+    CodLimY <- round_any(max(CodPerStation$NumPerLenPerYear), 10, f = ceiling)
+    CodLimX <- round_any(max(CodPerStation$length), 100, f = ceiling)
+    
+    #--------------------------------------- Function -------------------------------------------------------------
+    plot_cod <- function(data,corr){
+        year_cod <- min(CodPerStation$year)+corr
+        plot_COD <-  ggplot(data[data$year==year_cod,], aes(x=length, y=NumPerLenPerYear)) +
+                     geom_bar(stat="identity",position ="dodge",fill="steelblue")+ labs(x ='Length (mm)', y ='Number')+
+                     ggtitle(year_cod)+
+                     xlim(0,CodLimX)+ylim(0,CodLimY)+
+                     theme_bw() + theme(strip.background = element_rect(fill = "lightgrey"),
+                                      strip.text = element_text(color = "white"),
+                                      plot.margin= unit(c(0, 0.3, 0, 0), "lines"), #top,left,bottom,right
+                                      axis.text = element_text(size=14),
+                                      axis.title = element_text(size=16),
+                                      plot.title = element_text(lineheight=.8, face="bold",size=20)) 
+        return(plot_COD)
+    }
+    #---------------------------------------------------------------------------------------------------------------
+      
+    for (i in 0:9) {
+        assign(paste0("p_", i),plot_cod(CodPerStation,i))
+    }
+    
+    grid.arrange(p_0,p_1, ncol=2)
+    grid.arrange(p_2,p_3, ncol=2)
+    grid.arrange(p_4,p_5, ncol=2)
+    grid.arrange(p_6,p_7, ncol=2)
+    grid.arrange(p_8,p_9, ncol=2)
+    
+    
+#For each year, the length distribution presents the average number of cods caught per length and station.
+
+
+}
+
+```
+
+
+
+

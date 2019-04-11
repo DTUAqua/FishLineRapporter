@@ -1,0 +1,72 @@
+
+---
+geometry: top=1.5cm, bottom=1.5cm, left=1cm, right=1cm
+output: pdf_document
+---
+
+
+\renewcommand{\familydefault}{\sfdefault}
+\sffamily
+
+```{r define_input, echo=FALSE}
+
+#Parameters
+year<- 2015 # @paramYear 
+cruise <- 'LF OES apr.' # @paramCruise
+
+```
+
+
+```{r set_libraries, include=FALSE}
+
+#Libraries
+library(sqldf)
+library(RODBC)
+library(stringi)
+
+```
+
+
+
+```{r getdata, echo=FALSE, message=FALSE, warning=FALSE}
+
+
+channel <- odbcConnect("FishLineDW")
+
+bms <- sqlQuery(channel, paste("SELECT    year, cruise, trip, station, gearQuality, stationName, fishingtime, 
+                                          latPosStartText, lonPosStartText, latPosEndText, 
+                                          lonPosEndText, distancePositions, depthAvg, courseTrack
+                                FROM      Sample
+                                WHERE     year = (",year, ") AND
+                                          cruise = ('",cruise, "')  
+                                ORDER BY  station  ", sep=""),stringsAsFactors=FALSE)
+                              
+
+close(channel)
+
+
+```
+
+
+
+```{r, echo=FALSE, include=FALSE, cache=FALSE, warning=FALSE,message=FALSE}
+
+bms$distance_m <- bms$distancePositions*1852;
+
+```
+
+
+
+```{r writeData, echo=FALSE, include=FALSE, cache=FALSE, warning=FALSE,message=FALSE}
+
+
+#Write csv
+write.csv(bms, file=paste("X:/Line/Data/Skaldyr/Results/",cruise,"_træk_",format(Sys.time(), "%d%b%Y"),".csv",sep=""),row.names=FALSE)
+
+
+```
+
+
+\section{Udtræk: `r cruise` `r year`}
+Foretaget den \today.
+

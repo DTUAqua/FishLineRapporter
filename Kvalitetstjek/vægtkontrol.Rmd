@@ -1,0 +1,231 @@
+---
+geometry: top=2cm, bottom=1.5cm, left=1.5cm, right=5cm
+header-includes:
+- \usepackage{tabularx}
+- \usepackage{tcolorbox}
+output: pdf_document
+---
+
+\renewcommand{\familydefault}{\sfdefault}
+\sffamily
+
+
+
+
+```{r load_packages, include=FALSE}
+if (!require(RODBC)) {
+  install.packages("RODBC", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(RODBC)
+    }
+if (!require(dplyr)) {
+  install.packages("dplyr", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(dplyr)
+}
+if (!require(stringr)) {
+  install.packages("stringr", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(stringr)
+}
+
+
+```
+
+```{r set_parameters, include=FALSE}
+# paramYear <- 2012
+# paramCruise <- "BITS-1"
+# paramTrip <- "1"
+# paramStation <- "110"
+# paramSpecies <- "TOR"
+# paramLevel <- "station" # or species
+
+
+ paramYear <- @paramYear
+ paramCruise <- @paramCruise
+ paramTrip <- @paramTrip
+ paramStation <- @paramStation
+ paramSpecies <- @paramSpecies
+ paramLevel <- @paramLevel
+
+last_year <- as.character(as.integer(format(Sys.Date(),"%Y"))-1)
+five_years_ago <- as.character(as.integer(format(Sys.Date(),"%Y"))-5)
+```
+
+
+```{r DB request, include=FALSE}
+# for 5 year mean
+
+
+
+query <-  paste0("SELECT [year]
+      ,[cruise]
+      ,[trip]
+      ,[tripType]
+      ,[station]
+      ,[quarterGearStart]
+      ,[dfuArea]
+      ,[gearQuality]
+      ,[gearType]
+      ,[meshSize]
+      ,[speciesCode]
+      ,[sexCode]
+      ,[ovigorous]
+      ,[weightSubSample]
+      ,[numberSubSample]
+  FROM [FishLineDW].[dbo].[SpeciesListRaised]
+  where [year] between ", five_years_ago," AND ",last_year,"
+  AND [weightSubSample] > 0
+  AND [numberSubSample] > 0")
+
+message(query)
+
+channel <- odbcConnect("FishLineDW")
+Positions <- sqlQuery(channel,query)
+close(channel)
+
+Positions$avgWeight <- Positions$weightSubSample/Positions$numberSubSample
+```
+
+
+```{r fuctions, include=FALSE}
+# Function for generating a subset of data representing the data you want to see (per quarter, per area etc)
+
+
+temptable <- function(datasubset){
+  
+  # datasubset$fishWeight <- datasubset$weightSubSample/datasubset$numberSubSample
+  
+  weightsummaries <- datasubset %>% 
+      group_by(speciesCode) %>% 
+      summarise(min = min(avgWeight),
+                ".01"=quantile(avgWeight, .01),
+                ".05" = quantile(avgWeight, .05),
+                median = median(avgWeight), 
+                mean = mean(avgWeight),
+                ".95" = quantile(avgWeight, .95),
+                ".99" = quantile(avgWeight, .99),
+                max = max(avgWeight),
+                sd = sd(avgWeight)
+                )
+  return(weightsummaries)
+
+}
+
+# Function for controlling the weight of the entry compared to other data in Fiskeline
+
+weight_control <- function(dataset,db = five_year_values) {
+    
+    outputdf <- data.frame(year=numeric(),
+                           cruise=character(),
+                           trip=character(),
+                           station=character(),
+                           species=character(),
+                           conclusion=character(),
+                           reported.weight=numeric(),
+                           lower.limit=numeric(),
+                           five.year.median=numeric(),
+                           five.year.mean=numeric(),
+                           upper.limit=numeric(), stringsAsFactors = FALSE)
+    
+    for (fish in dataset$speciesCode){
+        
+        datasetsub <- dataset[dataset$speciesCode == fish,]
+        # View(datasetsub)
+        
+        conclusion <- "ukendt"
+        fishcode <- toupper(fish)
+        
+        
+        # allowed margin from mean weight
+        margin <- 0.2
+       
+        max_weight <- db[which(db$speciesCode==fishcode),".99"] * (1 + margin)
+        min_weight <- db[which(db$speciesCode==fishcode),".01"] * (1 - margin)
+        # message(fishcode)
+        
+        # outputdf$species <- fishcode
+        
+        # Check if weight contains non digits
+        if (is.na(try(as.double(weight),silent = TRUE))){ 
+            # message(outputdf)
+            conclusion <- "Inputfejl"}
+    
+        else {
+                    
+            if (datasetsub$avgWeight > max_weight){
+                conclusion <- "Høj"
+               }
+            if (datasetsub$avgWeight < min_weight){
+                conclusion <- "Lav"
+                 }
+            else{conclusion <- "OK"}
+        }
+        
+        outputdf[nrow(outputdf)+1,] <- c(datasetsub$year,
+                                         datasetsub$cruise,
+                                         datasetsub$trip,
+                                         datasetsub$station,
+                                         fishcode,
+                                         conclusion,
+                                         datasetsub$avgWeight,
+                                         min_weight,
+                                         db[which(db$speciesCode==fishcode),"median"],
+                                         db[which(db$speciesCode==fishcode),"mean"],
+                                         max_weight)
+    
+    }
+    return(outputdf)
+    # View(outputdf)
+}
+
+
+```
+
+
+```{r execute, include=FALSE}
+# VÃ¦gtvurdering af specifik fiskeart fra specifik station, trip, cruise, year
+
+options(scipen=999)
+
+five_year_values <- temptable(Positions)
+
+if (paramLevel == "species"){ 
+    specified_dataset <- Positions %>% 
+        select(year, cruise, trip, station, speciesCode, weightSubSample, numberSubSample, avgWeight) %>% 
+        filter(year == paramYear & 
+               cruise == paramCruise & 
+               trip == paramTrip & 
+               station == paramStation & 
+               speciesCode == paramSpecies)
+}
+
+if (paramLevel == "station"){
+    specified_dataset <- Positions %>% 
+        select(year, cruise, trip, station, speciesCode, weightSubSample, numberSubSample, avgWeight) %>% 
+        filter(year == paramYear & 
+               cruise == paramCruise & 
+               trip == paramTrip & 
+               station == paramStation) %>%
+        group_by(speciesCode)
+    
+}
+
+
+conclusion <- weight_control(specified_dataset, five_year_values)
+
+
+write.csv(conclusion, 
+          file = paste(paste("Vægtkontrol",paramYear,paramCruise,paramTrip,paramStation,paramSpecies,paramLevel, sep="_"),".csv",sep=""),
+          row.names=FALSE, na="")#,
+          # col.names = c("År","Togt","Tur","Station","Fisk","Konklusion","Rap. vægt","Lavere grænse","Median","Gns.","Højere grænse"))
+
+```
+\begin{tcolorbox}[colback=white!5,colframe=blue!40!black,title=Konklusion pÃ¥ rapporteret vÃ¦gt]
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{20cm}{@{}lXr@{}}
+\textbf{Ãr} & `r paramYear` & \\
+\textbf{Togt} & `r paramCruise` & \\
+\textbf{Tur} & `r paramTrip` & \\
+\textbf{Station} & `r paramStation` & \\
+\textbf{Art} & `r paramSpecies` & \\
+\textbf{Aggregeringsniveau} & `r paramLevel` & 
+\end{tabularx}
+\end{tcolorbox}

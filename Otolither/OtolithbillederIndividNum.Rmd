@@ -1,0 +1,166 @@
+---
+  fontsize: 12pt
+geometry: top=0.2cm, bottom=1.2cm, left=0.5cm, right=0.5cm
+header-includes:
+  - \usepackage{booktabs}
+- \usepackage{longtable}
+- \usepackage{floatrow}
+- \usepackage[T1]{fontenc}
+- \usepackage[danish]{babel}
+- \usepackage[utf8]{inputenc}
+- \usepackage{graphicx}
+- \floatsetup[table]{capposition=top}
+- \usepackage[table]{xcolor}
+- \usepackage{ragged2e}
+- \usepackage{catchfile}
+- \usepackage{array}
+- \usepackage[export]{adjustbox}
+- \usepackage{multirow}
+- \linespread{1.15}
+- \usepackage{tabularx}
+- \usepackage{tcolorbox}
+- \usepackage{lipsum}
+- \usepackage{pbox}
+output:
+  pdf_document: default
+word_document: default
+---
+  
+  \renewcommand{\familydefault}{\sfdefault}
+\sffamily
+
+
+```{r define_input, echo=FALSE}
+
+#Parameters
+year <- @paramYear
+cruise <- @paramCruise
+trip <- @paramTrip
+station <- @paramStation
+journal <- @paramJournal 
+species <- @paramSpecies
+
+
+```
+
+
+
+
+```{r set_libraries, include=FALSE}
+
+#Libraries
+if (!require(sqldf)) {
+  install.packages("sqldf", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(sqldf)
+}
+if (!require(RODBC)) {
+  install.packages("RODBC", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(RODBC)
+}
+if (!require(xtable)) {
+  install.packages("xtable", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(xtable)
+}
+
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+
+channel <- odbcConnect("FishLineDW")
+data <- sqlQuery(channel, paste("SELECT     Animal.animalId, Animal.year, Animal.cruise, Animal.trip, Animal.tripType, 
+                                Animal.station, Animal.dateGearStart,Animal.dfuArea, Animal.statisticalRectangle,
+                                Animal.speciesCode, Animal.landingCategory, 
+                                Animal.representative, Animal.sizeSortingEU as sorting,
+                                Animal.individNum, Animal.number, Animal.length, Animal.weight, Animal.sexCode, 
+                                Animal.maturityIndex, Age.age, Sample.labJournalNum,Trip.harbourLanding as havn
+                                FROM       Animal INNER JOIN
+                                SpeciesList ON Animal.speciesListId = SpeciesList.speciesListId INNER JOIN
+                                Sample ON SpeciesList.sampleId = Sample.sampleId INNER JOIN
+                                Trip ON Sample.tripId = Trip.tripId LEFT OUTER JOIN
+                                Age ON Animal.animalId = Age.animalId
+                                WHERE      (Animal.year = (",year, ") AND 
+                                Animal.trip = ('",trip,"') AND
+                                Animal.cruise = ('",cruise,"') AND
+                                Animal.station = (",station, ") AND
+                                Animal.speciesCode = ('",species, "') AND
+                                Animal.individNum != 0  ) " ,sep=""), stringsAsFactors=FALSE)                        
+close(channel)
+
+date <- format(as.Date(data$dateGearStart[1]), "%d-%m-%Y")
+
+```
+
+
+
+
+
+
+```{r, echo=FALSE, include=FALSE, cache=FALSE, warning=FALSE}
+
+##make tex-table 1
+
+
+data[21][is.na(data$labJournalNum),] <- "-"; journal <- data$labJournalNum[1]
+data_table <- data[c("sorting", "individNum","length","weight","age","sexCode","maturityIndex","animalId")]
+data_table2 <- data_table[order(data_table$sorting,data_table$individNum) ,]
+data_table2$comment <- ""
+data_table2[data_table2=="FALSE"] <- ""
+
+
+tbl <- xtable(data_table2)
+digits(tbl) <- c(0,0,0,0,3,0,0,0,0,0)
+print(tbl,
+      only.contents=TRUE,
+      include.rownames=FALSE,
+      include.colnames=FALSE,
+      type="latex",
+      file="tblout.tex")
+
+
+```
+
+
+
+\setlength{\tabcolsep}{20pt}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\textwidth}{ l l l l l l}
+\textbf{Togt:} `r cruise`  & \textbf{Tur:} `r trip` & \textbf{Station:} `r station` & \textbf{Type:} `r data$tripType[1]` & \textbf{Dato:} `r date`\\
+\textbf{Art:} `r species`  & \textbf{Journal:} `r journal` & \textbf{Område:} `r data$dfuArea[1]` & 
+  \textbf{Square:} `r data$statisticalRectangle[1]` & \textbf{Havn:} `r data$havn[1]` \\
+\end{tabularx}
+
+
+
+
+\vspace{0.5cm}
+
+\CatchFileDef{\tabmacro}{tblout}{}
+
+\newcommand\B{\rule[-1.2ex]{0pt}{0pt}} % Bottom strut
+
+\definecolor{lightgray}{gray}{0.85}
+\setlength\LTleft{0.5cm}
+\setlength\LTright{0pt}
+\setlength{\tabcolsep}{0.8em}
+\renewcommand{\arraystretch}{1.1}
+\rowcolors{3}{}{lightgray}
+\begin{longtable}{l|r|r|r|l|l|l|l|p{3cm}@{} l}
+\hline
+\rule{0pt}{4ex}
+\centering
+\pbox{8cm}{\textbf{Sortering} \\  } & \pbox{8cm}{\textbf{Individ} \\ \textbf{fisk}} & \pbox{8cm}{\textbf{Længde} \\ \textbf{(mm)}} & \pbox{8cm}{ \textbf{Vægt} \\ \textbf{(kg)}} & \pbox{8cm}{\textbf{Alder} \\ }
+& \pbox{8cm}{\textbf{Køn} \\} & \pbox{8cm}{\textbf{Modenhed} \\ } & \pbox{8cm}{\textbf{ID} \\} &  \pbox{8cm}{\textbf{Kommentar} \\}   \\[0.3cm]
+
+\hline
+\endhead
+
+
+\tabmacro
+
+\end{longtable}
+
+
+
+
+
