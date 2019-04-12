@@ -44,17 +44,17 @@ output:
 ```{r define_input, echo=FALSE}
 
 #Parameters
-# year<- 2019
-# cruise <- "SEAS"
-# trip <- "1683"
-# coast_string <- "kort/europe_simple_wgs84"
-# ices_areas_string <- "kort/ICES_areas"
+year<- 2019
+cruise <- "SEAS"
+trip <- "1683"
+coast_string <- "kort/europe_simple_wgs84"
+ices_areas_string <- "kort/ICES_areas"
 
-year<- @paramYear
-cruise <- @paramCruise
-trip <- @paramTrip
-coast_string <- "europe_simple_wgs84"
-ices_areas_string <- "ICES_areas"
+# year<- @paramYear
+# cruise <- @paramCruise
+# trip <- @paramTrip
+# coast_string <- "europe_simple_wgs84"
+# ices_areas_string <- "ICES_areas"
  
 ```
 
@@ -227,7 +227,7 @@ query7
 
 query3b<-paste("SELECT SpeciesList.station,SpeciesList.speciesCode, SpeciesList.landingCategory,SpeciesList.number,
                        SpeciesList.raisingFactor,SpeciesList.weightStep0,SpeciesList.weightStep1,SpeciesList.weightStep2,
-                        SpeciesList.weightStep3
+                        SpeciesList.weightStep3,SpeciesList.remark
                 FROM   SpeciesList
                 WHERE  (SpeciesList.year=",year," and SpeciesList.trip = '",trip,"'and SpeciesList.cruise='",cruise,"' 
                        and SpeciesList.speciesCode!='DTO')"
@@ -241,6 +241,16 @@ query3c<-paste("SELECT SpeciesList.station,SpeciesList.speciesCode, SpeciesList.
                 WHERE  (SpeciesList.year=",year," and SpeciesList.trip = '",trip,"'and SpeciesList.cruise='",cruise,"' )"
               ,sep = "")
 query3c
+slQ <- sprintf("SELECT  SpeciesList.station,SpeciesList.speciesCode, SpeciesList.landingCategory,
+                                               SpeciesList.number,SpeciesList.raisingFactor, SpeciesList.weightStep0, 
+                                               SpeciesList.weightStep1, SpeciesList.weightStep2, SpeciesList.weightStep3,
+                                               SpeciesList.treatmentFactor, SpeciesList.totalWeight, SpeciesList.trip,
+                                               SpeciesList.quarterGearStart as qtr, SpeciesList.remark   
+                                       FROM    SpeciesList
+                                       WHERE   SpeciesList.year = (%s) AND
+                                               SpeciesList.cruise = ('%s') AND 
+                                               SpeciesList.trip =  ('%s') ", 
+                                year,cruise,trip)
 #Importing data
 #data1: Metadata; observator, skipper, dato mm.
 #data2: arter,  landingskategori, antaltotal, langder
@@ -256,6 +266,19 @@ data3c <- sqlQuery(channel, paste(query3c),stringsAsFactors=FALSE)
 
 data4 <- sqlQuery(channel, paste(query4),stringsAsFactors=FALSE)
 data7 <- sqlQuery(channel, paste(query7),stringsAsFactors=FALSE)
+speciesList <- sqlQuery(channel,slQ, stringsAsFactors=FALSE)
+sample <- sqlQuery(channel,paste("SELECT   Sample.tripId, Sample.trip, Sample.station, Sample.fishingtime, Sample.latPosStartDec AS lat, 
+                                           Sample.lonPosStartDec AS lon,Sample.latPosStartText AS latT, 
+                                           Sample.lonPosStartText AS lonT, Sample.catchRegistration, 
+                                           Sample.speciesRegistration, Sample.gearType, Sample.selectionDevice,
+                                           Sample.meshSize, Sample.dfuArea, Sample.statisticalRectangle, Sample.quarterGearStart as qtr,
+                                           Sample.remark
+                                  FROM     Sample
+                                  WHERE    Sample.year = (",year,") AND
+                                           Sample.cruise = ('",cruise, "') AND 
+                                           Sample.trip <=  ('",trip, "')", sep = ""), stringsAsFactors=FALSE
+                  
+                 )
 close(channel)
 
 
@@ -938,7 +961,221 @@ for (i in op_stat) {
 
 
 \newpage
+\section{Tjek af registrering og oparbejdningsniveau}
 
+Her gives et overblik over de stationer, hvor der virker til at være en uoverensstemmelse mellem det valgte prøvetagningsniveau og/eller oparbejdning og hvad der faktisk er indtastet i artslisten.
+
+<!-- Der tjekkes for følgende tilfælde -->
+
+
+<!-- \begin{itemize} -->
+<!-- \item{\textcolor{red}{Kode 1}: Artslisten er tom, men prøvetagningsniveau valgt til 'ALL'} -->
+<!-- \item{\textcolor{red}{Kode 2}: Alle arter står som registreret og oparbejdet, men KON eller DIS er kun registreret ved DTO} -->
+<!-- \item{\textcolor{red}{Kode 3}: Prøvetagningsniveau eller udvælgelses af arter ikke oplyst} -->
+<!-- \end{itemize} -->
+
+
+```{r registration, results='asis',echo=FALSE,message=FALSE,warning=FALSE,fig.pos='H', include = F}
+
+if (nrow(speciesList)>0) {
+
+  reg_stat1 <-unique(speciesList[,c("station","speciesCode","landingCategory","remark")])
+  qtrsample <- sample[,c("trip","station","catchRegistration","speciesRegistration")]
+
+  
+reg_stat1[reg_stat1$speciesCode!="DTO",]$speciesCode <- "ART"
+reg_stat2 <- unique(reg_stat1[,c("station","speciesCode","landingCategory","remark")])
+reg_stat2$var <- paste0(reg_stat2$speciesCode,reg_stat2$landingCategory)
+
+for (i in unique(reg_stat2$station)) {
+   stat <- reg_stat2[reg_stat2$station==i,]
+   reg_stat2[reg_stat2$station==i,"reg_var"] <- paste(stat$var, collapse = " ")
+  
+}
+
+reg_stat2[grepl("ARTKON",reg_stat2$reg_var) & grepl("ARTDIS",reg_stat2$reg_var),"status"] <- "ALL"
+reg_stat2[grepl("ARTKON",reg_stat2$reg_var) & grepl("DTODIS",reg_stat2$reg_var) & is.na(reg_stat2$status),"status"] <- "KON-DTODIS"
+reg_stat2[grepl("ARTDIS",reg_stat2$reg_var) & grepl("DTOKON",reg_stat2$reg_var) & is.na(reg_stat2$status),"status"] <- "DIS-DTOKON"
+
+
+reg_stat2[is.na(reg_stat2$status),"status"] <- reg_stat2[is.na(reg_stat2$status),"reg_var"]
+
+ 
+tjek_reg <- merge(qtrsample, 
+                  unique(reg_stat2[,c("station","status","remark")]), all.x=TRUE)
+tjek_reg[is.na(tjek_reg$status),"status"] <- "NON"
+
+
+tjek_reg[tjek_reg$status=="NON" & tjek_reg$catchRegistration!="NON" & tjek_reg$speciesRegistration!="NON" &
+           !is.na(tjek_reg$catchRegistration) & !is.na(tjek_reg$speciesRegistration),"tjek"] <- "Kode 1"
+tjek_reg[tjek_reg$catchRegistration=="ALL" & tjek_reg$speciesRegistration=="ALL" &
+         tjek_reg$status %in% c("KON-DTODIS","DIS-DTOKON") &
+           !is.na(tjek_reg$catchRegistration) & !is.na(tjek_reg$speciesRegistration),"tjek"] <- "Kode 2"
+tjek_reg[is.na(tjek_reg$catchRegistration) & is.na(tjek_reg$speciesRegistration),"tjek"] <- "Kode 3"
+
+reg_tjek_out <- tjek_reg[!is.na(tjek_reg$tjek),c("trip","station","catchRegistration","speciesRegistration","tjek", "remark")]
+reg_tjek_out <- reg_tjek_out[order(reg_tjek_out$tjek,reg_tjek_out$trip,reg_tjek_out$station),] 
+
+reg_tjek_out$station <- as.character(reg_tjek_out$station)
+reg_tjek_out$trip <- as.character(reg_tjek_out$trip)
+
+colnames(reg_tjek_out) <- c("\\bf Tur", "\\bf Station", "\\bf Prøvetag- ning", "\\bf Oparbejdning af arter", "\\bf Tjek", "\\ Bemærkning")
+
+##################################################
+
+
+}
+ 
+if (nrow(reg_tjek_out)>0) {
+
+library(Hmisc)
+     mylatex(reg_tjek_out,file='',booktabs =T,rowlabel="",rowname="",where='H', collabel.just=c("l","l","p{0.8in}","p{1in}","p{0.8in}","p{1in}"),
+             col.just=c("l","l","l","l","l","l"),longtable= TRUE, lines.page=5000)
+detach(package:Hmisc)
+     
+  
+}
+
+
+```
+
+
+```{r registration2, results='asis',echo=FALSE,message=FALSE,warning=FALSE,fig.pos='H'}
+sample_errorsQ<-sprintf("SELECT s.sampleId, s.tripId, s.year, s.cruise, s.trip, s.tripType, s.station, s.gearQuality, s.dfuArea, s.catchRegistration, s.speciesRegistration, s.remark as stationRemark, t.remark as tripRemark, s.gearQuality
+               FROM  Sample as s
+			   left join trip as t
+			   on (s.year=t.year and
+			   s.trip=t.trip)
+               WHERE (s.year = %s) AND (s.cruise = '%s') and s.trip = '%s'",year,cruise,trip)
+slQ<-sprintf("SELECT distinct s.sampleId, s.landingCategory, 1 as no
+           FROM  SpeciesList s 
+           WHERE (s.year = %s ) AND (s.cruise = '%s') and s.speciesCode<>'DTO'",
+           year,cruise)
+
+#Importing data
+channel <- odbcConnect("FishLineDW")
+sample_errors <- sqlQuery(channel, paste(sample_errorsQ),stringsAsFactors=F)
+sl <- sqlQuery(channel, paste(slQ),stringsAsFactors=F)
+close(channel)
+
+# unique(sample_errors$cruise)
+
+sample_errors1<-subset(sample_errors, cruise %in% c("SEAS","MON","REF-Tunge"))
+
+sl1<-aggregate(no~sampleId+landingCategory, data=sl, function(x) length(x))
+sl2<-dcast(sampleId~landingCategory, data=sl1, value.var="no")
+
+for (lc in c("BMS","DIS","KON","IND","LSC","SLP","SÆL")){
+  if(!lc %in% names(sl2)){
+    sl2[[lc]]<-0
+  }
+}
+
+comment2 <- function(df,comment){
+  if (nrow(df)>0){
+    return(cbind(df,comment))
+    }
+}
+
+# type2 <- function(df,type){
+#   if (!is.null(df))
+# }
+
+sl2[is.na(sl2)]<-0
+# sl2$sum<- sl2$DIS+sl2$IND+sl2$KON+sl2$SLP
+
+sl2$sum <- base::rowSums(sl2[,2:ncol(sl2)])
+
+sample_errors2<-merge(sample_errors1, sl2, all.x=T)
+
+lan<-subset(sample_errors2, catchRegistration=="LAN" & sum!=1 & (DIS!=0 | SLP!=0))
+lan<-comment2(lan,"Prøvetagningsniveau=LAN, men der er oplsyninger om DIS og/eller SLP på artslisten")
+if(!is.null(lan)){lan$type <- "lan"}
+dis<-subset(sample_errors2, catchRegistration=="DIS" & sum!=1 & (KON!=0 | IND!=0) )
+dis<-comment2(dis,"Prøvetagningsniveau=DIS, men der er oplsyninger om KON og/eller IND på artslisten")
+if(!is.null(dis)){dis$type <- "dis"}
+non<-subset(sample_errors2, catchRegistration=="NON" & sum>0)
+non<-comment2(non,"Prøvetagningsniveau=NON (ingen), men der er oplsyninger på artslisten")
+if(!is.null(non)){non$type <- "non"}
+
+
+fejl<-rbind(lan, dis, non)
+
+
+slp<-subset(sample_errors2, SLP==1)
+slp<-comment2(slp,"Der er oplysning om SLP på artslisten - er det korrekt?")
+if(!is.null(slp)){slp$type <- "slp"}
+ind<-subset(sample_errors2, IND==1)
+ind<-comment2(ind,"Der er oplysning om IND på artslisten - er det korrekt?")
+if(!is.null(ind)){ind$type <- "ind"}
+bms<-subset(sample_errors2, BMS==1)
+bms<-comment2(bms,"Der er oplysning om BMS på artslisten - er det korrekt?")
+if(!is.null(bms)){bms$type <- "bms"}
+allAll<-subset(sample_errors2, catchRegistration=="ALL" & speciesRegistration=="ALL" & sum<2 & DIS==0)
+allAll <- comment2(allAll,"Var der 0 discard eller blev discarden ikke oparbejdet?")
+if(!is.null(allAll)){allAll$type <- "allAll"}
+
+question<-rbind(allAll, slp, ind, bms)
+
+fq <- rbind(fejl,question)
+
+```
+```{r errors, results='asis',echo=FALSE,message=FALSE,warning=FALSE,fig.pos='H'}
+types0 <- 
+  data.frame(type = c(rep("Fejl",3),rep("Spørgsmål",4)),
+             kode = c("dis","lan","non","allAll","slp","ind","bms"),
+             overskrift = c("Discard registreret",
+                           "Landede fisk registreret",
+                           "Intet af fangsten er registreret",
+                           "Alt prøvetaget, alt oparbejdet",
+                            "SLP i artslisten",
+                           "Industrifisk i artslisten",
+                           "BMS i artslisten"),
+             beskedVedtom = c("Ingen stationer med registreret discard har givet fejl i rapportens kontrol. ",
+                              "Ingen stationer med landet fangst registreret har givet fejl i rapportens kontrol. ",
+                              "Ingen stationer med uden prøvetagning har givet fejl i rapportens kontrol. ",
+                              "Ingen stationer med alt registreret har givet fejl i rapportens kontrol. ",
+                              "Ingen stationer med SLP i artslisten har givet fejl i rapportens kontrol. ",
+                              "Ingen stationer med industrifisk i artslisten har givet fejl i rapportens kontrol. ",
+                              "Ingen stationer med BMS i artslisten har givet fejl i rapportens kontrol. "),
+             stringsAsFactors = F)
+
+for (i in unique(types0$type)){
+  
+  cat(sprintf("\\subsection{%s} ",i))
+
+  types <- types0[types0$type==i,]
+  
+  for (type in 1:nrow(types)){
+    
+    q <- fq[fq$type == types$kode[type],]
+    cat(sprintf("\\subsubsection{%s} ",types$overskrift[type]))
+    
+    if (!is.null(q) & nrow(q)>0){
+      # if (nrow(question)>0 ) {
+      cat(as.character(q[1,(ncol(q)-1)]))
+      # question2 <-   spm[,c(6,8,11,12,1)]
+      q2 <-   q[,c(5,7,10,11,13,12)]
+      q2[is.na(q2)]<-" "
+      colnames(q2)<- c("\\bf Tur", "\\bf Station",
+                      "\\bf Prøve-tagnings-niveau", "\\bf Oparbejd-ning af arter",
+                      "\\bf Bemærkning til tur","\\bf Bemærkning til station")
+      
+      library(Hmisc)
+      mylatex(q2,file='',booktabs =T,rowlabel="",rowname="",where='H',
+              collabel.just=c(rep("l",2),"p{2cm}","p{2cm}","p{3.5cm}","p{3.5cm}"),
+              col.just=c(rep("l",2),"p{2cm}","p{2cm}","p{3.5cm}","p{3.5cm}"),
+              longtable= TRUE, lines.page=5000)
+      detach(package:Hmisc)
+      } else{
+        cat(types$beskedVedtom[type])
+      }
+  }
+}
+```
+
+
+\newpage
 
 \subsection{Registreret fangst for hele turen i vægt}
 
