@@ -31,3 +31,5 @@
 *.png
 
 */old_versions/*
+.Rproj.user
+*Rproj
