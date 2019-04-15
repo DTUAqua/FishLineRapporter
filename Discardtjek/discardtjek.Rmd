@@ -43,10 +43,10 @@ output:
 
 ```{r define_input, echo=FALSE}
 
-#Parameters
+## Parameters
 year<- 2019
-cruise <- "SEAS"
-trip <- "1683"
+cruise <- "MON"
+trip <- "2709"
 coast_string <- "kort/europe_simple_wgs84"
 ices_areas_string <- "kort/ICES_areas"
 
@@ -55,7 +55,7 @@ ices_areas_string <- "kort/ICES_areas"
 # trip <- @paramTrip
 # coast_string <- "europe_simple_wgs84"
 # ices_areas_string <- "ICES_areas"
- 
+
 ```
 
 
@@ -251,6 +251,16 @@ slQ <- sprintf("SELECT  SpeciesList.station,SpeciesList.speciesCode, SpeciesList
                                                SpeciesList.cruise = ('%s') AND 
                                                SpeciesList.trip =  ('%s') ", 
                                 year,cruise,trip)
+sampleQ <- paste("SELECT   Sample.tripId, Sample.trip, Sample.station, Sample.fishingtime, Sample.latPosStartDec AS lat, 
+                                           Sample.lonPosStartDec AS lon,Sample.latPosStartText AS latT, 
+                                           Sample.lonPosStartText AS lonT, Sample.catchRegistration, 
+                                           Sample.speciesRegistration, Sample.gearType, Sample.selectionDevice,
+                                           Sample.meshSize, Sample.dfuArea, Sample.statisticalRectangle, Sample.quarterGearStart as qtr,
+                                           Sample.remark
+                                  FROM     Sample
+                                  WHERE    Sample.year = (",year,") AND
+                                           Sample.cruise = ('",cruise, "') AND 
+                                           Sample.trip =  ('",trip, "')", sep = "")
 #Importing data
 #data1: Metadata; observator, skipper, dato mm.
 #data2: arter,  landingskategori, antaltotal, langder
@@ -267,18 +277,7 @@ data3c <- sqlQuery(channel, paste(query3c),stringsAsFactors=FALSE)
 data4 <- sqlQuery(channel, paste(query4),stringsAsFactors=FALSE)
 data7 <- sqlQuery(channel, paste(query7),stringsAsFactors=FALSE)
 speciesList <- sqlQuery(channel,slQ, stringsAsFactors=FALSE)
-sample <- sqlQuery(channel,paste("SELECT   Sample.tripId, Sample.trip, Sample.station, Sample.fishingtime, Sample.latPosStartDec AS lat, 
-                                           Sample.lonPosStartDec AS lon,Sample.latPosStartText AS latT, 
-                                           Sample.lonPosStartText AS lonT, Sample.catchRegistration, 
-                                           Sample.speciesRegistration, Sample.gearType, Sample.selectionDevice,
-                                           Sample.meshSize, Sample.dfuArea, Sample.statisticalRectangle, Sample.quarterGearStart as qtr,
-                                           Sample.remark
-                                  FROM     Sample
-                                  WHERE    Sample.year = (",year,") AND
-                                           Sample.cruise = ('",cruise, "') AND 
-                                           Sample.trip <=  ('",trip, "')", sep = ""), stringsAsFactors=FALSE
-                  
-                 )
+sample <- sqlQuery(channel,sampleQ, stringsAsFactors=FALSE)
 close(channel)
 
 
@@ -958,24 +957,76 @@ for (i in op_stat) {
 
 ```
 
+\newpage
+\subsection{Tjek af LAV og enkeltfisk}
+Her laves en kontrol at længde-alder-vægt-tabellen mod enkeltfisk, ej rep.-tabellerne. Hvis antallet af fisk i LAV-tabellerne er lige så store eller mindre end antallet af fisk i enkeltfisk, ej rep-tebellen for en given art, vil det bliver fremhævet i en tabel. I tabellen kan antallet af fisk i LAV og de to enkeltfisk-tabeller. 
 
+```{r LAV, results='asis',echo=F,message=F,warning=F,fig.pos='H'}
+
+sfQ <-sprintf("SELECT     year,cruise,trip,station,speciesCode,sizeSortingEU,
+landingCategory,individNum,number,representative 
+                   FROM       Animal
+                   WHERE      year IN ('%s') AND 
+                              cruise = '%s' AND
+                              trip = '%s'",year,cruise,trip)
+
+# sfQ
+
+channel <- odbcConnect("FishLineDW")
+singleFish <- sqlQuery(channel, paste(sfQ),stringsAsFactors=FALSE)
+close(channel)
+
+singleFish2<-singleFish %>% 
+  dplyr::group_by(station,speciesCode,sizeSortingEU,landingCategory) %>% 
+  dplyr::summarise(LAV = sum(number[is.na(individNum) & representative=="ja"]),
+                   enkeltfiskRep = sum(number[!is.na(individNum) & 
+                                                representative=="ja"]),
+                   enkeltfiskEjRep = sum(number[!is.na(individNum) &
+                                                  representative=="nej"]),
+                   remark = ifelse(LAV<=enkeltfiskEjRep & LAV>0,
+                                   "Samme antal eller flere fisk i Enkeltfisk, ej rep.\n
+                                   end i LAV. Er det de samme fisk?",
+                                   "")) %>% 
+  dplyr::arrange(station, speciesCode,sizeSortingEU) %>% 
+  dplyr::filter(remark!="") %>%
+  dplyr::ungroup()
+
+if (nrow(singleFish2)>0){
+  
+colnames(singleFish2)<-c("\\bf Station","\\bf Art","\\bf Sort.",
+                         "\\bf Landings-kategori","\\bf LAV",
+                         "\\bf Enkelt-fisk, rep.","\\bf Enkelt-fisk, ej rep.",
+                         "\\bf Bemærkning")
+
+library(Hmisc)
+     mylatex(singleFish2,
+             file='',booktabs =T,rowlabel="",rowname="",where='H',
+             collabel.just=c(rep("l",3),rep("p{2cm}",5)),
+             col.just=c(rep("l",3),rep("p{2cm}",5)),
+             longtable= TRUE, lines.page=5000)
+detach(package:Hmisc)
+
+} else{
+  cat("Der er ingen bemærkninger til LAV og enkeltfisk, ej rep.-tabellerne.")
+}
+```
 
 \newpage
-\section{Tjek af registrering og oparbejdningsniveau}
+\subsection{Tjek af registrering og oparbejdningsniveau}
 
-Her gives et overblik over de stationer, hvor der virker til at være en uoverensstemmelse mellem det valgte prøvetagningsniveau og/eller oparbejdning og hvad der faktisk er indtastet i artslisten.
-
-<!-- Der tjekkes for følgende tilfælde -->
-
-
-<!-- \begin{itemize} -->
-<!-- \item{\textcolor{red}{Kode 1}: Artslisten er tom, men prøvetagningsniveau valgt til 'ALL'} -->
-<!-- \item{\textcolor{red}{Kode 2}: Alle arter står som registreret og oparbejdet, men KON eller DIS er kun registreret ved DTO} -->
-<!-- \item{\textcolor{red}{Kode 3}: Prøvetagningsniveau eller udvælgelses af arter ikke oplyst} -->
-<!-- \end{itemize} -->
+Her gives et overblik over de stationer, hvor der virker til at være en uoverensstemmelse mellem det valgte prøvetagningsniveau og/eller oparbejdning og hvad der faktisk er indtastet i artslisten. Der foretages en række tests, og er der fejl eller uoverensstemmelser, vil den pågældende station blive vist i en tabel. 
+ 
+Der tjekkes for følgende tilfælde:
 
 
-```{r registration, results='asis',echo=FALSE,message=FALSE,warning=FALSE,fig.pos='H', include = F}
+\begin{itemize}
+\item{\textcolor{red}{Kode 1}: Artslisten er tom, men prøvetagningsniveau valgt til 'ALL'}
+\item{\textcolor{red}{Kode 2}: Alle arter står som registreret og oparbejdet, men KON eller DIS er kun registreret ved DTO}
+\item{\textcolor{red}{Kode 3}: Prøvetagningsniveau eller udvælgelses af arter ikke oplyst}
+\end{itemize}
+
+
+```{r registration, results='asis',echo=F,message=F,warning=F,fig.pos='H'}
 
 if (nrow(speciesList)>0) {
 
@@ -993,9 +1044,14 @@ for (i in unique(reg_stat2$station)) {
   
 }
 
-reg_stat2[grepl("ARTKON",reg_stat2$reg_var) & grepl("ARTDIS",reg_stat2$reg_var),"status"] <- "ALL"
-reg_stat2[grepl("ARTKON",reg_stat2$reg_var) & grepl("DTODIS",reg_stat2$reg_var) & is.na(reg_stat2$status),"status"] <- "KON-DTODIS"
-reg_stat2[grepl("ARTDIS",reg_stat2$reg_var) & grepl("DTOKON",reg_stat2$reg_var) & is.na(reg_stat2$status),"status"] <- "DIS-DTOKON"
+reg_stat2[grepl("ARTKON",reg_stat2$reg_var) & 
+            grepl("ARTDIS",reg_stat2$reg_var),"status"] <- "ALL"
+reg_stat2[grepl("ARTKON",reg_stat2$reg_var) & 
+            grepl("DTODIS",reg_stat2$reg_var) & 
+            is.na(reg_stat2$status),"status"] <- "KON-DTODIS"
+reg_stat2[grepl("ARTDIS",reg_stat2$reg_var) & 
+            grepl("DTOKON",reg_stat2$reg_var) & 
+            is.na(reg_stat2$status),"status"] <- "DIS-DTOKON"
 
 
 reg_stat2[is.na(reg_stat2$status),"status"] <- reg_stat2[is.na(reg_stat2$status),"reg_var"]
@@ -1006,15 +1062,24 @@ tjek_reg <- merge(qtrsample,
 tjek_reg[is.na(tjek_reg$status),"status"] <- "NON"
 
 
-tjek_reg[tjek_reg$status=="NON" & tjek_reg$catchRegistration!="NON" & tjek_reg$speciesRegistration!="NON" &
-           !is.na(tjek_reg$catchRegistration) & !is.na(tjek_reg$speciesRegistration),"tjek"] <- "Kode 1"
-tjek_reg[tjek_reg$catchRegistration=="ALL" & tjek_reg$speciesRegistration=="ALL" &
-         tjek_reg$status %in% c("KON-DTODIS","DIS-DTOKON") &
-           !is.na(tjek_reg$catchRegistration) & !is.na(tjek_reg$speciesRegistration),"tjek"] <- "Kode 2"
-tjek_reg[is.na(tjek_reg$catchRegistration) & is.na(tjek_reg$speciesRegistration),"tjek"] <- "Kode 3"
+tjek_reg[tjek_reg$status=="NON" & 
+           tjek_reg$catchRegistration!="NON" &
+           tjek_reg$speciesRegistration!="NON" &
+           !is.na(tjek_reg$catchRegistration) &
+           !is.na(tjek_reg$speciesRegistration),"tjek"] <- "Kode 1"
+tjek_reg[tjek_reg$catchRegistration=="ALL" & 
+           tjek_reg$speciesRegistration=="ALL" &
+           tjek_reg$status %in% c("KON-DTODIS","DIS-DTOKON") &
+           !is.na(tjek_reg$catchRegistration) & 
+           !is.na(tjek_reg$speciesRegistration),"tjek"] <- "Kode 2"
+tjek_reg[is.na(tjek_reg$catchRegistration) &
+           is.na(tjek_reg$speciesRegistration),"tjek"] <- "Kode 3"
 
-reg_tjek_out <- tjek_reg[!is.na(tjek_reg$tjek),c("trip","station","catchRegistration","speciesRegistration","tjek", "remark")]
-reg_tjek_out <- reg_tjek_out[order(reg_tjek_out$tjek,reg_tjek_out$trip,reg_tjek_out$station),] 
+reg_tjek_out <- tjek_reg[!is.na(tjek_reg$tjek),
+                        c("trip","station","catchRegistration",
+                          "speciesRegistration","tjek", "remark")]
+reg_tjek_out <- reg_tjek_out[order(reg_tjek_out$tjek,
+                                   reg_tjek_out$trip,reg_tjek_out$station),] 
 
 reg_tjek_out$station <- as.character(reg_tjek_out$station)
 reg_tjek_out$trip <- as.character(reg_tjek_out$trip)
@@ -1142,7 +1207,7 @@ types0 <-
 
 for (i in unique(types0$type)){
   
-  cat(sprintf("\\subsection{%s} ",i))
+  cat(sprintf("\\subsubsection{%s} ",i))
 
   types <- types0[types0$type==i,]
   
@@ -1151,7 +1216,7 @@ for (i in unique(types0$type)){
     q <- fq[fq$type == types$kode[type],]
     cat(sprintf("\\subsubsection{%s} ",types$overskrift[type]))
     
-    if (!is.null(q) & nrow(q)>0){
+    if (!is.null(q) | length(q)>0){
       # if (nrow(question)>0 ) {
       cat(as.character(q[1,(ncol(q)-1)]))
       # question2 <-   spm[,c(6,8,11,12,1)]
@@ -1535,7 +1600,7 @@ if (year<=2010){
 	}
 
 area <- as.character(unique(data4$dfuArea))
-qrt <- unique(data4$quarterGearStar)
+qrt <- unique(data4$quarterGearStart)
 species_trip <- as.character(unique(data7$speciesCode))
 
 query_Ind <-paste("SELECT     Animal.year, Animal.trip, Animal.station, Animal.dfuArea, Animal.speciesCode, Animal.individNum, 
