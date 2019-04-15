@@ -510,6 +510,9 @@ Observatør: `r observator`
 \textbf{Total antal stationer:} & `r nrow(data4)` &
 \end{tabularx}
 
+\newpage
+
+\tableofcontents 
 
 
 \newpage
@@ -1001,8 +1004,8 @@ colnames(singleFish2)<-c("\\bf Station","\\bf Art","\\bf Sort.",
 library(Hmisc)
      mylatex(singleFish2,
              file='',booktabs =T,rowlabel="",rowname="",where='H',
-             collabel.just=c(rep("l",3),rep("p{2cm}",5)),
-             col.just=c(rep("l",3),rep("p{2cm}",5)),
+             collabel.just=c(rep("l",3),rep("p{2cm}",2),rep("|p{2cm}",3)),
+             col.just=c(rep("l",3),rep("p{2cm}",2),rep("|p{2cm}",3)),
              longtable= TRUE, lines.page=5000)
 detach(package:Hmisc)
 
@@ -1099,7 +1102,7 @@ library(Hmisc)
 detach(package:Hmisc)
      
   
-}
+} else{cat("Ingen stationer på turen udløser nogen af de tre koder.")}
 
 
 ```
@@ -1182,12 +1185,16 @@ if(!is.null(allAll)){allAll$type <- "allAll"}
 
 question<-rbind(allAll, slp, ind, bms)
 
+# fq <- data.frame
 fq <- rbind(fejl,question)
+
 
 ```
 ```{r errors, results='asis',echo=FALSE,message=FALSE,warning=FALSE,fig.pos='H'}
 types0 <- 
   data.frame(type = c(rep("Fejl",3),rep("Spørgsmål",4)),
+             typeDesc = c(rep("Her udføres nogle kontroller af egentlige fejl.",3),
+                          rep("Her udføres kontroller af mulige fejl, som skal kontrolleres.",4)),
              kode = c("dis","lan","non","allAll","slp","ind","bms"),
              overskrift = c("Discard registreret",
                            "Landede fisk registreret",
@@ -1208,17 +1215,26 @@ types0 <-
 for (i in unique(types0$type)){
   
   cat(sprintf("\\subsubsection{%s} ",i))
-
+  
   types <- types0[types0$type==i,]
   
+  cat(unique(types$typeDesc))
+  
+
   for (type in 1:nrow(types)){
     
-    q <- fq[fq$type == types$kode[type],]
-    cat(sprintf("\\subsubsection{%s} ",types$overskrift[type]))
+
+    cat(sprintf("\\paragraph{%s} ",types$overskrift[type]))
     
-    if (!is.null(q) | length(q)>0){
-      # if (nrow(question)>0 ) {
-      cat(as.character(q[1,(ncol(q)-1)]))
+    # if (!is.null(fq)){
+      
+    
+      q <- fq[fq$type == types$kode[type],]
+       
+      if (!is.null(q)) {
+        if(nrow(q)>0){
+          
+          cat(as.character(q[1,(ncol(q)-1)]))
       # question2 <-   spm[,c(6,8,11,12,1)]
       q2 <-   q[,c(5,7,10,11,13,12)]
       q2[is.na(q2)]<-" "
@@ -1228,14 +1244,21 @@ for (i in unique(types0$type)){
       
       library(Hmisc)
       mylatex(q2,file='',booktabs =T,rowlabel="",rowname="",where='H',
-              collabel.just=c(rep("l",2),"p{2cm}","p{2cm}","p{3.5cm}","p{3.5cm}"),
-              col.just=c(rep("l",2),"p{2cm}","p{2cm}","p{3.5cm}","p{3.5cm}"),
+              collabel.just=c(rep("l",2),"p{2cm}","p{2cm}","|p{3.5cm}","|p{3.5cm}"),
+              col.just=c(rep("l",2),"p{2cm}","p{2cm}","|p{3.5cm}","|p{3.5cm}"),
               longtable= TRUE, lines.page=5000)
       detach(package:Hmisc)
+      
       } else{
         cat(types$beskedVedtom[type])
+      }} else{
+        cat(types$beskedVedtom[type])
+      
       }
+    # }
   }
+    cat(" ")
+  
 }
 ```
 
