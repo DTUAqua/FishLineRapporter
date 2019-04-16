@@ -48,16 +48,16 @@ output:
 ```{r define_input, echo=FALSE}
 
 #Parameters
-year<- @paramYear
-quarter <- @paramQuarter
-cruise <- @paramCruise
-mappath <- 'europe_simple_wgs84'
+# year<- @paramYear
+# quarter <- @paramQuarter
+# cruise <- @paramCruise
+# mappath <- 'europe_simple_wgs84'
 
 
-# year<- 2018
-# quarter <- 5
-# cruise <- 'SEAS'
-# mappath <- "../Discardtjek/kort/europe_simple_wgs84"
+year<- 2018
+quarter <- 4
+cruise <- 'SEAS'
+mappath <- "../Discardtjek/kort/europe_simple_wgs84"
 
 
 ```
@@ -1087,8 +1087,9 @@ for (i in sort(spec_ind)) {
       geom_point(data=db_spec3,aes(color="all"),pch=18,size=5)+
       geom_point(data=db_spec3[db_spec3$year==year,],
                  aes(color="qtr"),pch=18,size=5)+
-      geom_text_repel(aes(label=as.character(diffId)),
-                      hjust=-0.5,vjust=0.4,force=10,size=7)+
+      geom_label_repel(data=db_spec3[db_spec3$year==year,],
+                       aes(label=as.character(diffId)),
+                      force=10,size=7,seed = 42)+
       theme_minimal(base_size = 18)+
       labs(x = "Længde (mm)", y="Vægt (g)", title=titleString)+
       theme(axis.title.y = element_text(vjust = 2),
@@ -1221,10 +1222,9 @@ spec_AL <- as.character(unique(db_dat_ind$speciesCode))
 
 \renewcommand{\arraystretch}{1}
 
-```{r ,echo=FALSE,results='asis', cache=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=7}
+```{r ,echo=F,results='asis', cache=F, message=F, warning=F, fig.width=12, fig.height=7}
 library(plyr)
 # Plot length - age relations ----------------------------------------------
-
 
 length_age <- function(dataset, include_individNum = TRUE){
         # Takes two arguments,
@@ -1232,7 +1232,7 @@ length_age <- function(dataset, include_individNum = TRUE){
         # include_indicidNum defaults to TRUE which includes the value individNum in the table.
         #   Using FALSE as second argument will remove the value individNum from the output table.
 
-
+dataset <- with_individNum
         # Pre define data set of outliers
         db_diff <- dataset[0,c(1:8)]
         db_diff$diffId = numeric()
@@ -1242,14 +1242,18 @@ length_age <- function(dataset, include_individNum = TRUE){
       dataset[dataset$year!=year,"year_group"] <- "Øvrig database"
 
         #Loop through each species and plot
-        for (i in spec_AL) {
+        for (i in sort(spec_AL)) {
             db_spec0 <- dataset[dataset$speciesCode==i,]
-
-            if (nrow(db_spec0)>0){
+            
+            # db_spec1 <- db_spec0[db_spec0$year==year,]
+            # db_spec_db <- db_spec0[db_spec0$year!=year,]
+            
+            
             x = 1
             counter <- function(x){x <<- x + 1}
             # # creates data for plotting outliers in custom colours
-             db_spec <- ddply(db_spec0, .(age),
+             db_spec1 <- ddply(db_spec0,
+                              .(age),
                               mutate,
                               Q1 = quantile(length, 0.25),
                               median = quantile(length, 0.5),
@@ -1259,68 +1263,73 @@ length_age <- function(dataset, include_individNum = TRUE){
                               lower.limit = Q1-1.5*IQR,
                               outlier =
                                 ifelse(test = (length<lower.limit | length > upper.limit),
-                                       yes = row_number(), no = NA ) )
-
-
-            # Get the 10 worst outliers using cooks distance
-            # lim <- 10
-            #
-            # db_spec$cd <- cooks.distance(lm(log_length ~ age,
-            #                                 data = db_spec[db_spec$year==year,]))*db_spec$age
-            #
-            # # Assigne number 1-10 to the ten worst outliers
-            # db_spec[ db_spec$cd >= db_spec$cd[order(db_spec$cd, decreasing=TRUE)][lim] ,"diffId"] <-
-            #   1:nrow(db_spec[ db_spec$cd >= db_spec$cd[order(db_spec$cd, decreasing=TRUE)][lim] ,])
-          titleString<- printQtr(sprintf(" Art: %s - Kvartal: %s",i,quarter),
-                                 sprintf(" Art: %s - År: %s", i, year))
-
-          p_ind <- ggplot(data=db_spec, aes(x=factor(age), y=length, label=outlier)) +
-
-                # stat_boxplot(geom ='errorbar')+
-                # geom_boxplot(data=db_spec)+
-
-            geom_violin()+
-
-                # geom_jitter(data=db_spec[db_spec$year!=year,],aes(color="all"),pch=20,size=5,width=0.2, height=0)+
-                # geom_jitter(data=db_spec[db_spec$year==year,],aes(color="qtr"),pch=20,size=5,width=0.2, height=0)+
-            geom_point(data=db_spec,aes(color=year_group),pch=18,size=5)+
-               # geom_point(data=db_spec[db_spec$year==year,],aes(color="qtr"),pch=18,size=5)+
-            theme_minimal(base_size = 18)+
-
-            labs(y = "Længde (mm)", x="Alder (år)", title=titleString)+
-
-            theme(axis.title.y = element_text(vjust = 2),
-                      axis.title.x = element_text(vjust = -1),
-                      axis.line = element_line(colour = "black"),
-                      legend.title =element_blank(),
-                      legend.position="right",
-                      plot.title = element_text(face="bold",margin = margin(t = 10, b = -25)),
-                      panel.grid.major = element_line(colour="grey", size=0.5),
-                      panel.grid.major.x = element_blank(),
-                      plot.margin=unit(c(0.5,0,0.5,0.5), "cm"))+
-               # scale_color_manual(values=c("all"="cadetblue3","qtr"="red"), name = "",
-                #                  labels=c("Øvrig database","Valgt kvartal og år"))+
-                            # scale_x_discrete(limits = as.factor(0:max(db_spec$age)),
-                            #                  labels = c(0,as.factor(0:max(db_spec$age))),
-                            #                  expand = waiver())+
-                            # geom_text_repel(aes(label=as.character(diffId)),hjust=-0.5,vjust=0.4)+
-                geom_text_repel(aes(label=outlier),hjust=-0.5,vjust=0.4)+
-              coord_flip()
-
-
-
-              plot(p_ind)
+                                       yes = row_number(), no = NA ) ) %>% 
+               dplyr::arrange(outlier)
+           
+             if (nrow(db_spec1)>0){  
+               db_spec2 <- db_spec1 %>% 
+                 dplyr::filter(year_group!="Øvrig database") %>% 
+                 dplyr::mutate(outlier=ifelse(is.na(outlier),NA,row_number()))
+               
+               db_spec_db <- db_spec1 %>% 
+                 dplyr::filter(year_group=="Øvrig database") %>% 
+                 dplyr::mutate(outlier=NA)
+               
+               db_spec3 <- dplyr::bind_rows(db_spec2,db_spec_db)  
+               
+               titleString<- printQtr(sprintf(" Art: %s - Kvartal: %s",i,quarter),
+                                      sprintf(" Art: %s - År: %s", i, year))
+               
+               p_ind <- ggplot(data=db_spec3, 
+                               aes(x=factor(age), y=length, label=outlier)) +
+                 
+                 geom_violin(data = db_spec3[db_spec3$year!=year,],
+                             aes(fill="all"),alpha=.2,scale="width")+
+                 geom_violin(data = db_spec3[db_spec3$year==year,],
+                             aes(fill ="qtr"),alpha=.2,scale="width")+
+                 
+                 
+                  geom_point(data=db_spec3[db_spec3$year_group=="Øvrig database",],
+                             aes(col="all"),pch=18,size=5)+
+                  geom_point(data=db_spec3[db_spec3$year_group!="Øvrig database",],
+                             aes(col="qtr"),pch=18,size=5)+
+                 
+                  geom_label_repel(aes(label=as.character(outlier)),
+                                   force=10,size=7,seed = 42,fill="white")+
+                 
+                  theme_minimal(base_size = 18)+
+                  labs(y = "Længde (mm)", x="Alder (år)", title=titleString)+
+                  scale_color_manual(values=c("all"="cadetblue3","qtr"="red"), 
+                                     name = "",
+                                     labels=c("Øvrig database","Valgt kvartal og år"))+
+                  scale_fill_manual(values=c("all"="cadetblue3","qtr"="red"), 
+                                     name = "",
+                                     labels=c("Øvrig database","Valgt kvartal og år"))+
+                  theme(axis.title.y = element_text(vjust = 2),
+                            axis.title.x = element_text(vjust = -1),
+                            axis.line = element_line(colour = "black"),
+                            legend.title =element_blank(),
+                            legend.position="right",
+                            plot.title = element_text(face="bold",margin = margin(t = 10, b = -25)),
+                            panel.grid.major = element_line(colour="grey", size=0.5),
+                            panel.grid.major.x = element_blank(),
+                            plot.margin=unit(c(0.5,0,0.5,0.5), "cm"))+
+                    coord_flip()
+      
+      
+      
+                    plot(p_ind)
 
               # Make table of outliers
 
 
-              if (include_individNum==TRUE & any(!is.na(db_spec$outlier))){
-              db_diff <- rbind(db_diff,db_spec[!is.na(db_spec$outlier),
+              if (include_individNum==TRUE & any(!is.na(db_spec3$outlier))){
+              db_diff <- rbind(db_diff,db_spec3[!is.na(db_spec3$outlier),
                                                c("year", "trip", "station", "speciesCode",
                                                  "outlier", "landingCategory", "individNum",
                                                  "length", "age")])
-              } else if(include_individNum!=TRUE & any(!is.na(db_spec$outlier))){
-                  db_diff <- rbind(db_diff,db_spec[!is.na(db_spec$outlier),
+              } else if(include_individNum!=TRUE & any(!is.na(db_spec3$outlier))){
+                  db_diff <- rbind(db_diff,db_spec3[!is.na(db_spec3$outlier),
                                                c("year", "trip", "station", "speciesCode",
                                                  "outlier", "landingCategory",
                                                  "length", "age")])
@@ -1377,7 +1386,19 @@ length_age <- function(dataset, include_individNum = TRUE){
 
 if (nrow(with_individNum)>0){
     cat("\\subsubsection{Fisk med indvividnummer}")
+  cat("I de følgende grafer kan man se forholdet mellem længder og aldre på registrerede fisk i det valgte kvartal/år. Med blå vises fisk fra de seneste 5 år, med rød fisk fra det valgte kvartal/år. Figurerne omkring punkterne illustrerer antallet af fisk i en bestemt alder på de enkelte punkter. Da der er tale om forskellige antal fisk når et kvartal sammenlignes med et kvartal eller år, er figurerne tykkest, der hvor der er flest fisk på et alders- og længdetrin i enten databasen eller det valgte kvartal/år. Outliers findes i den samlede datamængde, men kun outliers fra det valgte kvartal/år fremhæves. \n")
     length_age(with_individNum)
+    
+    # db_diff <- data.frame(year=integer(),
+    #                       cruise=character(),
+    #                       trip=integer,
+    #                       station=integer,
+    #                       qtr=character(),
+    #                       speciesCode = character(),
+    #                       landingCategory=character(),
+    #                       individNum=integer()
+    #                       diffId=character(),stringsAsFactors=F)
+                          
 }
 # if (nrow(no_individNum)>0){
 #     cat("\\subsubsection{Fisk uden indvividnummer}")
