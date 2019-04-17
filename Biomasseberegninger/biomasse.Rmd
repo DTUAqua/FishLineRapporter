@@ -358,52 +358,92 @@ data2[species==species &
 
     
     #BMS
-    data2[data2$stationType=="BMS" & data2$speciesCode=="BMS","Korrigeret_bms_kg_m2_SMÅ"] <- 
-        data2[data2$stationType=="BMS" & data2$speciesCode=="BMS",]$Fangst_kg_m2_SMÅ/(
+    # data2[data2$stationType=="BMS" & data2$speciesCode=="BMS","Korrigeret_bms_kg_m2_SMÅ"] <- 
+    #     data2[data2$stationType=="BMS" & data2$speciesCode=="BMS",]$Fangst_kg_m2_SMÅ/(
+    #       (37*data2[data2$stationType=="BMS" & 
+    #                   data2$speciesCode=="BMS",]$Fangst_kg_m2^0.71)/100)
+    data2[data2$stationType=="BMS" & 
+            data2$speciesCode=="BMS","Korrigeret_bms_kg_m2_STO"] <- 
+        data2[data2$stationType=="BMS" &
+                data2$speciesCode=="BMS",]$Fangst_kg_m2_STO/(
           (37*data2[data2$stationType=="BMS" & 
                       data2$speciesCode=="BMS",]$Fangst_kg_m2^0.71)/100)
-    data2[data2$stationType=="BMS" & data2$speciesCode=="BMS","Korrigeret_bms_kg_m2_STO"] <- 
-        data2[data2$stationType=="BMS" & data2$speciesCode=="BMS",]$Fangst_kg_m2_STO/(
+    data2[data2$stationType=="BMS" & 
+            data2$speciesCode=="BMS","Korrigeret_bms_kg_m2"] <- 
+        data2[data2$stationType=="BMS" &
+                data2$speciesCode=="BMS",]$Fangst_kg_m2/(
           (37*data2[data2$stationType=="BMS" & 
                       data2$speciesCode=="BMS",]$Fangst_kg_m2^0.71)/100)
-    data2[data2$stationType=="BMS" & data2$speciesCode=="BMS","Korrigeret_bms_kg_m2"] <- 
-        data2[data2$stationType=="BMS" & data2$speciesCode=="BMS",]$Fangst_kg_m2/(
-          (37*data2[data2$stationType=="BMS" & 
-                      data2$speciesCode=="BMS",]$Fangst_kg_m2^0.71)/100)
-    
-    data2[data2$stationType=="BOS" & data2$speciesCode=="BMS","Korrigeret_bms_kg_m2_SMÅ"] <- 
-      data2[data2$stationType=="BOS" & data2$speciesCode=="BMS",]$Fangst_kg_m2_SMÅ*2.47
-    data2[data2$stationType=="BOS" & data2$speciesCode=="BMS","Korrigeret_bms_kg_m2_STO"] <- 
-      data2[data2$stationType=="BOS" & data2$speciesCode=="BMS",]$Fangst_kg_m2_STO*2.47
-    data2[data2$stationType=="BOS" & data2$speciesCode=="BMS","Korrigeret_bms_kg_m2"] <- 
-      data2[data2$stationType=="BOS" & data2$speciesCode=="BMS",]$Fangst_kg_m2*2.47
-    
-    data2[data2$stationType=='RAM' & data2$speciesCode=="BMS","Korrigeret_bms_kg_m2_SMÅ"] <- 
-        data2[data2$stationType=='RAM' & data2$speciesCode=="BMS",]$Fangst_kg_m2_SMÅ 
-    data2[data2$stationType=='SUG' & data2$speciesCode=="BMS","Korrigeret_bms_kg_m2_SMÅ"] <- 
-        data2[data2$stationType=='SUG' & data2$speciesCode=="BMS",]$Fangst_kg_m2_SMÅ 
-    data2[data2$stationType=='RAM' & data2$speciesCode=="BMS","Korrigeret_bms_kg_m2_STO"] <- 
-        data2[data2$stationType=='RAM' & data2$speciesCode=="BMS",]$Fangst_kg_m2_STO
-    data2[data2$stationType=='SUG' & data2$speciesCode=="BMS","Korrigeret_bms_kg_m2_STO"] <- 
-        data2[data2$stationType=='SUG' & data2$speciesCode=="BMS",]$Fangst_kg_m2_STO 
-    data2[data2$stationType=='RAM' & data2$speciesCode=="BMS","Korrigeret_bms_kg_m2"] <- 
-        data2[data2$stationType=='RAM' & data2$speciesCode=="BMS",]$Fangst_kg_m2 
-    data2[data2$stationType=='SUG' & data2$speciesCode=="BMS","Korrigeret_bms_kg_m2"] <- 
-        data2[data2$stationType=='SUG' & data2$speciesCode=="BMS",]$Fangst_kg_m2 
+        data2[data2$stationType=="BMS" &
+                data2$speciesCode=="BMS","Korrigeret_bms_kg_m2_SMÅ"] <- 
+          data2[data2$stationType=="BMS" &
+                data2$speciesCode=="BMS","Korrigeret_bms_kg_m2"] - 
+          data2[data2$stationType=="BMS" &
+                data2$speciesCode=="BMS","Korrigeret_bms_kg_m2_STO"]
+        
+    # data2[data2$stationType=="BOS" & data2$speciesCode=="BMS","Korrigeret_bms_kg_m2_SMÅ"] <- 
+    #   data2[data2$stationType=="BOS" & data2$speciesCode=="BMS",]$Fangst_kg_m2_SMÅ*2.47
+    data2[data2$stationType=="BOS" & 
+            data2$speciesCode=="BMS","Korrigeret_bms_kg_m2_STO"] <- 
+      data2[data2$stationType=="BOS" & 
+              data2$speciesCode=="BMS",]$Fangst_kg_m2_STO*2.47
+    data2[data2$stationType=="BOS" & 
+            data2$speciesCode=="BMS","Korrigeret_bms_kg_m2"] <- 
+      data2[data2$stationType=="BOS" & 
+              data2$speciesCode=="BMS",]$Fangst_kg_m2*2.47
+        data2[data2$stationType=="BOS" &
+                data2$speciesCode=="BMS","Korrigeret_bms_kg_m2_SMÅ"] <- 
+      data2[data2$stationType=="BOS" & 
+              data2$speciesCode=="BMS","Korrigeret_bms_kg_m2"] - 
+          data2[data2$stationType=="BOS" & 
+              data2$speciesCode=="BMS","Korrigeret_bms_kg_m2_STO"]
+     
+    # data2[data2$stationType=='RAM' & data2$speciesCode=="BMS","Korrigeret_bms_kg_m2_SMÅ"] <-  
+    #     data2[data2$stationType=='RAM' & data2$speciesCode=="BMS",]$Fangst_kg_m2_SMÅ 
+    # data2[data2$stationType=='SUG' & data2$speciesCode=="BMS","Korrigeret_bms_kg_m2_SMÅ"] <- 
+    #     data2[data2$stationType=='SUG' & data2$speciesCode=="BMS",]$Fangst_kg_m2_SMÅ 
+    data2[data2$stationType=='RAM' & 
+            data2$speciesCode=="BMS","Korrigeret_bms_kg_m2_STO"] <- 
+        data2[data2$stationType=='RAM' &
+                data2$speciesCode=="BMS",]$Fangst_kg_m2_STO
+    data2[data2$stationType=='SUG' & 
+            data2$speciesCode=="BMS","Korrigeret_bms_kg_m2_STO"] <- 
+        data2[data2$stationType=='SUG' &
+                data2$speciesCode=="BMS",]$Fangst_kg_m2_STO 
+    data2[data2$stationType=='RAM' & 
+            data2$speciesCode=="BMS","Korrigeret_bms_kg_m2"] <- 
+        data2[data2$stationType=='RAM' & 
+                data2$speciesCode=="BMS",]$Fangst_kg_m2 
+    data2[data2$stationType=='SUG' & 
+            data2$speciesCode=="BMS","Korrigeret_bms_kg_m2"] <- 
+        data2[data2$stationType=='SUG' &
+                data2$speciesCode=="BMS",]$Fangst_kg_m2
+    data2[data2$stationType=='RAM' & 
+            data2$speciesCode=="BMS","Korrigeret_bms_kg_m2_SMÅ"] <- 
+        data2[data2$stationType=='RAM' & 
+                data2$speciesCode=="BMS",]$Fangst_kg_m2_SMÅ 
+    data2[data2$stationType=='SUG' & 
+            data2$speciesCode=="BMS","Korrigeret_bms_kg_m2_SMÅ"] <- 
+        data2[data2$stationType=='SUG' & 
+                data2$speciesCode=="BMS",]$Fangst_kg_m2_SMÅ 
         
             
     # BMS-OKYST
     # data2[data2$stationType=="BMSOK", "Korrigeret_bms_kg_m2"] <-
     #   data2[data2$stationType=="BMSOK",]$Fangst_kg_m2*(1/65*100)
-    data2[data2$stationType=="BMSOK", "Korrigeret_bms_kg_m2_SMÅ"] <-
-      0.073 * ((data2[data2$stationType=="BMSOK",]$Fangst_kg_m2_SMÅ)^1.696) + 
-      data2[data2$stationType=="BMSOK",]$Fangst_kg_m2_SMÅ
+    # data2[data2$stationType=="BMSOK", "Korrigeret_bms_kg_m2_SMÅ"] <-
+    #   0.073 * ((data2[data2$stationType=="BMSOK",]$Fangst_kg_m2_SMÅ)^1.696) + 
+    #   data2[data2$stationType=="BMSOK",]$Fangst_kg_m2_SMÅ
     data2[data2$stationType=="BMSOK", "Korrigeret_bms_kg_m2_STO"] <-
       0.073 * ((data2[data2$stationType=="BMSOK",]$Fangst_kg_m2_STO)^1.696) + 
       data2[data2$stationType=="BMSOK",]$Fangst_kg_m2_STO
     data2[data2$stationType=="BMSOK", "Korrigeret_bms_kg_m2"] <-
       0.073 * ((data2[data2$stationType=="BMSOK",]$Fangst_kg_m2)^1.696) + 
       data2[data2$stationType=="BMSOK",]$Fangst_kg_m2
+    data2[data2$stationType=="BMSOK", "Korrigeret_bms_kg_m2_SMÅ"] <-
+      data2[data2$stationType=="BMSOK","Korrigeret_bms_kg_m2"] - 
+      data2[data2$stationType=="BMSOK","Korrigeret_bms_kg_m2_STO"]
+    
     
     data2[data2$stationType=="BMSOK", "Korrigeret_sst_kg_m2"] <- 
       data2[data2$stationType=="BMSOK",]$Fangst_kg_m2*(1/50*100)
