@@ -803,8 +803,8 @@ for (i in unique(types0$type)){
     q <- fq[fq$type == types$kode[type],]
     cat(sprintf("\\subsubsection{%s} ",types$overskrift[type]))
     
-    if (!is.null(q)){
-       if(nrow(q)>0){
+    if (is.data.frame(q) && nrow(q)>0){
+       # if(nrow(q)>0){
       # if (nrow(question)>0 ) {
       cat(as.character(q[1,(ncol(q)-1)]))
       # question2 <-   spm[,c(6,8,11,12,1)]
@@ -820,10 +820,11 @@ for (i in unique(types0$type)){
               col.just=c(rep("l",2),"p{1cm}","p{1cm}","p{4cm}","p{4cm}"),
               longtable= TRUE, lines.page=5000)
       detach(package:Hmisc)
-      } }else{
-        cat(types$beskedVedtom[type])
+      } else{
+        cat(types$beskedVedtom[type])}
+    # } else{
+    #     cat(types$beskedVedtom[type])
       }
-  }
 }
 ```
 
@@ -1296,7 +1297,9 @@ if (nrow(with_individNum[with_individNum$year==year &
                                       sprintf(" Art: %s - År: %s", i, year))
                
                p_ind <- ggplot(data=db_spec3, 
-                               aes(x=factor(age), y=length, label=outlier)) 
+                               aes(x=factor(age,
+                                            levels = c(0:(max(db_spec3$age,na.rm=T)+1))),
+                                            y=length, label=outlier))
                
                  if (nrow(db_spec3[db_spec3$year_group=="Øvrig database",])>0){
                  p_ind <- p_ind +
@@ -1335,6 +1338,7 @@ if (nrow(with_individNum[with_individNum$year==year &
                   scale_fill_manual(values=c("all"="cadetblue3","qtr"="red"), 
                                      name = "",
                                      labels=c("Øvrig database","Valgt kvartal og år"))+
+                 scale_x_discrete(drop=F)+
                   theme(axis.title.y = element_text(vjust = 2),
                         axis.title.x = element_text(vjust = -1),
                         axis.line = element_line(colour = "black"),
