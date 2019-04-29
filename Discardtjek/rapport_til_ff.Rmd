@@ -116,7 +116,7 @@ if (!require(pdftools)) {
 dateString <- format(Sys.Date(), "%Y%m%d")
 filePath <- "Q:/dfad/users/trkj/data/data_fil_ff/"
 year <- 2018
-quarter <- 3
+quarter <- 4
 species <- NULL
 areas <- NULL # "Østlige Østersø"
 logbookPath <- sprintf("Q:/dfad/data/Data/logdata/nylog%s.rds", year - 2000)
@@ -709,7 +709,7 @@ landings_va <- round(sum(data$weightTotal[data$speciesCode %in% vigtige_arter &
   data$landingCategory == "KON"], na.rm = T), 2)
 total_va <- round(sum(data$weightTotal[data$speciesCode %in% vigtige_arter &
   data$farvand %in% vigtige_omraader], na.rm = T), 2)
-discardpct_va <- round((discard_va - bms_va$bms_dec[1]) / total_va * 100, 2)
+discardpct_va <- round((discard_va - bms_va$bms_log[1]) / total_va * 100, 2)
 
 Arter <- data %>%
   ungroup() %>%
@@ -760,8 +760,8 @@ omraader <- data %>%
 \textbf{Landede udvalgte arter i udvalgte områder:} & `r paste(prettyNum2(landings_va), "kg")` &\\
 \textbf{Samlet vægt af udvalgte arter i udvalgte områder:} & `r paste(prettyNum2(total_va), "kg")` &\\
 \textbf{Discard-pct. af samlet vægt:} & `r paste(prettyNum3(discardpct_va), "\\%")` &\\
-\textbf{BMS på udvalgte områder (fra logbøger):} & `r paste(prettyNum2(sum(logbook2$fangst_logbook)), "kg")` &\\
-\textbf{BMS på udvalgte områder (fra afr./lan.erk.):} & `r paste(prettyNum2(sum(landingDec2$fangst_ld)), "kg")` &
+\textbf{BMS på udvalgte områder (fra afr./lan.erk.):} & `r paste(prettyNum2(sum(landingDec2$fangst_ld)), "kg")` &\\
+\textbf{BMS på udvalgte områder (fra logbøger):} & `r paste(prettyNum2(sum(logbook2$fangst_logbook)), "kg")` &
 \end{tabularx}
 
 <!-- TODO: indsæt discard/landinger/procent discard for vigtige arter -->
@@ -935,24 +935,17 @@ for (fvd in vigtige_omraader) {
       # if (nrow(db_spec[db_spec$landingCategory %in%
       #                  c(konsum_cats,discard_cats,bms_cats),])>0){
 
-      db_spec <- db_spec %>%
-        mutate(
-          landingCat =
-            ifelse((landingCategory %in% konsum_cats &
-              cruise %in% c("SEAS", "MON") &
-              year == year), "Landinger",
-            ifelse((year == year &
-                      landingCategory %in% discard_cats &
-                      cruise %in% c("SEAS", "MON")), "Discard",
-            # ifelse(landingCategory %in% bms_cats &
-            #          cruise %in% c("SEAS","MON") &
-            #          year == year,"BMS",
-            "Øvrig database"
-            )
-            )
-        )
+      db_spec$landingCat <- ifelse((db_spec$landingCategory %in% konsum_cats &
+                                      db_spec$cruise %in% c("SEAS", "MON") &
+                                      db_spec$year == year),
+                                   "Landinger",
+                                   ifelse((db_spec$year == year &
+                                             db_spec$landingCategory %in% discard_cats &
+                                             db_spec$cruise %in% c("SEAS", "MON")), 
+                                          "Discard",
+                                          "Øvrig database"))
       
-      db_spec$landingCat[db_spec$year!=year] <- "Øvrig database"
+      db_spec$landingCat[db_spec$year != year] <- "Øvrig database"
       # )
       
       currentTrips <- which(db_spec$cruise %in% c("SEAS", "MON") &
@@ -960,14 +953,14 @@ for (fvd in vigtige_omraader) {
                               db_spec$quarterGearStart==quarter)
       
       db_spec_observer <- db_spec[currentTrips, ]
-      db_spec_other <- db_spec[-currentTrips, ]
+      # db_spec_other <- db_spec[-currentTrips, ]
 
       cats_in_plot <- sort(unique(db_spec$landingCat), decreasing = T)
 
       if (nrow(db_spec_observer) > 0) {
-        db_spec_observer_dis <- db_spec_observer %>% filter(landingCat == "Discard")
-        db_spec_observer_kon <- db_spec_observer %>% filter(landingCat == "Landinger")
-        db_spec_observer_bms <- db_spec_observer %>% filter(landingCat == "BMS")
+        # db_spec_observer_dis <- db_spec_observer %>% filter(landingCat == "Discard")
+        # db_spec_observer_kon <- db_spec_observer %>% filter(landingCat == "Landinger")
+        # db_spec_observer_bms <- db_spec_observer %>% filter(landingCat == "BMS")
 
         p <- ggplot(db_spec %>% arrange(desc(landingCat)), aes(x = length, y = weight, col = landingCat))+
           geom_point(pch = 18, size = 5)
