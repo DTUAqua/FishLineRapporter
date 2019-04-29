@@ -48,16 +48,16 @@ output:
 ```{r define_input, echo=FALSE}
 
 #Parameters
-year<- @paramYear
-quarter <- @paramQuarter
-cruise <- @paramCruise
-mappath <- 'europe_simple_wgs84'
+# year<- @paramYear
+# quarter <- @paramQuarter
+# cruise <- @paramCruise
+# mappath <- 'europe_simple_wgs84'
  
 
-# year<- 2018
-# quarter <- 1
-# cruise <- 'MON'
-# mappath <- "../Discardtjek/kort/europe_simple_wgs84"
+year<- 2018
+quarter <- 1
+cruise <- 'MON'
+mappath <- "../Discardtjek/kort/europe_simple_wgs84"
 
 
 ```
@@ -519,19 +519,23 @@ mis_gear <- gear_input1[!complete.cases(gear_input1),]
 gear_input <- gear_input1[complete.cases(gear_input1),]
 
 gear_input[gear_input$dfuArea %in% c(21) & 
-             !(gear_input$selectionDevice %in% c("Seltra 300","Topløs/seltra >175mm")) & 
+             !(gear_input$selectionDevice %in%
+                 c("Seltra 300","Topløs/seltra >175mm","4 panel/270 diamant")) & 
              gear_input$gearType %in% c("OTB","OTT","PTB"),"dfuArea"] <- 
-  paste("\\color{red}",gear_input[gear_input$dfuArea %in% c(21) &
-                                    !(gear_input$selectionDevice %in% c("Seltra 300","Topløs/seltra >175mm")) & 
-                                    gear_input$gearType %in% c("OTB","OTT","PTB"),"dfuArea"])
+  paste("\\color{red}",
+        gear_input[gear_input$dfuArea %in% c(21) &
+                     !(gear_input$selectionDevice %in% 
+                         c("Seltra 300","Topløs/seltra >175mm","4 panel/270 diamant")) & 
+                     gear_input$gearType %in% c("OTB","OTT","PTB"),"dfuArea"])
 
 gear_input[gear_input$dfuArea %in% c(22:32) & 
              !(gear_input$selectionDevice %in% c("110 Bacoma","120 Bacoma","T90")) & 
              gear_input$gearType %in% c("OTB","OTT","PTB"),"dfuArea"] <- 
-  
-  paste("\\color{red}",gear_input[gear_input$dfuArea %in% c(22:32) & 
-                                    !(gear_input$selectionDevice %in% c("110 Bacoma","120 Bacoma","T90")) & 
-                                    gear_input$gearType %in% c("OTB","OTT","PTB"),"dfuArea"])
+  paste("\\color{red}",
+        gear_input[gear_input$dfuArea %in% c(22:32) & 
+                     !(gear_input$selectionDevice %in%
+                         c("110 Bacoma","120 Bacoma","T90")) & 
+                     gear_input$gearType %in% c("OTB","OTT","PTB"),"dfuArea"])
 
 gear_input[gear_input$dfuArea %like% "\\color","selectionDevice"] <- 
   paste("\\color{red}",
@@ -601,6 +605,64 @@ library(Hmisc)
 detach(package:Hmisc)
      
   
+}
+```
+\subsection{Artslister}
+
+```{r LAV_vs_singlefish, results='asis',echo=FALSE,message=FALSE,warning=FALSE,fig.pos='H'}
+
+
+sfQ <-sprintf("SELECT     year,cruise,trip,station,speciesCode,sizeSortingEU,
+landingCategory,individNum,number,representative 
+                   FROM       Animal
+                   WHERE      year IN ('%s') AND 
+                              cruise = '%s' AND
+                              quarterGearStart = '%s'",year,cruise,quarter)
+
+# sfQ
+
+channel <- odbcConnect("FishLineDW")
+singleFish <- sqlQuery(channel, paste(sfQ),stringsAsFactors=FALSE)
+close(channel)
+
+singleFish2<-singleFish %>% 
+  dplyr::group_by(trip,station,speciesCode,sizeSortingEU,landingCategory) %>% 
+  dplyr::summarise(LAV = sum(number[is.na(individNum) & representative=="ja"]),
+                   enkeltfiskRep = sum(number[!is.na(individNum) & 
+                                                representative=="ja"]),
+                   enkeltfiskEjRep = sum(number[!is.na(individNum) &
+                                                  representative=="nej"]),
+                   remark = ifelse(LAV<=enkeltfiskEjRep & LAV>0,
+                                   "Samme antal eller flere fisk i Enkeltfisk, ej rep.
+                                   end i LAV. Er det de samme fisk?",
+                                   "")) %>% 
+  dplyr::arrange(trip,station, speciesCode,sizeSortingEU,landingCategory) %>% 
+  dplyr::filter(remark!="") %>%
+  dplyr::ungroup()
+
+for (rmk in sort(unique(singleFish2$remark))){
+  singleFish3 <- subset(singleFish2,
+                        singleFish2$remark==rmk, 
+                        select = -remark)
+
+  if (nrow(singleFish3)>0){
+  
+    cat(rmk)
+  colnames(singleFish3)<-c("\\bf Tur","\\bf Station","\\bf Art","\\bf Sort.",
+                           "\\bf Landings-kategori","\\bf LAV",
+                           "\\bf Enkelt-fisk, rep.","\\bf Enkelt-fisk, ej rep.")
+  
+  library(Hmisc)
+       mylatex(singleFish3,
+               file='',booktabs =T,rowlabel="",rowname="",where='H',
+               collabel.just=c(rep("l",4),rep("p{2cm}",1),rep("|p{2cm}",3)),
+               col.just=c(rep("l",4),rep("p{2cm}",1),rep("|p{2cm}",3)),
+               longtable= TRUE, lines.page=5000)
+  detach(package:Hmisc)
+  
+  } else{
+    cat("Der er ingen bemærkninger til LAV og enkeltfisk, ej rep.-tabellerne.")
+  }
 }
 ```
 
