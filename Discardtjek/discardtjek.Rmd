@@ -46,7 +46,7 @@ output:
 ## Parameters
 year<- 2019
 cruise <- "MON"
-trip <- "2709"
+trip <- "2714"
 coast_string <- "kort/europe_simple_wgs84"
 ices_areas_string <- "kort/ICES_areas"
 
@@ -381,7 +381,7 @@ if (nrow(position)>0){
   set.seed(42)
   pdf("tripmap3.pdf")
 
-
+if (nrow(position)>0){
 if (max_lat-min_lat >2) {
   xlim <- c(min_lon-2,max_lon+2)
   ylim <- c(min_lat-4,max_lat+4)
@@ -420,6 +420,7 @@ legend( x="bottomright",
         legend=c("ICES-område","ICES-kvadrat","Station start","Station slut"),
         lty=c(1,2,0,0),pch=c(NA,NA,16,24), col = c("grey","grey","red","black"),
         cex = 0.9, pt.bg=c("white","white","white","green") ,bg=c("white"))
+}
 dev.off()
 }
 ```
@@ -1094,7 +1095,7 @@ colnames(reg_tjek_out) <- c("\\bf Tur", "\\bf Station", "\\bf Prøvetag- ning", 
 
 }
  
-if (nrow(reg_tjek_out)>0) {
+if (exists("reg_tjek_out") && nrow(reg_tjek_out)>0) {
 
 library(Hmisc)
      mylatex(reg_tjek_out,file='',booktabs =T,rowlabel="",rowname="",where='H', collabel.just=c("l","l","p{0.8in}","p{1in}","p{0.8in}","p{1in}"),
@@ -1396,17 +1397,17 @@ colnames(indLen3)[1] <- "speciesCode"
 
 
 
-if (unique(data4$dfuArea) %in% c(21)){
+if (unique(data4$dfuArea) %in% c("21")){
   indsam <- data.frame("Art"=c("TOR","TNG","ISG","RSP"),
                        "status"=rep("skal indsamles",4))
   indsamKON <- data.frame("Art"=c("TNG"),
                           "status"=rep("skal indsamles",1))
-} else if (unique(data4$dfuArea) %in% c(22,23,24)) {
+} else if (unique(data4$dfuArea) %in% as.character(c(22,23,24))) {
   indsam <- data.frame("Art"=c("TOR","RSP","ISG","SKR","TNG"),
                        "status"=rep("skal indsamles",5))
   indsamKON <- data.frame("Art"=c("TNG","SKR"),
                           "status"=rep("skal indsamles",2))
-} else if (unique(data4$dfuArea)>24 & unique(data4$dfuArea)<=32) {
+} else if (unique(data4$dfuArea) %in% c(as.character(25:32))) {
   indsam <- data.frame("Art"=c("TOR","RSP","SKR"),"status"=rep("skal indsamles",3))
   indsamKON <- data.frame("Art"=c("SKR"),
                           "status"=rep("skal indsamles",1))
@@ -1415,7 +1416,7 @@ if (unique(data4$dfuArea) %in% c(21)){
                        "status"=rep("skal indsamles",8))
   indsamKON <- data.frame("Art"=c(NA),
                           "status"=rep("skal indsamles",1))
-} else if (unique(data4$dfuArea) %in% c(20)) {
+} else if (unique(data4$dfuArea) %in% c("20")) {
   indsam <- data.frame("Art"=c("TOR","RSP","TNG","ISG","SKI","SLH","PGH"),
                        "status"=rep("skal indsamles",7))
   indsamKON <- data.frame("Art"=c("TNG")
@@ -1584,7 +1585,7 @@ I tabellen nedenfor er vist alle arter, hvoraf der er lavet en længdefordeling 
 
       
 ```{r table2,echo=FALSE, cache=FALSE,message=FALSE, warning=FALSE,results='asis',fig.width=12, fig.height=5,fig.pos='H'}  
-if (nrow(indLen3)>0){
+if (exists("indLen3") && nrow(indLen3)>0){
 # indLen3[is.na(indLen3)] <- 0
 
 mylatex(indLen3,
