@@ -3,6 +3,11 @@ geometry: top=2cm, bottom=1.5cm, left=1.5cm, right=5cm
 header-includes:
 - \usepackage{tabularx}
 - \usepackage{tcolorbox}
+- \usepackage{booktabs}
+- \usepackage{longtable}
+- \usepackage{array}
+- \usepackage{multirow}
+- \usepackage{xcolor}
 output: pdf_document
 ---
 
@@ -55,6 +60,23 @@ if (!require(dplyr)) {
   install.packages("dplyr", repos="http://ftp.ussg.iu.edu/CRAN/")
   library(dplyr)
 }
+if (!require(knitr)) {
+  install.packages("knitr", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(knitr)
+}
+# if (!require(kableExtra)) {
+#   install.packages("kableExtra", repos="http://ftp.ussg.iu.edu/CRAN/")
+#   library(kableExtra)
+# }
+if (!require(xtable)) {
+  install.packages("xtable", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(xtable)
+}
+if (!require(Hmisc)) {
+  install.packages("Hmisc", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(Hmisc)
+}
+detach("package:Hmisc", unload=TRUE)
 ```
 
 
@@ -76,7 +98,11 @@ data <- sqlQuery(channel, paste("SELECT    Sample.sampleId, Sample.year, Sample.
                                            Sample ON SpeciesList.sampleId = Sample.sampleId
                                  WHERE     Sample.year = (",year,") AND
                                            Sample.cruise = ('",cruise,"') AND
-                                           Sample.gearQuality = 'V' ", sep=""), stringsAsFactors=FALSE)                         
+                                           Sample.gearQuality = 'V' ", sep=""), stringsAsFactors=FALSE) 
+db_message <- sqlQuery(channel, 
+                       sprintf("SELECT * FROM ErrorLog where origin like '%s->%s%s'",
+                               year,cruise,"%"),
+                       stringsAsFactors=F)
 close(channel)
 
 
@@ -653,7 +679,7 @@ final_data$Min_Length_cm_STO[is.infinite(final_data$Min_Length_cm_STO)]<-0
 
 
 
-#Data - Biomasseberegninger
+\section{Data - Biomasseberegninger}
 
 \begin{tcolorbox}[colback=white!5,colframe=blue!40!black,title=Information om udtrækket]
 \renewcommand{\arraystretch}{1.2}
@@ -664,6 +690,77 @@ final_data$Min_Length_cm_STO[is.infinite(final_data$Min_Length_cm_STO)]<-0
 \textbf{Redskabstype} & `r unique(data$gearType)` &
 \end{tabularx}
 \end{tcolorbox}
+
+
+```{r db_messages, results='asis',echo=FALSE,message=FALSE,warning=FALSE,fig.pos='H'}
+
+
+makeTable <- function(data){
+  
+  bold <- function(x) {paste('{\\textbf{',x,'}}', sep ='')}
+  
+  options(xtable.comment = FALSE)
+  print(xtable(x=data,align = c(rep("l",4),rep("p{5cm}",1),rep("p{2cm}",1),rep("l",1))),
+        include.rownames=F,#sanitize.colnames.function = identity,
+         sanitize.colnames.function=bold,
+        booktabs=T)
+
+}
+     
+cat("# Meddelelser fra datawarehouset\n")
+cat("Her vil der blive vist eventuelle fejl og advarsler fra ejsporten af togtet fra databasen til datawarehouset. Fejl og advarsler kan forklare uventede resultater, men kan også være af mindre betydning. Hvis der er lavet ændringer siden den anførte logTime og der har været efterfølgende eksport af togtet uden at logTime har ændret sig, betyder det at togtet efter ændringer ikke har udløst nye fejl.\n\n")
+
+if (nrow(db_message)>0){
+  
+  db_message$year <- 0
+  db_message$cruise <- ""
+  db_message$trip <- ""
+  db_message$station <- ""
+  
+  for (i in 1:nrow(db_message)){
+    origin <- strsplit(db_message$origin[i],split="->")
+    
+    db_message$year[i] <- as.numeric(origin[[1]][1])
+    db_message$cruise[i] <- origin[[1]][2]
+    db_message$trip[i] <- origin[[1]][3]
+    db_message$station[i] <- origin[[1]][4]
+  }
+  
+  db_message$logTime <- as.character(db_message$logTime)
+  
+  warnings <- db_message[db_message$errorType=="Warning",]
+  errors <- db_message[db_message$errorType=="Error",]
+ 
+}
+
+cat("\\subsection{Advarsler fra datawarehouset}")
+# if (exists("warnings")){
+  if (!is.null(nrow(warnings)) && nrow(warnings)>0){
+
+  w <- warnings %>% 
+    dplyr::select(trip,station,recordType,description,logTime,transferErrorId) 
+  
+  makeTable(w)
+
+} else{
+  cat("Der har ikke været registreret advarsler fra datawarehouset\n")
+}
+
+
+cat("\\subsection{Fejlmeddelelser fra datawarehouset}")
+
+if (!is.null(nrow("errors")) && nrow(errors)>0){
+  
+  er <- errors %>% 
+    dplyr::select(trip,station,recordType,description,logTime,transferErrorId) 
+  
+  makeTable(er)
+} else{
+  cat("Der har ikke været registreret fejl fra datawarehouset\n")
+  }
+ 
+```
+
 
 ```{r save_output, echo=FALSE, warning=FALSE,message=FALSE}
 
