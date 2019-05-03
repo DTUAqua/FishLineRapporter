@@ -9,6 +9,7 @@
 *.docx
 *.xls
 *.tex
+*.div
 
 # R History
 .RData
