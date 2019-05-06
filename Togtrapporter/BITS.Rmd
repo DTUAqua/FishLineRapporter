@@ -136,52 +136,55 @@ round2 = function(x) trunc(x+0.5)
 ##########################################################
 
 
-method_run <- "R"
+method_run <- "FiskeLine"
 
 if (method_run == "R") {
-    year <- 2016
-    cruise <- "BITS-1"
-    
-    paramCruiseLeaderL1 <- "Henrik Degel"
-    paramCruiseAssistantL1 <- "Stina B. S. Hansen"
-    paramCruiseLeaderL2 <- "Henrik Degel"
-    paramCruiseAssistantL2 <- "Susanne Hansen"
-    
-    paramDepPort <- "København"
-    paramArrPort <- "Ystad"
-    paramExcDate <- "01-01-2017"
-    paramExcPort <- "Rønne"
-    
-    inlcude_years <- "no"  
-    paramPlannedHauls <- 60
-    str_weather <- "Text"
-    str_guest <- "Text"
-    str_oxygen <- "Oxygen conditions on this survey"
-    str_gear  <- "Gear performance on this survey"
-    str_other  <- "Text"
+    # year <- 2016
+    # cruise <- "BITS-1"
+    # 
+    # paramCruiseLeaderL1 <- "Henrik Degel"
+    # paramCruiseAssistantL1 <- "Stina B. S. Hansen"
+    # paramCruiseLeaderL2 <- "Henrik Degel"
+    # paramCruiseAssistantL2 <- "Susanne Hansen"
+    # 
+    # paramDepPort <- "København"
+    # paramArrPort <- "Ystad"
+    # paramExcDate <- "01-01-2017"
+    # paramExcPort <- "Rønne"
+    # 
+    # inlcude_years <- "no"  
+    # paramPlannedHauls <- 60
+    # str_weather <- "Text"
+    # str_guest <- "Text"
+    # str_oxygen <- "Oxygen conditions on this survey"
+    # str_gear  <- "Gear performance on this survey"
+    # str_other  <- "Text"
+    # 
+    # participantsString <- "C:/Users/trkj/Downloads/participants.csv"
       
 } else if (method_run == "FiskeLine") {
   
-     # year <- @paramYear
-     # cruise <- @paramCruise
-     # paramPlannedHauls <- @paramPlannedHauls
-     # 
-     # str_weather <- @paramWeather
-     # str_guest <- @paramGuest
-     # str_oxygen <- @paramOxygen
-     # str_gear  <- @paramGear
-     # str_other  <- @paramOther
-     #  
-     # paramDepPort <- @paramDepPort
-     # paramArrPort <- @paramArrPort
-     # paramExcDate <- @paramExcDate
-     # paramExcPort <- @paramExcPort
-     # 
-     # paramCruiseLeaderL1 <- @paramCruiseLeaderL1
-     # paramCruiseAssistantL1 <- @paramCruiseAssistantL1
-     # paramCruiseLeaderL2 <- @paramCruiseLeaderL2
-     # paramCruiseAssistantL2 <- @paramCruiseAssistantL2
-     # 
+  year <- @paramYear
+  cruise <- @paramCruise
+  paramPlannedHauls <- @paramPlannedHauls
+
+  str_weather <- @paramWeather
+  str_guest <- @paramGuest
+  str_oxygen <- @paramOxygen
+  str_gear  <- @paramGear
+  str_other  <- @paramOther
+
+  paramDepPort <- @paramDepPort
+  paramArrPort <- @paramArrPort
+  paramExcDate <- @paramExcDate
+  paramExcPort <- @paramExcPort
+
+  paramCruiseLeaderL1 <- @paramCruiseLeaderL1
+  paramCruiseAssistantL1 <- @paramCruiseAssistantL1
+  paramCruiseLeaderL2 <- @paramCruiseLeaderL2
+  paramCruiseAssistantL2 <- @paramCruiseAssistantL2
+
+  participantsString <- "participants.csv"
   
 }
 
@@ -546,7 +549,7 @@ read.csv.unknown.sep <- function(file,numCol){
         }    
     }
 
-participants <- read.csv.unknown.sep("participants.csv",4)  
+participants <- read.csv.unknown.sep(participantsString,4)  
 participants <- participants[!is.na(participants$Leg),]
 participants$order <- as.integer(rownames(participants))
 
@@ -672,18 +675,14 @@ summary below is the overview from this logbook.
         
 \subsection{Haul summary}
         
-\begin{center}        
-\begin{tcolorbox}[colback=white!5,colframe=black!40!black,width=0.93\textwidth,left=0mm,right=0mm,arc=0pt]       
-\begin{center}
+        
+        
   \renewcommand{\arraystretch}{1.2}
   \begin{tabularx}{0.90\textwidth}{@{}lrr@{}}
         \textbf{Number of planned hauls:} & `r paramPlannedHauls` &
   \end{tabularx}
-\end{center}
-        
-
-        
-\begin{center}
+  
+  
   \renewcommand{\arraystretch}{1.3}
   \renewcommand{\tabcolsep}{9pt}
   \begin{tabularx}{0.90\textwidth}{@{}p{10.3cm}LLs}
@@ -695,11 +694,8 @@ summary below is the overview from this logbook.
         \hline
         \textbf{SUM} & `r N_AKU + N_TV3s` &`r N_TV3u` &
   \end{tabularx}
-\end{center}
-        
-
-
-\begin{center}
+  
+  
   \renewcommand{\arraystretch}{1.3}
   \renewcommand{\tabcolsep}{9pt}
   \begin{tabularx}{0.90\textwidth}{@{}p{11cm}LLs}
@@ -714,9 +710,6 @@ summary below is the overview from this logbook.
         \textbf{Number of successful BOM hauls carried out:}  & `r N_BOM`& &\\
         \textbf{Number of successful Multi-NET hauls carried out:} & `r N_MULTI`& &
   \end{tabularx}
-\end{center}
-\end{tcolorbox}
-\end{center}
 
 \subsection{Cruise leaders and assistants}
 
