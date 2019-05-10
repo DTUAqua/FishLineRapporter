@@ -138,19 +138,19 @@ opts_knit$set(eval.after = 'fig.cap')
 
 year <- 2018#@paramYear # mandatory
 cruise <- "Tunger"#@paramCruise # mandatory
-cruiseNo <- 1#@paramCruiseNo # mandatory
-str1 <- "paramWeather"#@paramWeather # mandatory
+# cruiseNo <- 1#@paramCruiseNo # mandatory
+# str1 <- "paramWeather"#@paramWeather # mandatory
 exDate <- ""
-str1 <- "A description of the weather." #@paramWeather # mandatory
-str2 <- "A description of the results. "#@paramResults
-str3 <- "Some comments"#@paramComments
-str4 <- "test"
-str_cruiseLeader <- "Name of cruise leader"#@paramCruiseLeader
-str_results <- "A description of the results"#@paramResults
-str_weather <- "A description of the weather"#@paramWeather
-str_gear <- "A description of the gear"#@paramGear
-str_oxygen <- "A description of oxygen"#@paramOxygen
-str_comments <- "Some Comments"#@paramComments
+# str1 <- "A description of the weather." #@paramWeather # mandatory
+# str2 <- "A description of the results. "#@paramResults
+# str3 <- "Some comments"#@paramComments
+# str4 <- "test"
+str_cruiseLeader <- "Henrik Degel"#@paramCruiseLeader
+# str_results <- "A description of the results"#@paramResults
+# str_weather <- "A description of the weather"#@paramWeather
+# str_gear <- "A description of the gear"#@paramGear
+# str_oxygen <- "A description of oxygen"#@paramOxygen
+# str_comments <- "Some Comments"#@paramComments
 coastString <- 'M:/123 - FiskeLine/Rapporter/Rapporter/Discardtjek/kort/europe_simple_wgs84'
 dk_eezString <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/EEZ/DK_EEZ_Jan_2017"
 ```
@@ -219,13 +219,18 @@ query5 <-paste("SELECT     s.year, s.cruise, s.speciesCode, SUM(s.numberTotal) A
               ,sep = "")
 query5
 
+ql <- sprintf("select responsibleName from cruise where year = %s and cruise = '%s'",
+              year,cruise)
+
 channel <- odbcConnect("FishLineDW")
 data1 <- sqlQuery(channel, paste(query1),stringsAsFactors=FALSE)
 data_animal <- sqlQuery(channel, paste(query2),stringsAsFactors=FALSE)
 data_sample <- sqlQuery(channel, paste(query4),stringsAsFactors=FALSE)
 all_spec <- sqlQuery(channel, paste(query5),stringsAsFactors=FALSE)
+CL <- sqlQuery(channel, paste(ql),stringsAsFactors=FALSE)
 close(channel)
 
+cruiseLeader <- CL$responsibleName[1] 
 data1 <- with(data1, data1[order(data1$dateStart),])
 
 cruise2 <- ifelse(cruise %in% c('Torsk','2262-Torsk'),
@@ -243,7 +248,7 @@ EndDate <- ifelse(nrow(data1)==1,
 StartTime <- paste0(format(data1$dateStart,"%H"),":00")
 EndTime <- paste0(format(data1$dateEnd,"%H"),":00")
 
-cruiseName <- "Tunger"
+cruiseName <- "Danish Sole Survey"
 # cruiseName <- ifelse(substr(cruise,1,4) %in% c("IBTS","BITS","KASU"),
 #                      substr(cruise,1,4),cruise)
 #if (cruiseName=="KASU") {cruiseName <- "BITS"}
@@ -256,9 +261,7 @@ cruise_title2 <- ifelse(substr(cruise,1,4)=="IBTS",
                         "International Bottom Trawl Survey",
                         ifelse(substr(cruise,1,4)=="BITS",
                                                                                               "Baltic International Trawl Survey",""))
-cruise_title <- ifelse(substr(cruise,1,4) %in% c("IBTS","BITS","KASU"),
-                       paste0(cruiseName," ",Quarter[1],"Q"," ",year),
-                       cruiseName)
+cruise_title <- "Danish Sole Survey"
 cruise_title <- ifelse(length(unique(Quarter))==1,
                        paste0(cruiseName," ",Quarter,"Q"," ",year),
                        paste(cruiseName, paste0(Quarter,"Q"," ",year, collapse = "\\& ")))
@@ -353,8 +356,6 @@ wei_TNG <- as.character(round(sum(all_spec[all_spec$speciesCode=="TNG","weight"]
 
 \vspace*{0.5cm}
 
-\textbf{\large Cruise no. `r cruiseNo`}\
-
 \textbf{\large From `r StartDate` to `r EndDate`}
 
 
@@ -421,7 +422,7 @@ Denmark
 \begin{tabularx}{0.93\textwidth}{utst}
         &\textbf{}   & \textbf{} &  \textbf{} \\
 \it{Cruise} & `r cruiseName`  &  &  \\
-\it{Cruise number} & `r cruiseNo` & &  \\
+\it{Cruise leader} & `r cruiseLeader`  &  &  \\
 \it{Reseach vessel(s)}   & `r ship` &   &  \\
 \it{Year and quarter}   & `r paste0(Quarter[1],"Q")` `r year`&   &  \\
 \it{Country}    & Denmark & &
@@ -448,7 +449,7 @@ Denmark
 \hline
 \it{Departure} & `r StartDate`  & `r StartTime` \\
 \it{Arrival}   & `r EndDate`    & `r EndTime`    \\
-\it{Staff and crew exchange}    & `r exDate` &
+<!-- \it{Staff and crew exchange}    & `r exDate` & -->
 \end{tabularx}
 
   }{} %
@@ -541,12 +542,16 @@ mylatex <- function (...) {
 }
 
 colnames(participants)[3] <- sprintf("Function \\\\ and tasks")
-colnames(participants) <- sprintf("\\thead{ %s } ",colnames(participants) )
+
 
 for (i in sort(unique(participants$Leg))){
- cat(sprintf("\\paragraph{Leg %s} ",i))
+  cat(sprintf("\\paragraph{Leg %s} ",i))
+  
+  participants2 <- participants[participants$Leg==i,1:3]
+  
+  colnames(participants2) <- sprintf("\\thead{ %s } ",colnames(participants2))
  
-mylatex(participants[participants$Leg==i,1:3],
+  mylatex(participants2,
        file='',
        booktabs =T,
        col.just = c(rep("p{4cm}",3)), 
@@ -559,6 +564,8 @@ mylatex(participants[participants$Leg==i,1:3],
        where='H',
        collabel.just=c(rep("p{4cm}",3)),
        center='none')
+  
+  # print(a)
 
 }
 detach(package:Hmisc)
@@ -579,16 +586,17 @@ No_CTD <- 1 #nrow(SIS_info[SIS_info$Redskab=="SEA",])
 
 
 
-yn_cruiseLeader <- ifelse(str_cruiseLeader!="","yes","no")
-yn_oxygen <- ifelse(str_oxygen!="","yes","no")
-yn_weather <- ifelse(str_weather!="","yes","no")
-yn_results <- ifelse(str_results!="","yes","no")
-yn_comments <- ifelse(str_comments!="","yes","no")
-yn_gear <- ifelse(str_gear!="","yes","no")
+# yn_cruiseLeader <- ifelse(str_cruiseLeader!="","yes","no")
+# yn_oxygen <- ifelse(str_oxygen!="","yes","no")
+# yn_weather <- ifelse(str_weather!="","yes","no")
+# yn_results <- ifelse(str_results!="","yes","no")
+# yn_comments <- ifelse(str_comments!="","yes","no")
+# yn_gear <- ifelse(str_gear!="","yes","no")
 
 
 pos <- data_sample[,c("station","stationName","gearType","gearQuality",
-                      "lat","lon","dfuArea","platform1")]
+                      "lat","lon","dfuArea","latPosStartText",
+                      "lonPosStartText","platform1")]
 pos[is.na(pos$stationName),"stationName"] <- pos[is.na(pos$stationName),"station"]
 pos$stationName <- as.character(pos$stationName)
 pos$platform1 <- as.factor(pos$platform1)
@@ -645,63 +653,6 @@ Fishing takes place only during night time from app. 5 pm to 7 am.
 
 
 
-
-
-\newcommand{\abWE}{`r yn_weather`}
-\newcommand{\aORbWE}[1]{%
-        \edef\mytemp{{#1}}%
-        \expandafter\ifstrequal\mytemp{yes}{
-           	\subsection*{Weather Conditions}
-			`r str_weather`
-        }{} %
-}
-\aORbWE{\abWE}
-
-\newcommand{\abGE}{`r yn_gear`}
-\newcommand{\aORbGE}[1]{%
-        \edef\mytemp{{#1}}%
-        \expandafter\ifstrequal\mytemp{yes}{
-           	\subsection*{Gear performance}
-			`r str_gear`
-        }{} %
-}
-\aORbGE{\abGE}
-
-
-
-\newcommand{\abOX}{`r yn_oxygen`}
-\newcommand{\aORbOX}[1]{%
-        \edef\mytemp{{#1}}%
-        \expandafter\ifstrequal\mytemp{yes}{
-           	\subsection*{Oxygen Conditions}
-			`r str_oxygen`
-        }{} %
-}
-\aORbOX{\abOX}
-
-
-\newcommand{\abOC}{`r yn_comments`}
-\newcommand{\aORbOC}[1]{%
-        \edef\mytemp{{#1}}%
-        \expandafter\ifstrequal\mytemp{yes}{
-           	\subsection*{Other Comments}
-			`r str_comments`
-        }{} %
-}
-\aORbGE{\abOC}
-
-
-\newcommand{\abRE}{`r yn_results`}
-\newcommand{\aORbRE}[1]{%
-        \edef\mytemp{{#1}}%
-        \expandafter\ifstrequal\mytemp{yes}{
-        \section{Results}
-			`r str_results`
-        }{} %
-}
-\aORbRE{\abRE}
-
-
 \subsection*{Stations}
 `r nrow(pos)` hauls were conducted during the survey. The positions off all hauls are presented in the map in Fig. 1 and hauls per ICES area are plotted in the maps in Fig. 2-`r length(unique(pos$dfuArea))+1`.
 
@@ -713,8 +664,10 @@ xlim <- c(round(min(pos$lon,na.rm=T)-1),round(max(pos$lon,na.rm=T)+1))
 # bat <- marmap::getNOAA.bathy(lon1 = min(xlim)-1, lon2 = max(xlim)+1,
 #                       lat1 = min(ylim)-1, lat2 = max(ylim)+1, resolution = 1,keep = T)
 
-bat <- marmap::getNOAA.bathy(lon1 = 6, lon2 = 14,lat1 = 53, lat2 = 60, resolution = 1,keep = T)
-# bat2 <- fortify(bat)
+bat <- marmap::getNOAA.bathy(lon1 = 7, lon2 = 13,lat1 = 54, lat2 = 59, resolution = 1,keep = T)
+
+
+bat2 <- fortify(bat)
 # coast <- read.shapefile(coastString)
 # dk_eez <- read.shapefile(dk_eezString)
 # bat[bat>=0] <- NA
@@ -724,33 +677,29 @@ dkeez <- st_read(paste0(dk_eezString,".shp"))
 ```
 
 
-```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis',fig.width=7,fig.pos='h',fig.cap=paste0("Survey map with all sampling stations.\\label{fig:mapall}")}
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis',fig.pos='h',fig.cap=paste0("Survey map with all sampling stations.\\label{fig:mapall}"),dpi=300, fig.width=10,fig.height=11}
 
-stationMap <- function(data,x,y,labels="",cpue=""){
+stationMap <- function(data,x,y,labels="",cpue="",titleString = "",filename=""){
   
   # convert to raster, then data frame
 
-  d <- as.raster(bat)
-  d <- as.data.frame(d, xy=TRUE)
+  # d <- as.raster(bat)
+  # d <- as.data.frame(d, xy=TRUE)
 
   # d2 <- st_as_sf(rasterToPolygons(d))
-  # d <- bat2
-  
+  d <- bat2
+  d$z[d$z>=0]<- -1
   # upper and lower elevation bounds
-  z <- max(d$layer, na.rm=T)
-  a <- min(d$layer, na.rm=T)
+  # z <- max(d$z, na.rm=T)
+  # a <- min(d$z, na.rm=T)
   
   # breaks and labels for color scale
-  brks <- c(a, 0, -15, -30, -50, -75, -100, -150, z)
+  brks <- c(Inf, 0, -15, -30, -50, -75, -100, -150, -Inf)
   labs <- c("Land", "-15:0", "-30:-15", "-50:-30",
             "-75:-50", "-100:-75", "-150:-100", "< -150")
-  d$bin <- cut(d$layer, breaks = brks, labels = labs)
+  d$bin <- cut(d$z, breaks = brks, labels = labs)
   
   d <- d[!is.na(d$bin), ] # filter sneaky NA values
-  
-  # d2 <- d[d$x >= min(x,na.rm=T) & d$x <= max(x,na.rm=T) & 
-  #          d$y >= min(y,na.rm=T) & d$y <= max(y,na.rm=T),]
-  
   
   gr   <- colormap(colormaps$greys, nshades = 10)[4:6]
   bl   <- colormap(colormaps$velocity_blue, nshades = 13)[3:9]
@@ -758,40 +707,51 @@ stationMap <- function(data,x,y,labels="",cpue=""){
   
   # plot
   set.seed(42)
-  p <- ggplot()# +
+  p <- ggplot() +
   
-    geom_raster(data = d, aes(x, y, fill = bin)) 
+    geom_raster(data = d[d$z<0,], aes(x, y, fill = bin)) 
   
     if (cpue == ""){
-     p <- p +  geom_point(data = data,aes(x=lon,y=lat,col=platform1))
+     p <- p +  geom_point(data = data,aes(x=lon,y=lat,col=platform1),size=3)
     }
     
-    # geom_sf(data = dkeez, color="red")+
-    p <- p + geom_sf(data= kyst,fill="#555555ff")+
-      coord_sf(xlim = x, ylim = y,
+  p <- p + geom_sf(data = dkeez, aes(linetype = "DK"),color="red",fill=NA)+
+    geom_sf(data= kyst,fill="#555555ff")+
+    coord_sf(xlim = x, ylim = y,
                datum = st_crs(4326))
     
     
     if (labels!=""){
-      p <- p + geom_label_repel(data = data, 
-                                aes(x=lon,y=lat,label=stationName),size=3)+
-        labs(title = sprintf("Area: %s",unique(data$dfuArea)))
+      p <- p + geom_text_repel(data = data, 
+                               aes(x=lon,y=lat,label=stationName,col=platform1),
+                               size=4)+
+        labs(title = titleString)
     }
   
     if (cpue!=""){
       p <- p + geom_point(data = data, 
                                 aes(x=lon,y=lat,size=cpue),
                           col="black",shape=21,fill="yellow",alpha=.8)+
-        labs(title = sprintf("CPUE: %s",unique(data$speciesCode)))
+        labs(title = sprintf("CPUE: Sole"),
+             size = "CPUE")
     }
     
   p <- p +
     scale_fill_manual(values = cols, limits = labs, labels = rev(labs)) +
     scale_color_manual(values = wes_palette("GrandBudapest1"))+
     theme_minimal() +
-    labs(fill = "Elevation (m)",y="Latitude",x="Longitude",col="Ship")
+    labs(fill = "Depth (m)",y="Latitude",x="Longitude",col="Ship",linetype="EEZ")+
+    theme(legend.position = "bottom",legend.box = "vertical")
   
   plot(p)
+  
+  if (filename!=""){
+    # png(filename = filename,width = 10,height = 11,pointsize = 200)
+    # plot(p)
+    # dev.off()
+    ggsave(filename=filename, plot = p,device = "png",width = 10,height = 11,dpi = 200)
+    
+  }
   
 }
 
@@ -799,31 +759,41 @@ stationMap <- function(data,x,y,labels="",cpue=""){
 ylim2 <- c(floor(min(pos$lat,na.rm=T)/.1)*.1,ceiling(max(pos$lat,na.rm=T)/.1)*.1)
 xlim2 <- c(floor(min(pos$lon,na.rm=T)/.5)*.5,ceiling(max(pos$lon,na.rm=T)/.5)*.5)
 
-stationMap(data = pos,x = xlim2,y = ylim2)
+stationMap(data = pos,x = xlim2,y = ylim2,labels = "yes",
+           filename = sprintf("%s-all_stations-%s.png",
+                              gsub(" ", "_",cruise_title),gsub("-","",Sys.Date())))
 
 ```
 
-\subsection{Stations by ICES area}
 
-```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis', fig.pos='h'}
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis',fig.pos='h',dpi=300, fig.width=10,fig.height=11}
+cat("\\subsection{Stations by ICES area}")
 
 for (a in as.character(sort(unique(pos$dfuArea)))){
-  
+
   # if (any(pos$dfuArea==a)) {
-    
-    cat(sprintf("\\subsubsection{Area %s}",a))
-  
+
+    cat(sprintf("\\subsubsection{Area %s} ",a))
+
     caption <- sprintf("Survey map with sampling stations in area %s, %s.\\label{fig:map%s}",
                        a,cruise_title,a)
-    
+
     pos2 <- pos[pos$dfuArea==a,]
 
     #area 20
-    ylim2 <- c(floor(min(pos2$lat,na.rm=T)/.1)*.1,ceiling(max(pos2$lat,na.rm=T)/.1)*.1)
-    xlim2 <- c(floor(min(pos2$lon,na.rm=T)/.5)*.5,ceiling(max(pos2$lon,na.rm=T)/.5)*.5)
+    ylim2 <- c(floor((min(pos2$lat,na.rm=T)-.2)/.5)*.5,
+               ceiling((max(pos2$lat,na.rm=T)+.2)/.5)*.5)
 
-    stationMap(data = pos2,x = xlim2,y = ylim2, labels="yes")
-    
+    xlim2 <- c(floor((min(pos2$lon,na.rm=T)-.5)/.5)*.5,
+               ceiling((max(pos2$lon,na.rm=T)+.5)/.5)*.5)
+
+
+    stationMap(data = pos2,x = xlim2,y = ylim2, labels="yes",
+               titleString =  sprintf("Stations in area %s",a),
+               filename = sprintf("%s-all_stations_in_area_%s-%s.png",
+                                  gsub(" ", "_",cruise_title),a,gsub("-","",Sys.Date())))
+
     # colnames(participants) <- c("Name","Institute", "Function and tasks","Leg","no")
 
     library(Hmisc)
@@ -835,38 +805,64 @@ for (a in as.character(sort(unique(pos$dfuArea)))){
         o <- grep('^%', o, inv=T, value=T)
         cat(o, sep='\n')
     }
-    
-    pos3 <- pos2 %>% 
-      dplyr::arrange(station) %>% 
-      dplyr::select(-dfuArea,-station)
-    
-    colnames(pos3)<-c("Station \\\\ Name","Gear \\\\ Type", "Gear \\\\ Quality",
-                      "Latitude", "Longitude","Ship")
-    colnames(pos3) <- sprintf("\\thead{ %s } ",colnames(pos3))
 
-    mylatex(pos3,
+    pos3 <- pos2 %>%
+      dplyr::arrange(station) %>%
+      dplyr::select(-dfuArea,-station)
+
+    for (gear in sort(unique(pos3$gearType))){
+
+      pos4 <- pos3 %>% filter(gearType==gear)
+
+      for (q in sort(unique(pos4$gearQuality))){
+
+        pos5 <- pos4 %>%
+          filter(gearQuality == q) %>%
+          select(-gearType, -gearQuality) %>%
+          mutate(lat = sprintf("%2.6f",lat),
+                 lon = sprintf("%2.6f",lon))
+
+        cat(sprintf("\\paragraph{Area: %s, Geartype: %s, GearQuality: %s}",a,gear,q))
+
+
+
+    colnames(pos5)<-c("Station \\\\ Name","Latitude \\\\ dec.", "Longitude \\\\ dec."
+                      ,"Latitude \\\\ deg.", "Longitude \\\\ deg.","Ship")
+
+    colnames(pos5) <- sprintf("\\thead{%s} ",colnames(pos5))
+
+    cat("\\small ")
+    
+    mylatex(pos5,
            file='',
            booktabs =T,
            rowname=NULL,
-           col.just = c(rep("l",ncol(pos3))), 
-           # rgroup =n.rgroup$rgroup ,
-           
-           # n.rgroup=n.rgroup$n.+rgroup,
-           # rowlabel="",
-           # colnamesTexCmd="thead",
-           # rgroupTexCmd="itshape",
+           col.just = c(rep("l",ncol(pos5))),#,rep("p{17mm}",ncol(pos5)-1)),
            longtable=T,
            where='H',
-           collabel.just=c(rep("l",ncol(pos3))),
+           collabel.just=c(rep("l",ncol(pos5))),#c("l",rep("p{17mm}",ncol(pos5)-1)),
            center='none')
-    
-    
+
+    # options(xtable.comment = FALSE)
+    # 
+    # xtable(pos5,auto = T)
+
     detach(package:Hmisc)
-    
-    
+
+cat("\\normalsize")
+
+      }
+
+    }
+
+
+
     # cat("\\newpage ")
   # }
-}
+
+
+    cat("\\newpage ")
+    }
 ```
 
 \section{Handling of the catch}
@@ -879,6 +875,9 @@ After each haul the catch is sorted by species and weighed to nearest 0.1 kg and
 \subsection{CPUE}
 CPUE for sole, cod, plaice and Norway lobster is estimated as mean catch (kg or numbers) per hour with Standard Error based on the Standard Stations (i.e. not including the stations in Jammerbugt and Storebælt).
 
+CPUE is in the following map estimated with the equation:
+
+$$CPUE_{station} = \frac{\sum Sole_{station}}{FishingTime_{station}}*60$$
 
 ```{r, include=F}
 #calculate cpue
@@ -906,13 +905,15 @@ tng <- sqlQuery(channel, sprintf("SELECT slr.[year]
   ","%",year),stringsAsFactors=F)
 close(channel)
 
-tng$cpueNum <- tng$numberTotal*60/tng$fishingTime
-tng$cpueWeight <- tng$weightTotal*60/tng$fishingTime
+tng <- tng %>% 
+  group_by(cruise,trip,tripType,station,speciesCode) %>% 
+  mutate(cpueNum = sum(numberTotal,na.rm=T)*60/unique(fishingTime),
+         cpueWeight = sum(weightTotal,na.rm=T)*60/unique(fishingTime))
 
 tng2 <- dplyr::left_join(tng,data_sample)
 ```
 
-```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis',fig.pos='h'}
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis',fig.pos='h',dpi=300, fig.width=10,fig.height=11}
 # for (sp in sort(unique(tng2$speciesCode))){
   
   tng3 <- tng2[tng2$speciesCode == "TNG",]
@@ -924,7 +925,9 @@ ylim2 <- c(floor(min(tng3$lat,na.rm=T)/.1)*.1,ceiling(max(tng3$lat,na.rm=T)/.1)*
 xlim2 <- c(floor(min(tng3$lon,na.rm=T)/.5)*.5,ceiling(max(tng3$lon,na.rm=T)/.5)*.5)
 
   
-stationMap(data = tng3, x = xlim2, y = ylim2, cpue="yes")
+stationMap(data = tng3, x = xlim2, y = ylim2, cpue="yes",
+           filename = sprintf("%s-all_stations-cpue-%s.png",
+                              gsub(" ", "_",cruise_title),gsub("-","",Sys.Date())))
   
   # 
 # }
@@ -942,7 +945,7 @@ The traditional survey area has been stratified in ICES squares (Fig 3, Table 4)
 
 Biomass and abundance estimates is obtained by applying the swept area method (estimated trawling speed * wing spread * trawling time) using the recorded speed, wing spread and trawling time and the stratum area as weighting factor. The catchability coefficient is assumed to be 1.0. 
 
-All catches are standardized to 1 km^2 swept prior to further calculations.
+All catches are standardized to 1 km\textsuperscript{2} swept prior to further calculations.
 
 Over all S.E. is estimated using the stratum area as weighting factor. In strata with one haul only STD=biomass (or abundance).
 
@@ -1040,80 +1043,6 @@ The total catch per species per ICES area are presented in table 1-`r length(uni
 
 \renewcommand{\arraystretch}{1}
 \renewcommand{\tabcolsep}{8pt}
-
-```{r catch_table, results='asis',echo=FALSE,message=FALSE,warning=FALSE}
-library(data.table)
-
-if (substr(cruise,1,4)=="KASU") {
-
-    Catch_cruise <- merge(species_names,
-                          data_catch_area[!(data_catch_area$speciesCode %like% "^AF"),],
-                          by="speciesCode",all.y=TRUE)
-
-    Catch_cruise2 <- Catch_cruise[with(Catch_cruise, order(area,latin)),
-                                  !(names(Catch_cruise) %in% c("speciesCode"))]
-    Catch_cruise2 <- Catch_cruise2[,c("latin","Species","dkSpecies",
-                                      "cruiseNumberTotal","cruiseWeightTotal","area")]
-    #Catch_cruise2[Catch_cruise2$latin=="Scyphozoa" & !is.na(Catch_cruise2$latin),"dkSpecies" ] <- "Storgopler"
-
-   # colnames(Catch_cruise2) <- c("Latin name","English name","Danish name","Number","Weight (kg)","area")
-#    rownames(Catch_cruise2) <- 1:nrow(Catch_cruise2)
-
-    rgroup <- unique(Catch_cruise2$area)
-   # n.rgroup <- c()
-   # rgroupName <- c()
-    for (i in 1:length(rgroup)) {
-      assign(paste0("area_", i),Catch_cruise2[Catch_cruise2$area==rgroup[i],])
-    #  n.rgroup[i] <- nrow(Catch_cruise2[Catch_cruise2$area==rgroup[i],]);
-     # rgroupName[i] <- paste("Area", rgroup[i])
-
-      Catch_table <- xtable(Catch_cruise2[Catch_cruise2$area==rgroup[i],!(names(area_1)=="area")],digits=0,
-                            caption=paste("Species caught in area",rgroup[i] ))
-      colnames(Catch_table) <- c("Latin name","English name", "Danish name","Number", "Weight (kg)")
-      align(Catch_table) <- "lp{4.5cm}p{3.5cm}p{3.5cm}rr"
-
-    print(Catch_table,
-          tabular.environment = "longtable",
-          floating = FALSE,
-          include.colnames=TRUE,
-          include.rownames=FALSE,
-          add.to.row = addtorow,
-          sanitize.colnames.function=bold,
-          booktabs=T,
-          comment=FALSE,
-          caption.placement = "top")
-}
-
-} else if (toupper(cruise)=="TUNGER"){
-  
-}  else{
-
-    Catch_cruise <- merge(species_names,data_catch[!(data_catch$speciesCode %like% "^AF"),], by="speciesCode",all.y=TRUE)
-
-    Catch_cruise2 <- Catch_cruise[,c("latin","Species","dkSpecies","cruiseNumberTotal","cruiseWeightTotal")]
-   # Catch_cruise2[Catch_cruise2$latin=="Scyphozoa" & !is.na(Catch_cruise2$latin),"dkSpecies" ]<- "Storgopler"
-    Catch_cruise2 <- Catch_cruise2[with(Catch_cruise2, order(latin)), ]
-
-
-    Catch_table <- xtable(Catch_cruise2,digits=0,caption="Species caught on the survey")
-    colnames(Catch_table) <- c("Latin name","English name", "Danish name","Number", "Weight")
-    align(Catch_table) <- "lp{4.5cm}p{4cm}p{3.5cm}rr"
-
-    print(Catch_table,
-          tabular.environment = "longtable",
-          floating = FALSE,
-          include.colnames=TRUE,
-          include.rownames=FALSE,
-          add.to.row = addtorow,
-          sanitize.colnames.function=bold,
-          booktabs=T,
-          comment=FALSE,
-          caption.placement = "top")
-
-}
-
-
-```
 
 
 \captionsetup{font=normal}
@@ -1259,7 +1188,7 @@ Sole_num <- sum(data_animal[is.na(data_animal$individNum) & data_animal$speciesC
 
 
 
-```{r, echo=FALSE, message=FALSE, warning=FALSE,results='asis', fig.width=7, fig.height=4,fig.cap=paste0("Sole length distribution per area for ",cruise,", ",year), fig.pos="H"}
+```{r, echo=FALSE, message=FALSE, warning=FALSE,results='asis', fig.width=7, fig.height=4,fig.cap=sprintf("Length distribution per area for sole, Sole Survey %s",year), fig.pos="H"}
 
 #THIS SECTION IS ONLY INCLUDED FOR BITS CRUISES
 
@@ -1279,7 +1208,7 @@ speciesDat <- data_TNG %>%
  plot1  <- p + geom_bar(stat="identity",aes(fill=factor(dfuArea)), position ="dodge")+
     scale_fill_discrete(name="Area")+
     theme_classic(base_size = 18, base_family = "")+
-    labs(x = "Length (mm)", y="Number",title=spec)+
+    labs(x = "Length (mm)", y="Number")+
     theme(axis.title.y = element_text(vjust = 2),
           axis.title.x = element_text(vjust = -1),
           axis.line = element_line(colour = "black"),
@@ -1297,67 +1226,3 @@ speciesDat <- data_TNG %>%
 
 
 ```
-
-
-\newpage
-
-
-\setlength\arraycolsep{0.4pt}
-
-
-\definecolor{lightgray}{gray}{0.9}
-\renewcommand{\arraystretch}{0.8}
-\rowcolors{5}{}{lightgray}
-
-\setlength{\LTleft}{-20cm plus -1fill}
-\setlength{\LTright}{\LTleft}
-
-
-
-
-```{r include=F}
-#   blues <- c("lightsteelblue4", "lightsteelblue3", "lightsteelblue2", "lightsteelblue1")
-#   
-#   plot(bat, image=T, land=T,
-#            deepest.isobath = -150,shallowest.isobath = -15,
-#            step = 25,drawlabels = T,
-#            xlab=expression("Longitude"*~degree*"E"),
-#            ylab=expression("Latitude"*~degree*"N"),
-#            bpal = list(c(min(bat), 0, blues)))
-# 
-# # plot(bat, n = 1, lwd = 0.4, add = TRUE)
-# 
-# # basemap(xlim=xlim, ylim=ylim, main = "",xlab=expression("Longitude"*~degree*"E"),ylab=expression("Latitude"*~degree*"N") ) #, bg="white")
-#   
-#   draw.shape(coast, col="cornsilk", border="transparent", xlim=xlim, ylim=ylim)
-#   draw.shape(dk_eez, col="transparent", border = "red", xlim=xlim, ylim=ylim)
-#   draw.rect(col="grey")
-# 
-# #plot(route, lwd=0.01, add=T)
-# #lines(route, lwd=.2, col="gray")
-# 
-# # par(cex = 0.2)
-# # pointLabel(x=pos[pos$gearQuality=="V","lon"], y=pos[pos$gearQuality=="V","lat"],
-# #      labels=pos[pos$gearQuality=="V","stationName"],cex=4,offset=-1,allowSmallOverlap = FALSE)
-#   
-#   par(cex = 1)
-#   text(x=pos[pos$gearQuality=="V","lon"], y=pos[pos$gearQuality=="V","lat"],
-#       labels=pos[pos$gearQuality=="V","stationName"], adj = c(1,1),cex=0.8)
-#   
-#   points(pos[pos$gearType==trawlCode & pos$gearQuality=="V","lon"],
-#          pos[pos$gearType==trawlCode & pos$gearQuality=="V","lat"],
-#          pch=16, col="purple", cex=.8)
-#   points(pos[pos$gearType=="TV3" & pos$gearQuality=="V","lon"],
-#          pos[pos$gearType=="TV3" & pos$gearQuality=="V","lat"],
-#          pch=16, col="darkgreen", cex=.8)
-#   points(pos[pos$gearQuality=="I","lon"],
-#          pos[pos$gearQuality=="I","lat"],
-#          pch=16, col="dark orange", cex=.8)
-# 
-#   
-#   legend( x="bottomright", title = "Stations",
-#           legend=c("Valid TV3", sprintf("Valid %s",trawlCode),"Invalid haul"),
-#           pch=c(16, 16,16), col = c("purple","darkgreen","dark orange"),
-#           cex = 0.9)
-```
-
