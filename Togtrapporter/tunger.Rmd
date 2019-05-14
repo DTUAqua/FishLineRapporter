@@ -94,7 +94,7 @@ if (!require(pacman)) {
 p_load(sqldf,RODBC,xtable,ggplot2,lubridate,reshape2,ggrepel,grid,gridExtra,
        gplots,Hmisc,stringr,dismo,raster,marmap,rgdal,maptools,rasterVis,shapefiles,
        calibrate,plotrix,base,mapplots,data.table,tinytex,knitr,marmap,sf,raster,
-       colormap,dplyr,wesanderson)
+       colormap,dplyr,wesanderson,zip)
 
 detach(package:Hmisc)
 
@@ -108,8 +108,8 @@ mylatex <- function (...) {
     cat(o, sep='\n')
 }
 
-```
 
+```
 
 
 
@@ -117,43 +117,34 @@ mylatex <- function (...) {
 plannedHauls <- 50
 opts_knit$set(eval.after = 'fig.cap')
 
-# year <- @paramYear # mandatory
-# cruise <- @paramCruise # mandatory
-# cruiseNo <- @paramCruiseNo # mandatory
-# exDate <- @paramExDate
-# cruiseNo <- @paramCruiseNo
-# str1 <- @paramWeather # mandatory
-# str2 <- @paramResults
-# str3 <- @paramComments
-# str4 <- "test"
-# str_cruiseLeader <- @paramCruiseLeader
-# str_results <- @paramResults
-# str_weather <- @paramWeather
-# str_gear <- @paramGear
-# str_oxygen <- @paramOxygen
-# # str_comments <- @paramComments
-# coastString <- 'europe'
-# dk_eezString <- 'eez_dk_LandAndSea_2017'
 
-
-year <- 2018#@paramYear # mandatory
+year <- @paramYear # mandatory
 cruise <- "Tunger"#@paramCruise # mandatory
-# cruiseNo <- 1#@paramCruiseNo # mandatory
-# str1 <- "paramWeather"#@paramWeather # mandatory
-exDate <- ""
-# str1 <- "A description of the weather." #@paramWeather # mandatory
-# str2 <- "A description of the results. "#@paramResults
-# str3 <- "Some comments"#@paramComments
-# str4 <- "test"
-str_cruiseLeader <- "Henrik Degel"#@paramCruiseLeader
-# str_results <- "A description of the results"#@paramResults
-# str_weather <- "A description of the weather"#@paramWeather
-# str_gear <- "A description of the gear"#@paramGear
-# str_oxygen <- "A description of oxygen"#@paramOxygen
-# str_comments <- "Some Comments"#@paramComments
-coastString <- 'M:/123 - FiskeLine/Rapporter/Rapporter/Discardtjek/kort/europe_simple_wgs84'
-dk_eezString <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/EEZ/DK_EEZ_Jan_2017"
+trip <- c(@paramTrip)
+par <- "participants.csv"
+coastString <- 'europe_simple_wgs84'
+dk_eezString <- 'eez_dk_line'
+
+str_weather <- @paramWeather
+str_guest <- @paramGuest
+str_oxygen <- @paramOxygen
+str_gear  <- @paramGear
+str_other  <- @paramOther
+
+
+#year <- 2018#@paramYear # mandatory
+#trip <- c(1,2,4,6,8) # mandatory
+#par <- "participants.csv"
+#str_cruiseLeader <- "Henrik Degel"#@paramCruiseLeader
+#coastString <- 'M:/123 - FiskeLine/Rapporter/Rapporter/Discardtjek/kort/europe_simple_wgs84'
+#dk_eezString <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/EEZ/DK_EEZ_Jan_2017"
+
+
+trips <- paste0(trip,collapse = "','")
+zipfile <- sprintf("Danish_sole_survey_maps_%s-%s.zip",year,format(Sys.Date(),"%Y%m%d"))
+# maps <- zip(zipfile = zipfile)
 ```
+
 
 
 
@@ -181,21 +172,22 @@ addtorow$command  <- c(paste("\\hline \n",
 
 ```{r info_cruise, echo=FALSE, message=FALSE, warning=FALSE,include=FALSE}
 
-query1<-paste("SELECT Trip.year,Trip.contactPersonName,Trip.contactPersonId , Trip.trip, Trip.cruise, tripLeaderName, dateStart, dateEnd, platform1
+query1<-sprintf("SELECT Trip.year,Trip.contactPersonName,Trip.contactPersonId , Trip.trip, Trip.cruise, tripLeaderName, dateStart, dateEnd, platform1
               FROM Trip
-              WHERE     (Trip.year = ",year," and Trip.cruise='",cruise,"')"
-             ,sep = "")
+              WHERE     Trip.year = %s and Trip.cruise='%s' and Trip.trip in ('%s')" 
+             ,year,cruise,trips)
 query1
 
 
-query2 <-paste("SELECT     Animal.year, Animal.cruise, Animal.speciesCode, Animal.representative, Animal.individNum,
+query2 <-sprintf("SELECT     Animal.year, Animal.cruise, Animal.speciesCode, Animal.representative, Animal.individNum,
                            Animal.number, Animal.length, Animal.weight,Animal.statisticalRectangle as ICESsquare
                 FROM       Animal
-                WHERE     (Animal.year=",year," and Animal.cruise='",cruise,"')"
-                            ,sep = "")
+                WHERE     Animal.year=%s and Animal.cruise='%s' and 
+               Animal.trip in ('%s')"
+                          ,year,cruise,trips)
 query2
 
-query4<-paste("SELECT Sample.cruise,Sample.trip,Sample.station, Sample.stationName, Sample.fishingtime, Sample.latPosStartDec AS lat, Sample.lonPosStartDec AS lon,
+query4<-sprintf("SELECT Sample.cruise,Sample.trip,Sample.station, Sample.stationName, Sample.fishingtime, Sample.latPosStartDec AS lat, Sample.lonPosStartDec AS lon,
 Sample.latPosStartText, Sample.lonPosStartText,
                       Sample.gearType,Sample.gearQuality,Sample.haulType, Sample.selectionDevice,Sample.meshSize, Sample.dfuArea,
                       Sample.statisticalRectangle,Sample.quarterGearStart,
@@ -206,17 +198,19 @@ Sample.latPosStartText, Sample.lonPosStartText,
               on Sample.Trip = Trip.Trip and
                 Sample.Cruise = Trip.Cruise and
                 Sample.year = Trip.year
-              WHERE     (Sample.year=",year," and Sample.cruise='",cruise,"')"
-              ,sep = "")
+              WHERE     (Sample.year=%s and Sample.cruise='%s' and 
+Sample.trip in ('%s'))"
+              ,year,cruise,trips)
 query4
 
 
-query5 <-paste("SELECT     s.year, s.cruise, s.speciesCode, SUM(s.numberTotal) AS number, SUM(s.weightTotal) AS weight
+query5 <-sprintf("SELECT     s.year, s.cruise, s.speciesCode, SUM(s.numberTotal) AS number, SUM(s.weightTotal) AS weight
                 FROM         SpeciesListRaised as s
-                WHERE     s.year=",year," and s.cruise='",cruise,"'
+                WHERE     s.year=%s and s.cruise='%s' and
+                s.trip in ('%s')
                 GROUP BY s.year, s.cruise, s.speciesCode
               "
-              ,sep = "")
+              ,year,cruise,trips)
 query5
 
 ql <- sprintf("select responsibleName from cruise where year = %s and cruise = '%s'",
@@ -257,10 +251,11 @@ cruiseName <- "Danish Sole Survey"
 #                                  paste(unique(data1$platform1), collapse=', ' )))
 ship <- paste(sort(unique(data_sample$platform1)),collapse = ", ")
 
-cruise_title2 <- ifelse(substr(cruise,1,4)=="IBTS",
-                        "International Bottom Trawl Survey",
-                        ifelse(substr(cruise,1,4)=="BITS",
-                                                                                              "Baltic International Trawl Survey",""))
+cruise_title2 <- ""
+# ifelse(substr(cruise,1,4)=="IBTS",
+#                         "International Bottom Trawl Survey",
+#                         ifelse(substr(cruise,1,4)=="BITS",
+#                                                                                               "Baltic International Trawl Survey",""))
 cruise_title <- "Danish Sole Survey"
 cruise_title <- ifelse(length(unique(Quarter))==1,
                        paste0(cruiseName," ",Quarter,"Q"," ",year),
@@ -299,14 +294,13 @@ wei_TNG <- as.character(round(sum(all_spec[all_spec$speciesCode=="TNG","weight"]
 \vspace{-0.9cm}
 
 
-#\begin{figure}[H]
-#        \flushright
-#        \includegraphics[width=10cm]{X:/Line/Togtrapport/logotilkort.png}
-#\end{figure}
+<!-- #\begin{figure}[H] -->
+<!-- #        \flushright -->
+<!-- #        \includegraphics[width=10cm]{X:/Line/Togtrapport/logotilkort.png} -->
+<!-- #\end{figure} -->
 
 \vspace*{0.5cm}
 
--->
 
 
 
@@ -319,10 +313,10 @@ wei_TNG <- as.character(round(sum(all_spec[all_spec$speciesCode=="TNG","weight"]
 
 
 
-<!-- \begin{figure}[H] -->
-<!--         \flushright -->
-<!--         \includegraphics[width=5cm]{logo_ver4.png} -->
-<!-- \end{figure} -->
+\begin{figure}[H]
+        \flushright
+        \includegraphics[height=2cm]{Corp_Red_RGB.png}
+\end{figure}
 
 \vspace*{0.5cm}
 
@@ -363,10 +357,10 @@ wei_TNG <- as.character(round(sum(all_spec[all_spec$speciesCode=="TNG","weight"]
 
 \vfill
 
-<!-- \begin{figure}[H] -->
-<!--         \flushleft -->
-<!--         \includegraphics[width=10cm]{aqua_uk.png} -->
-<!-- \end{figure} -->
+\begin{figure}[H]
+        \flushleft
+        \includegraphics[width=10cm]{aqua_uk.png}
+\end{figure}
 
 \vspace{-3.1cm}
 \begin{flushright}
@@ -432,59 +426,31 @@ Denmark
 
 \vspace{0.3cm}
 
-\subsubsection*{Location and time}
+\subsubsection*{Participants and time}
 
-\vspace{-0.2cm}
-
-\newcommand{\abTN}{`r TripNum`}
-
-\newcommand{\aORbTN}[1]{%
-        \edef\mytemp{{#1}}%
-        \expandafter\ifstrequal\mytemp{ST}{
-
-\renewcommand{\arraystretch}{1}
-\renewcommand{\tabcolsep}{5pt}
-\begin{tabularx}{0.93\textwidth}{uts}
-        &\textbf{Date}   & \textbf{Time}  \\
-\hline
-\it{Departure} & `r StartDate`  & `r StartTime` \\
-\it{Arrival}   & `r EndDate`    & `r EndTime`    \\
-<!-- \it{Staff and crew exchange}    & `r exDate` & -->
-\end{tabularx}
-
-  }{} %
-    \expandafter\ifstrequal\mytemp{MT}{
-
-
-        }{}%
-}
-
-
-
-\aORbTN{\abTN}
 
 
 
 
 ```{r tripInfo,results='asis',echo=FALSE,message=FALSE,warning=FALSE}
 
-if (TripNum=="MT") {
+# if (TripNum=="MT") {
     tripInfo <- data1[,c("trip","dateStart","dateEnd","platform1")]
 
     tripInfo$dateStart <- paste0(format(data1$dateStart,"%d-%m-%Y %H"),":00")
     tripInfo$dateEnd <- paste0(format(data1$dateEnd,"%d-%m-%Y %H"),":00")
 
-
+    ti <- tripInfo
     # trip_table <- xtable(tripInfo,label = "",caption="")
-    colnames(tripInfo) <- c("Trip no.","Start date and time", "End date and time","Ship")
+    colnames(ti) <- c("Trip no.","Start date and time", "End date and time","Ship")
     # align(trip_table) <- "lp{3cm}p{5cm}p{5cm}p{2.5cm}"
 
      library(Hmisc)
 
-     mylatex(tripInfo,
+     mylatex(ti,
              file='',
              booktabs =T,
-             col.just = c("l","l","l","l"), 
+             col.just = c("l","l","l","l"),
              # rgroup =n.rgroup$rgroup ,
              rowname="",
              # n.rgroup=n.rgroup$n.rgroup,
@@ -498,16 +464,13 @@ if (TripNum=="MT") {
 
     detach(package:Hmisc)
 
- }
+ # }
 
 ```
 
 
 \vspace{0.5cm}
 
-
-
-\subsubsection*{Participants}
 
 \vspace{0.2cm}
 
@@ -523,13 +486,17 @@ read.csv.unknown.sep <- function(file,numCol){
         }    
     }
 
-participants <- read.csv.unknown.sep("participants.csv",4) 
-participants <- participants[!is.na(participants$Leg),]
+participants <- read.csv.unknown.sep(par,6) 
+# participants <- participants[!is.na(participants$Leg),]
 # participants <- participants[participants$Leg==1,]
 participants$order <- as.integer(rownames(participants))
 
-colnames(participants) <- c("Name","Institute", "Function and tasks","Leg","no")
+colnames(participants) <- c("Name","Vessel","Institute", "Function and tasks","trip","Leg","no")
 
+pt <- full_join(participants,tripInfo)
+
+colnames(pt) <- c("Name","Vessel","Institute","Function \\\\ and tasks", "Trip",
+                  "Part","no","Start","End","platform1")
 
 library(Hmisc)
 mylatex <- function (...) {
@@ -540,35 +507,42 @@ mylatex <- function (...) {
     o <- grep('^%', o, inv=T, value=T)
     cat(o, sep='\n')
 }
+detach(package:Hmisc)
+# colnames(participants)[4] <- sprintf)
 
-colnames(participants)[3] <- sprintf("Function \\\\ and tasks")
 
-
-for (i in sort(unique(participants$Leg))){
-  cat(sprintf("\\paragraph{Leg %s} ",i))
+for (i in sort(unique(pt$Trip))){
+  # cat(sprintf("\\paragraph{Trip %s} ",i))
   
-  participants2 <- participants[participants$Leg==i,1:3]
+  pt2 <- pt[pt$Trip==i,]
   
-  colnames(participants2) <- sprintf("\\thead{ %s } ",colnames(participants2))
+  cat(sprintf("\\paragraph{Trip: %s, Vessel: %s, Start: %s, End:  %s} ",
+              i,unique(pt2$Vessel),unique(pt2$Start),unique(pt2$End)))
+  
+  colnames(pt2) <- sprintf("\\thead{ %s } ",colnames(pt2))
  
-  mylatex(participants2,
+  lines <- data.frame(table(pt2$Leg))
+ 
+  library(Hmisc) 
+  mylatex(pt2[,c(1,3,4,6)],
        file='',
        booktabs =T,
-       col.just = c(rep("p{4cm}",3)), 
-       # rgroup =n.rgroup$rgroup ,
+       col.just = c(rep("l",4)),
+       rgroup = lines$Var1 ,
        rowname=NULL,
-       # n.rgroup=n.rgroup$n.rgroup,
+       n.rgroup=lines$Freq,
        # rowlabel="",
        # colnamesTexCmd="bfs",
        # rgroupTexCmd="itshape",
        where='H',
-       collabel.just=c(rep("p{4cm}",3)),
+       collabel.just=c(rep("l",4)),
        center='none')
-  
-  # print(a)
+  detach(package:Hmisc)
+
+  # cat("\\\\ ")
 
 }
-detach(package:Hmisc)
+
 
 
 ```
@@ -603,17 +577,7 @@ pos$platform1 <- as.factor(pos$platform1)
 
 ```
 
-<!--
 
-\newcommand{\ab}{`r substr(cruise,1,4)`}
-
-
-
-\newcommand{\aORb}[1]{%
-        \edef\mytemp{{#1}}%
-        \expandafter\ifstrequal\mytemp{BITS}{
-
--->
 \newpage
 
 \section{Introduction}
@@ -651,6 +615,47 @@ Each station is fished in the same direction each year if wind and current allow
 Fishing takes place only during night time from app. 5 pm to 7 am.
 
 
+```{r weather, echo=F, results='asis'}
+if (str_weather!=""){
+  cat("\\subsection{Weather conditions} ")
+  
+  cat(str_weather)
+}
+```
+
+```{r oxygen, echo=F, results='asis'}
+if (str_oxygen!=""){
+  cat("\\subsection{Oxygen conditions} ")
+  
+  cat(str_oxygen)
+}
+```
+
+```{r gear, echo=F, results='asis'}
+if (str_gear!=""){
+  cat("\\subsection{Gear performance} ")
+  
+  cat(str_gear)
+}
+```
+
+```{r guests, echo=F, results='asis'}
+if (str_guest!=""){
+  cat("\\subsection{List of guests} ")
+  
+  cat(str_guest)
+}
+```
+
+
+```{r other, echo=F, results='asis'}
+if (str_guest!=""){
+  cat("\\subsection{Other remarks} ")
+  
+  cat(str_other)
+}
+```
+
 
 
 \subsection*{Stations}
@@ -681,17 +686,8 @@ dkeez <- st_read(paste0(dk_eezString,".shp"))
 
 stationMap <- function(data,x,y,labels="",cpue="",titleString = "",filename=""){
   
-  # convert to raster, then data frame
-
-  # d <- as.raster(bat)
-  # d <- as.data.frame(d, xy=TRUE)
-
-  # d2 <- st_as_sf(rasterToPolygons(d))
   d <- bat2
   d$z[d$z>=0]<- -1
-  # upper and lower elevation bounds
-  # z <- max(d$z, na.rm=T)
-  # a <- min(d$z, na.rm=T)
   
   # breaks and labels for color scale
   brks <- c(Inf, 0, -15, -30, -50, -75, -100, -150, -Inf)
@@ -720,7 +716,6 @@ stationMap <- function(data,x,y,labels="",cpue="",titleString = "",filename=""){
     coord_sf(xlim = x, ylim = y,
                datum = st_crs(4326))
     
-    
     if (labels!=""){
       p <- p + geom_text_repel(data = data, 
                                aes(x=lon,y=lat,label=stationName,col=platform1),
@@ -743,15 +738,21 @@ stationMap <- function(data,x,y,labels="",cpue="",titleString = "",filename=""){
     labs(fill = "Depth (m)",y="Latitude",x="Longitude",col="Ship",linetype="EEZ")+
     theme(legend.position = "bottom",legend.box = "vertical")
   
-  plot(p)
+  # plot(p)
   
   if (filename!=""){
-    # png(filename = filename,width = 10,height = 11,pointsize = 200)
-    # plot(p)
-    # dev.off()
-    ggsave(filename=filename, plot = p,device = "png",width = 10,height = 11,dpi = 200)
+    pdf(filename,width=10, height=11,pointsize = 8)
+    plot(p)
+    dev.off()
     
+    # ggsave(filename=filename, plot = p,device = "png",width = 10,height = 11,dpi = 200)
+    
+    # zipr_append(zipfile = zipfile,files = filename)
   }
+  
+cat("\\begin{figure}[H] \\centering")
+cat(sprintf("\\includegraphics[width=0.9\\textwidth]{%s}",filename))
+cat("\\end{figure}")
   
 }
 
@@ -763,8 +764,10 @@ stationMap(data = pos,x = xlim2,y = ylim2,labels = "yes",
            filename = sprintf("%s-all_stations-%s.png",
                               gsub(" ", "_",cruise_title),gsub("-","",Sys.Date())))
 
-```
 
+
+
+```
 
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis',fig.pos='h',dpi=300, fig.width=10,fig.height=11}
@@ -791,7 +794,7 @@ for (a in as.character(sort(unique(pos$dfuArea)))){
 
     stationMap(data = pos2,x = xlim2,y = ylim2, labels="yes",
                titleString =  sprintf("Stations in area %s",a),
-               filename = sprintf("%s-all_stations_in_area_%s-%s.png",
+               filename = sprintf("%s-all_stations_in_area_%s-%s.pdf",
                                   gsub(" ", "_",cruise_title),a,gsub("-","",Sys.Date())))
 
     # colnames(participants) <- c("Name","Institute", "Function and tasks","Leg","no")
@@ -900,9 +903,9 @@ tng <- sqlQuery(channel, sprintf("SELECT slr.[year]
   slr.cruise = sam.cruise and
   slr.trip = sam.trip and
   slr.station = sam.station
-    where slr.cruise like 'tunge%s' and slr.year = %s
+    where slr.cruise like 'tunge%s' and slr.year = %s and slr.trip in ('%s')
   and slr.speciesCode in ('tng','tor','rsp','dvh')
-  ","%",year),stringsAsFactors=F)
+  ","%",year,trips),stringsAsFactors=F)
 close(channel)
 
 tng <- tng %>% 
@@ -926,7 +929,7 @@ xlim2 <- c(floor(min(tng3$lon,na.rm=T)/.5)*.5,ceiling(max(tng3$lon,na.rm=T)/.5)*
 
   
 stationMap(data = tng3, x = xlim2, y = ylim2, cpue="yes",
-           filename = sprintf("%s-all_stations-cpue-%s.png",
+           filename = sprintf("%s-all_stations-cpue-%s.pdf",
                               gsub(" ", "_",cruise_title),gsub("-","",Sys.Date())))
   
   # 
@@ -957,22 +960,24 @@ Over all S.E. is estimated using the stratum area as weighting factor. In strata
 
 ########## Collecting data from Fishline ###########
 
-query1<-paste("SELECT    SpeciesListRaised.speciesCode, SUM(SpeciesListRaised.numberTotal) as cruiseNumberTotal,
+query1<-sprintf("SELECT    SpeciesListRaised.speciesCode, SUM(SpeciesListRaised.numberTotal) as cruiseNumberTotal,
                          SUM(SpeciesListRaised.weightTotal) as cruiseWeightTotal
               FROM       SpeciesListRaised
-              WHERE      (SpeciesListRaised.year=",year," and
-                          SpeciesListRaised.cruise='",cruise,"')
+              WHERE      (SpeciesListRaised.year=%s and
+                          SpeciesListRaised.cruise='%s' and
+                          SpeciesListRaised.trip in ('%s'))
               GROUP BY   speciesCode"
-              ,sep = "")
+              ,year,cruise,trips)
 query1
 
-query1b <-paste("SELECT    SpeciesListRaised.speciesCode, dfuArea as area, SUM(SpeciesListRaised.numberTotal) as cruiseNumberTotal,
+query1b <-sprintf("SELECT    SpeciesListRaised.speciesCode, dfuArea as area, SUM(SpeciesListRaised.numberTotal) as cruiseNumberTotal,
                          SUM(SpeciesListRaised.weightTotal) as cruiseWeightTotal
               FROM       SpeciesListRaised
-              WHERE      (SpeciesListRaised.year=",year," and
-                          SpeciesListRaised.cruise='",cruise,"')
+              WHERE      (SpeciesListRaised.year=%s and
+                          SpeciesListRaised.cruise='%s' and
+                          SpeciesListRaised.trip in ('%s'))
               GROUP BY   speciesCode,dfuArea"
-              ,sep = "")
+              ,year,cruise,trips)
 query1b
 
 query2<-paste("SELECT L_Species.speciesCode, L_Species.ukName as Species,L_Species.dkName as dkSpecies,  L_Species.latin
@@ -1052,20 +1057,22 @@ The total catch per species per ICES area are presented in table 1-`r length(uni
 ```{r cod_lengths, echo=FALSE, message=FALSE, warning=FALSE,include=FALSE}
 ########## Collecting data from Fishline ###########
 
-query1<-paste0("SELECT    AnimalRaised.trip, AnimalRaised.year, AnimalRaised.speciesCode, AnimalRaised.dfuArea,
+query1<-sprintf("SELECT  AnimalRaised.trip, AnimalRaised.year, AnimalRaised.speciesCode, AnimalRaised.dfuArea,
                          AnimalRaised.numberTotalPerLength, AnimalRaised.length, AnimalRaised.station
               FROM       AnimalRaised
-              WHERE      (AnimalRaised.year = ",year," and
-                         AnimalRaised.cruise='",cruise,"' and
-                         AnimalRaised.speciesCode IN ('TNG'))")
+              WHERE      (AnimalRaised.year = %s and
+                         AnimalRaised.cruise='%s' and AnimalRaised.trip in ('%s') and
+                         AnimalRaised.speciesCode IN ('TNG'))",
+              year,cruise,trips)
 query1
 
-query2<-paste0("SELECT    Sample.year, count(Sample.station) as tot_stat
+query2<-sprintf("SELECT    Sample.year, count(Sample.station) as tot_stat
                FROM      Sample
-               WHERE     (Sample.year BETWEEN ",year-9," AND ",year," and
-                         Sample.cruise='",cruise,"' AND
-                         Sample.gearQuality='V')
-               GROUP BY  Sample.year ")
+               WHERE     (Sample.year BETWEEN %s-9 AND %s and
+                         Sample.cruise='%s' AND
+                         Sample.gearQuality='V' and
+                         Sample.trip in ('%s'))
+               GROUP BY  Sample.year ",year,year,cruise,trips)
 
 
 query2
