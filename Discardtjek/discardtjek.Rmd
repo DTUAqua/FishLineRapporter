@@ -43,18 +43,18 @@ output:
 
 ```{r define_input, echo=FALSE}
 
-year<- @paramYear
-cruise <- @paramCruise
-trip <- @paramTrip
-coast_string <- "europe_simple_wgs84"
-ices_areas_string <- "ICES_areas"
+# year<- @paramYear
+# cruise <- @paramCruise
+# trip <- @paramTrip
+# coast_string <- "europe_simple_wgs84"
+# ices_areas_string <- "ICES_areas"
 
 ## Parameters
 year<- 2019
 cruise <- "MON"
 trip <- "2714"
-# coast_string <- "kort/europe_simple_wgs84"
-# ices_areas_string <- "kort/ICES_areas"
+coast_string <- "kort/europe_simple_wgs84"
+ices_areas_string <- "kort/ICES_areas"
 
 
 ```
