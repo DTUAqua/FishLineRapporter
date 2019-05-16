@@ -136,9 +136,9 @@ round2 = function(x) trunc(x+0.5)
 ##########################################################
 
 
-method_run <- "FiskeLine"
+# method_run <- "FiskeLine"
 
-if (method_run == "R") {
+# if (method_run == "R") {
     # year <- 2016
     # cruise <- "BITS-1"
     # 
@@ -152,9 +152,9 @@ if (method_run == "R") {
     # paramExcDate <- "01-01-2017"
     # paramExcPort <- "Rønne"
     # 
-    # inlcude_years <- "no"  
+    # inlcude_years <- "no"
     # paramPlannedHauls <- 60
-    # str_weather <- "Text"
+    # str_weather <- "Weather"
     # str_guest <- "Text"
     # str_oxygen <- "Oxygen conditions on this survey"
     # str_gear  <- "Gear performance on this survey"
@@ -162,7 +162,7 @@ if (method_run == "R") {
     # 
     # participantsString <- "C:/Users/trkj/Downloads/participants.csv"
       
-} else if (method_run == "FiskeLine") {
+# } else if (method_run == "FiskeLine") {
   
   year <- @paramYear
   cruise <- @paramCruise
@@ -186,7 +186,7 @@ if (method_run == "R") {
 
   participantsString <- "participants.csv"
   
-}
+# }
 
 
 inlcude_years = "no"
@@ -825,18 +825,21 @@ legend( x="bottomright", title = "Stations",
 The gear performance is monitored during any trawl station. All relevant parameters describing the gear geometry during the fishing 
 is logged to verify that the observed trawl geometry values are within the defined ranges for acceptance.
 
-\newcommand{\abGE}{`r yn_gear`}
-\newcommand{\aORbGE}[1]{%
-        \edef\mytemp{{#1}}%
-        \expandafter\ifstrequal\mytemp{yes}{
-			  `r str_gear`
-        }
-        \expandafter\ifstrequal\mytemp{no}{
-			  `r "                                                           "`
-        }{} %
-}
-\aORbGE{\abGE}
+<!-- \newcommand{\abGE}{`r yn_gear`} -->
+<!-- \newcommand{\aORbGE}[1]{% -->
+<!--         \edef\mytemp{{#1}}% -->
+<!--         \expandafter\ifstrequal\mytemp{yes}{ -->
+<!-- `r cat(str_gear)` -->
+<!--         } -->
+<!--         \expandafter\ifstrequal\mytemp{no}{ -->
+<!-- 			  `r "                                                           "` -->
+<!--         }{} % -->
+<!-- } -->
+<!-- \aORbGE{\abGE} -->
 
+```{r , echo=F, results='asis'}
+cat(str_gear)
+```
 
 ```{r bongoMap, echo=FALSE, message=FALSE, warning=FALSE, results='asis', fig.width=10, fig.height=8,fig.cap=paste0("Allocated bongo, IKMT, Aptstein und WP2 stations. Bongo stations are assigned with station numbers but other hauls types are not. ",ship," Denmark, ",cruise_title,".\\label{fig:mapBongo}")}
 
@@ -909,32 +912,41 @@ under the cruise has been verified by trawling that no fish is staying in this w
 The station is then recorded as an assumed zero-catch station. If the cruise leader has any reason to trawl anyway, normal trawling 
 is carried out at the station. 
 
-\newcommand{\abOX}{`r yn_oxygen`}
-\newcommand{\aORbOX}[1]{%
-        \edef\mytemp{{#1}}%
-        \expandafter\ifstrequal\mytemp{yes}{
-			`r str_oxygen`
-        }{} %
-}
-\aORbOX{\abOX}
+<!-- \newcommand{\abOX}{`r yn_oxygen`} -->
+<!-- \newcommand{\aORbOX}[1]{% -->
+<!--         \edef\mytemp{{#1}}% -->
+<!--         \expandafter\ifstrequal\mytemp{yes}{ -->
+<!-- `r cat(str_oxygen)` -->
+<!--         }{} % -->
+<!-- } -->
+<!-- \aORbOX{\abOX} -->
+```{r , echo=F, results='asis'}
+cat(str_oxygen)
+```
 
 
-\newcommand{\abWC}{`r yn_weather`}
-\newcommand{\aORbWC}[1]{%
-        \edef\mytemp{{#1}}%
-        \expandafter\ifstrequal\mytemp{yes}{
-           	\subsection{Weather conditions}
-			 `r str_weather` 
-			 
-			 Wind speed and direction are presented in Fig. \ref{fig:wind}. Number of days with an average wind speed larger than 15 m/s: `r L15wind_days`.
-        }{} %
-        \expandafter\ifstrequal\mytemp{no}{
-           	\subsection{Weather conditions}
-	   		 Wind speed and direction are presented in Fig. \ref{fig:wind}. Number of days with an average wind speed larger than 15 m/s: `r L15wind_days`.
-        }{} %
+\subsection{Weather conditions}
 
-}
-\aORbWC{\abWC}
+<!-- \newcommand{\abWC}{`r yn_weather`} -->
+<!-- \newcommand{\aORbWC}[1]{% -->
+<!--         \edef\mytemp{{#1}}% -->
+<!--         \expandafter\ifstrequal\mytemp{yes}{ -->
+
+<!-- `r cat(str_weather)`  -->
+<!--         }{} % -->
+<!-- } -->
+<!-- \aORbWC{\abWC} -->
+```{r , echo=F, results='asis'}
+cat(str_weather)
+```
+
+Wind speed and direction are presented in Fig. \ref{fig:wind}. 
+
+Number of days with an average wind speed larger than 15 m/s: `r L15wind_days`.
+
+
+
+
 
 
 
@@ -980,31 +992,48 @@ grid.arrange(gw1,blank,gw2,heights=c(0.48, 0.02, 0.50), nrow=3, clip=TRUE)
 ```
 
 
-\newcommand{\abGU}{`r yn_guest`}
-\newcommand{\aORbGU}[1]{%
-        \edef\mytemp{{#1}}%
-        \expandafter\ifstrequal\mytemp{yes}{
-           	\subsection{Guests on board}
-            There is a long and strong tradition to have scientific colleagues from other countries onboard in exchange during 
-            the survey.  The reason for that is the facilitating of cooperation and standardization of procedures across
-            participating countries. Guests on this survey: `r str_guest`
-        }{} %
+<!-- \newcommand{\abGU}{`r yn_guest`} -->
+<!-- \newcommand{\aORbGU}[1]{% -->
+<!--         \edef\mytemp{{#1}}% -->
+<!--         \expandafter\ifstrequal\mytemp{yes}{ -->
+<!--            	\subsection{Guests on board} -->
+<!--             There is a long and strong tradition to have scientific colleagues from other countries onboard in exchange during  -->
+<!--             the survey.  The reason for that is the facilitating of cooperation and standardization of procedures across -->
+<!--             participating countries. Guests on this survey: `r str_guest` -->
+<!--         }{} % -->
+<!-- } -->
+<!-- \aORbGU{\abGU} -->
+
+```{r , echo=F, results='asis'}
+if (yn_guest == "yes"){
+  
+  cat("\\subsection{Guests on board} ")
+  
+  cat(paste0("There is a long and strong tradition to have scientific colleagues from other countries onboard in exchange during the survey. The reason for that is the facilitating of cooperation and standardization of procedures across participating countries. Guests on this survey: ",str_guest))
+  
 }
-\aORbGU{\abGU}
+```
 
 
+<!-- \newcommand{\abOT}{`r yn_other`} -->
+<!-- \newcommand{\aORbOT}[1]{% -->
+<!--         \edef\mytemp{{#1}}% -->
+<!--         \expandafter\ifstrequal\mytemp{yes}{ -->
+<!--            	\subsection{Other} -->
+<!-- 			`r str_other` -->
+<!--         }{} % -->
+<!-- } -->
+<!-- \aORbOT{\abOT} -->
 
-
-\newcommand{\abOT}{`r yn_other`}
-\newcommand{\aORbOT}[1]{%
-        \edef\mytemp{{#1}}%
-        \expandafter\ifstrequal\mytemp{yes}{
-           	\subsection{Other}
-			`r str_other`
-        }{} %
+```{r , echo=F, results='asis'}
+if (yn_other == "yes"){
+  
+  cat("\\subsection{Other} ")
+  
+  cat(str_other)
+  
 }
-\aORbOT{\abOT}
-
+```
 
 
 
@@ -1313,77 +1342,77 @@ if (substr(cruise,1,4)=="IBTS") {
 
 
 
-\newcommand{\abTWO}{`r cruise2`}
+<!-- \newcommand{\abTWO}{`r cruise2`} -->
 
-\rowcolors{1}{}{white}
+<!-- \rowcolors{1}{}{white} -->
 
-\newcommand{\aORbTWO}[1]{%
-        \edef\mytemp{{#1}}%
-        \expandafter\ifstrequal\mytemp{BITS}{
+<!-- \newcommand{\aORbTWO}[1]{% -->
+<!--         \edef\mytemp{{#1}}% -->
+<!--         \expandafter\ifstrequal\mytemp{BITS}{ -->
         
-                    \newpage
-                    
-                    \subsection{Cod catch and length distribution}
-                    
-                    \renewcommand{\arraystretch}{1.2}
-                    \begin{tabularx}{\textwidth}{@{}lrr@{}}
-                    \textbf{Total kgs of cod catched:} &  `r Cod_weight` & \\
-                    \textbf{Total number of cod measured:} &  `r Cod_num` & \\
-                    \textbf{Total number of cod otoliths collected:} & `r Cod_oto` &
-                    \end{tabularx}
-                  
-                    \vspace{0.4cm}
-                    
-                    In Fig. \ref{fig:cod} the length distributions of cod per ICES statiscal area are presented.
-                    
-                    \vspace{1cm}
-        }{} %
-        \expandafter\ifstrequal\mytemp{Torsk}{
-        
-         \newpage
-                    
-                    \section{Cod catch}
-                    
-                    \renewcommand{\arraystretch}{1.2}
-                    \begin{tabularx}{\textwidth}{@{}lrr@{}}
-                    \textbf{Total kgs of cod catched:} &  `r Cod_weight` & \\
-                    \textbf{Total number of cod measured:} &  `r Cod_num` & \\
-                    \textbf{Total number of cod otoliths collected:} & `r Cod_oto` &
-                    \end{tabularx}
-                  
-                    \vspace{1cm}
-                    
-                    
-        
-        
-        
-        
-        }{}%
-        \expandafter\ifstrequal\mytemp{Tunger}{
-        
-         \newpage
-                    
-                    \section{Sole catch}
-                    
-                    \renewcommand{\arraystretch}{1.2}
-                    \begin{tabularx}{\textwidth}{@{}lrr@{}}
-                    \textbf{Total kgs of sole catched:} &  `r Sole_weight` & \\
-                    \textbf{Total number of sole measured:} &  `r Sole_num` & \\
-                    \textbf{Total number of sole otoliths collected:} & `r Sole_oto` &
-                    \end{tabularx}
-                  
-                    \vspace{1cm}
-                    
-                    
-        
-        
-        
-        
-        }{}%
-}
+\newpage
+
+\subsection{Cod catch and length distribution}
+
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\textwidth}{@{}lrr@{}}
+\textbf{Total kgs of cod catched:} &  `r Cod_weight` & \\
+\textbf{Total number of cod measured:} &  `r Cod_num` & \\
+\textbf{Total number of cod otoliths collected:} & `r Cod_oto` &
+\end{tabularx}
+
+\vspace{0.4cm}
+
+In Fig. \ref{fig:cod} the length distributions of cod per ICES statiscal area are presented.
+
+\vspace{1cm}
+<!-- }{} % -->
+<!-- \expandafter\ifstrequal\mytemp{Torsk}{ -->
+
+<!-- \newpage -->
+
+<!-- \section{Cod catch} -->
+
+<!-- \renewcommand{\arraystretch}{1.2} -->
+<!-- \begin{tabularx}{\textwidth}{@{}lrr@{}} -->
+<!-- \textbf{Total kgs of cod catched:} &  `r Cod_weight` & \\ -->
+<!-- \textbf{Total number of cod measured:} &  `r Cod_num` & \\ -->
+<!-- \textbf{Total number of cod otoliths collected:} & `r Cod_oto` & -->
+<!-- \end{tabularx} -->
+
+<!-- \vspace{1cm} -->
 
 
-\aORbTWO{\abTWO}
+
+
+
+
+<!-- }{}% -->
+<!-- \expandafter\ifstrequal\mytemp{Tunger}{ -->
+
+<!-- \newpage -->
+
+<!-- \section{Sole catch} -->
+
+<!-- \renewcommand{\arraystretch}{1.2} -->
+<!-- \begin{tabularx}{\textwidth}{@{}lrr@{}} -->
+<!-- \textbf{Total kgs of sole catched:} &  `r Sole_weight` & \\ -->
+<!-- \textbf{Total number of sole measured:} &  `r Sole_num` & \\ -->
+<!-- \textbf{Total number of sole otoliths collected:} & `r Sole_oto` & -->
+<!-- \end{tabularx} -->
+
+<!-- \vspace{1cm} -->
+                    
+                    
+        
+        
+        
+
+<!--         }{}% -->
+<!-- } -->
+
+
+<!-- \aORbTWO{\abTWO} -->
 
 
 

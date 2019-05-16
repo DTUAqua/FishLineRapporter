@@ -79,115 +79,14 @@ output:
 
 
 #Libraries
-if (!require(sqldf)) {
-  install.packages("sqldf", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(sqldf)
-}
-if (!require(RODBC)) {
-  install.packages("RODBC", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(RODBC)
-}
-if (!require(plyr)) {
-  install.packages("plyr", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(plyr)
-}
-if (!require(xtable)) {
-  install.packages("xtable", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(xtable)
-}
-if (!require(ggplot2)) {
-  install.packages("gplots", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(gplots)
-}
-if (!require(lubridate)) {
-  install.packages("lubridate", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(lubridate)
-}
-if (!require(reshape2)) {
-  install.packages("reshape2", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(reshape2)
-}
-if (!require(ggrepel)) {
-  install.packages("ggrepel", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(ggrepel)
-}
- if (!require(grid)) {
-  install.packages("grid", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(grid)
-}
- if (!require(gridExtra)) {
-  install.packages("gridExtra", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(gridExtra)
-}
- if (!require(gplots)) {
-  install.packages("gplots", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(gplots)
-}
- if (!require(Hmisc)) {
-  install.packages("Hmisc", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(Hmisc)
-}
- if (!require(stringr)) {
-  install.packages("stringr", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(stringr)
-}
- if (!require(dismo)) {
-  install.packages("dismo", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(dismo)
-}
- if (!require(raster)) {
-  install.packages("raster", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(raster)
-}
- if (!require(marmap)) {
-  install.packages("marmap", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(marmap)
-}
- if (!require(rgdal)) {
-  install.packages("rgdal", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(rgdal)
-}
- if (!require(maptools)) {
-  install.packages("maptools", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(maptools)
-}
- if (!require(rasterVis)) {
-  install.packages("rasterVis", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(rasterVis)
-}
- if (!require(shapefiles)) {
-  install.packages("shapefiles", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(shapefiles)
-}
- if (!require(calibrate)) {
-  install.packages("calibrate", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(calibrate)
-}
- if (!require(plotrix)) {
-  install.packages("plotrix", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(plotrix)
-}
- if (!require(base)) {
-  install.packages("base", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(base)
-}
- if (!require(mapplots)) {
-  install.packages("mapplots", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(mapplots)
-}
- if (!require(data.table)) {
-  install.packages("data.table", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(data.table)
-}
- if (!require(tinytex)) {
-  install.packages("tinytex", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(tinytex)
- }
- if (!require(knitr)) {
-  install.packages("knitr", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(knitr)
+if (!require(pacman)) {
+  install.packages("pacman", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(pacman)
 }
 
+p_load(sqldf,RODBC,plyr,xtable,ggplot2,lubridate,reshape2,ggrepel,grid,gridExtra,
+       gplots,Hmisc,stringr,dismo,raster,marmap,rgdal,maptools,rasterVis,shapefiles,
+       calibrate,plotrix,base,mapplots,data.table,tinytex,knitr)
 
 detach(package:Hmisc)
 
@@ -234,8 +133,8 @@ str_weather <- "A description of the weather"#@paramWeather
 str_gear <- "A description of the gear"#@paramGear
 str_oxygen <- "A description of oxygen"#@paramOxygen
 str_comments <- "Some Comments"#@paramComments
-coastString <- 'maps/europe_simple_wgs84'
-dk_eezString <- 'maps/eez_dk_poly'
+coastString <- '../discardtjek/kort/europe_simple_wgs84'
+dk_eezString <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/EEZ/DK_EEZ_Jan_2017"
 ```
 
 
@@ -608,13 +507,14 @@ participants <- participants[!is.na(participants$Leg),]
 # participants <- participants[participants$Leg==1,]
 participants$order <- as.integer(rownames(participants))
 
-n.rgroup<-data.frame(rgroup=character(),
-                     n.rgroup = integer(),
-                     stringsAsFactors = F)
-for (i in 1:max(participants$Leg)){
-  n.rgroup[i,"rgroup"] <- paste0("Leg ",i)
-  n.rgroup[i,"n.rgroup"] <- nrow(participants[participants$Leg==1,])
-}
+n.rgroup<-data.frame(table(participants$Leg))
+
+colnames(n.rgroup) <- c("rgroup","n.rgroup")
+
+# for (i in 1:max(participants$Leg)){
+#   n.rgroup[i,"rgroup"] <- paste0("Leg ",i)
+#   n.rgroup[i,"n.rgroup"] <- nrow(participants[participants$Leg==1,])
+# }
 
 participants2 <- participants[with(participants, order(order)),!(names(participants) %in% c("Leg","order"))]
 
@@ -642,7 +542,7 @@ participants3 <- participants2[,c("Institute", "Function and tasks")]
      mylatex(participants2,
              file='',
              booktabs =T,
-             col.just = c("l","l","l","l"), 
+             col.just = c("l","l","l"), 
              rgroup =n.rgroup$rgroup ,
              rowname="",
              n.rgroup=n.rgroup$n.rgroup,
@@ -650,7 +550,7 @@ participants3 <- participants2[,c("Institute", "Function and tasks")]
              colnamesTexCmd="bfseries",
              rgroupTexCmd="itshape",
              where='H',
-             collabel.just=c("l","l"),
+             collabel.just=c("l","l","l"),
              center='none')
 
 
