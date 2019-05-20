@@ -48,16 +48,16 @@ output:
 ```{r define_input, echo=FALSE}
 
 #Parameters
-# year<- @paramYear
-# quarter <- @paramQuarter
-# cruise <- @paramCruise
-# mappath <- 'europe_simple_wgs84'
+year<- @paramYear
+quarter <- @paramQuarter
+cruise <- @paramCruise
+mappath <- 'europe_simple_wgs84'
  
 
-year<- 2018
-quarter <- 1
-cruise <- 'MON'
-mappath <- "../Discardtjek/kort/europe_simple_wgs84"
+# year<- 2018
+# quarter <- 1
+# cruise <- 'MON'
+# mappath <- "../Discardtjek/kort/europe_simple_wgs84"
 
 
 ```
@@ -68,101 +68,15 @@ mappath <- "../Discardtjek/kort/europe_simple_wgs84"
 ```{r set_libraries, include=FALSE}
 
 #Libraries
-if (!require(sqldf)) {
-  install.packages("sqldf", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(sqldf)
+if (!require(pacman)) {
+  install.packages("pacman", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(pacman)
 }
-if (!require(RODBC)) {
-  install.packages("RODBC", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(RODBC)
-}
-if (!require(plyr)) {
-  install.packages("plyr", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(plyr)
-}
-if (!require(xtable)) {
-  install.packages("xtable", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(xtable)
-}
-if (!require(gplots)) {
-  install.packages("gplots", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(gplots)
-}
-if (!require(grid)) {
-  install.packages("grid", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(grid)
-}
-if (!require(reshape2)) {
-  install.packages("reshape2", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(reshape2)
-}
-if (!require(ggrepel)) {
-  install.packages("ggrepel", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(ggrepel)
-}
- if (!require(grid)) {
-  install.packages("grid", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(grid)
-} 
- if (!require(gridExtra)) {
-  install.packages("gridExtra", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(gridExtra)
-}
- if (!require(gplots)) {
-  install.packages("gplots", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(gplots)
-} 
- if (!require(Hmisc)) {
-  install.packages("Hmisc", repos="http://ftp.ussg.iu.edu/CRAN/")
-}  
- if (!require(stringr)) {
-  install.packages("stringr", repos="http://ftp.ussg.iu.edu/CRAN/")
-} 
- if (!require(dismo)) {
-  install.packages("dismo", repos="http://ftp.ussg.iu.edu/CRAN/")
-} 
- if (!require(raster)) {
-  install.packages("raster", repos="http://ftp.ussg.iu.edu/CRAN/")
-} 
- if (!require(marmap)) {
-  install.packages("marmap", repos="http://ftp.ussg.iu.edu/CRAN/")
-} 
- if (!require(rgdal)) {
-  install.packages("rgdal", repos="http://ftp.ussg.iu.edu/CRAN/")
-} 
- if (!require(maptools)) {
-  install.packages("maptools", repos="http://ftp.ussg.iu.edu/CRAN/")
-} 
- if (!require(rasterVis)) {
-  install.packages("rasterVis", repos="http://ftp.ussg.iu.edu/CRAN/")
-} 
- if (!require(shapefiles)) {
-  install.packages("shapefiles", repos="http://ftp.ussg.iu.edu/CRAN/")
-} 
- if (!require(calibrate)) {
-  install.packages("calibrate", repos="http://ftp.ussg.iu.edu/CRAN/")
-} 
- if (!require(plotrix)) {
-  install.packages("plotrix", repos="http://ftp.ussg.iu.edu/CRAN/")
-} 
- if (!require(base)) {
-  install.packages("base", repos="http://ftp.ussg.iu.edu/CRAN/")
-} 
- if (!require(mapplots)) {
-  install.packages("mapplots", repos="http://ftp.ussg.iu.edu/CRAN/")
-} 
- if (!require(data.table)) {
-  install.packages("data.table", repos="http://ftp.ussg.iu.edu/CRAN/")
-}   
- if (!require(dplyr)) {
-  install.packages("dplyr", repos="http://ftp.ussg.iu.edu/CRAN/")
-} 
-if (!require(Hmisc)) {
-  install.packages("Hmisc", repos="http://ftp.ussg.iu.edu/CRAN/")
-}
-if (!require(colorspace)) {
-  install.packages("colorspace", repos="http://ftp.ussg.iu.edu/CRAN/")
-}
+
+p_load(sqldf,RODBC,plyr,xtable,gplots,grid,reshape2,ggrepel,gridExtra,gplots,Hmisc,
+       stringr,dplyr,data.table,mapplots,base,plotrix,calibrate,shapefiles,
+       rasterVis,maptools,rgdal,marmap,dismo,raster,Hmisc,colorspace)
+
 detach(package:Hmisc)
 
 ```
@@ -172,8 +86,6 @@ detach(package:Hmisc)
 
 
 ```{r functions1, include=FALSE}
-
-
 
 
 round2 = function(x) trunc(x+0.5);
@@ -520,12 +432,14 @@ gear_input <- gear_input1[complete.cases(gear_input1),]
 
 gear_input[gear_input$dfuArea %in% c(21) & 
              !(gear_input$selectionDevice %in%
-                 c("Seltra 300","Topløs/seltra >175mm","4 panel/270 diamant")) & 
+                 c("Seltra 300","Topløs/seltra >175mm","Seltra 140mm Kvardrat ",
+                   "4 panel/270 diamant")) & 
              gear_input$gearType %in% c("OTB","OTT","PTB"),"dfuArea"] <- 
   paste("\\color{red}",
         gear_input[gear_input$dfuArea %in% c(21) &
                      !(gear_input$selectionDevice %in% 
-                         c("Seltra 300","Topløs/seltra >175mm","4 panel/270 diamant")) & 
+                         c("Seltra 300","Topløs/seltra >175mm",
+                           "Seltra 140mm Kvardrat ","4 panel/270 diamant")) & 
                      gear_input$gearType %in% c("OTB","OTT","PTB"),"dfuArea"])
 
 gear_input[gear_input$dfuArea %in% c(22:32) & 
