@@ -13,12 +13,21 @@ output: pdf_document
 
 
 #Parameters
-year<- @paramYear
-cruise <- @paramCruise
-species <- @paramSpecies
+# year<- @paramYear
+# cruise <- @paramCruise
+# species <- @paramSpecies
+# #trip <- '1 OES' #trip number
+# gearQuality <- "V"
+# redsk_dim <- 1
+# areaString <- 'Alle muslingeområder 2011_region'
+
+year<- 2018
+cruise <- 'BV LF OES OST april'
+species <- "OES"
 #trip <- '1 OES' #trip number
 gearQuality <- "V"
 redsk_dim <- 1
+areaString <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/Muslingeomraader/Alle_muslingeområder_2011_region.shp"
 
 ```
 
@@ -29,30 +38,13 @@ redsk_dim <- 1
 ```{r set_libraries, include=FALSE}
 
 #Libraries
-if (!require(sqldf)) {
-  install.packages("sqldf", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(sqldf)
+if (!require(pacman)) {
+  install.packages("pacman", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(pacman)
 }
-if (!require(RODBC)) {
-  install.packages("RODBC", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(RODBC)
-}
-if (!require(plyr)) {
-  install.packages("plyr", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(stringi)
-}
-if (!require(maptools)) {
-  install.packages("maptools", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(maptools)
-}
-if (!require(data.table)) {
-  install.packages("data.table", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(data.table)
-}
-if (!require(rgdal)) {
-  install.packages("rgdal", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(rgdal)
-}
+
+p_load(sqldf,RODBC,maptools,data.table,rgdal,dplyr,sf)
+
 ```
 
 ```{r getdata, echo=FALSE, message=FALSE, warning=FALSE}
@@ -110,38 +102,75 @@ data[is.na(data$redsk_dim),"redsk_dim"] <- 1
 #Calculate Befisket areal depending on species
 
 
-data[data$coursetrack==0 & !is.na(data$coursetrack),"coursetrack"] <- NA
-data[data$distancePositions==0 & !is.na(data$distancePositions),"distancePositions"] <- NA
+data[data$coursetrack==0 & 
+       !is.na(data$coursetrack),"coursetrack"] <- NA
+data[data$distancePositions==0 & 
+       !is.na(data$distancePositions),"distancePositions"] <- NA
 
 
 #Areal = udsejlet distance* redskabsbredde (Hvis udsejlet distance er kendt)
-data[!is.na(data$coursetrack) & !(data$stationType %in% c('RAM','VV')) ,"Befisket_Areal_m2"] <- 
-  data[!is.na(data$coursetrack) & !(data$stationType %in% c('RAM','VV')) ,]$coursetrack*
-  data[!is.na(data$coursetrack) & !(data$stationType %in% c('RAM','VV')) ,]$redsk_dim
-data[!is.na(data$coursetrack) & !(data$stationType %in% c('RAM','VV')) ,"areal_metode"] <- "Udsejlet distance"
+data[!is.na(data$coursetrack) & 
+       !(data$stationType %in% c('RAM','VV')) ,"Befisket_Areal_m2"] <- 
+  data[!is.na(data$coursetrack) & 
+         !(data$stationType %in% c('RAM','VV')) ,]$coursetrack * 
+  data[!is.na(data$coursetrack) & 
+         !(data$stationType %in% c('RAM','VV')) ,]$redsk_dim
+
+data[!is.na(data$coursetrack) & 
+       !(data$stationType %in% c('RAM','VV')) ,"areal_metode"] <- "Udsejlet distance"
   
 #Areal = Distance*redskabsbredde (Hvis Distance ≠0 og courstrack=NA)
-data[!is.na(data$distancePositions) & is.na(data$coursetrack) & !(data$stationType %in% c('RAM','VV')) ,"Befisket_Areal_m2"] <- 
-  data[!is.na(data$distancePositions) & is.na(data$coursetrack) & !(data$stationType %in% c('RAM','VV')) ,]$distancePositions*1852*
-  data[!is.na(data$distancePositions) & is.na(data$coursetrack) & !(data$stationType %in% c('RAM','VV')) ,]$redsk_dim
-data[!is.na(data$distancePositions) & is.na(data$coursetrack) & !(data$stationType %in% c('RAM','VV')) ,"areal_metode"] <- "Distance start-slut"
+data[!is.na(data$distancePositions) &
+       is.na(data$coursetrack) & 
+       !(data$stationType %in% c('RAM','VV')) ,"Befisket_Areal_m2"] <- 
+  data[!is.na(data$distancePositions) &
+         is.na(data$coursetrack) & 
+         !(data$stationType %in% c('RAM','VV')) ,]$distancePositions*1852*
+  data[!is.na(data$distancePositions) & 
+         is.na(data$coursetrack) & 
+         !(data$stationType %in% c('RAM','VV')) ,]$redsk_dim
+
+data[!is.na(data$distancePositions) & 
+       is.na(data$coursetrack) & 
+       !(data$stationType %in% c('RAM','VV')) ,"areal_metode"] <- "Distance start-slut"
 
 #Areal = træktid*træhastighed*redskabsbredde (Distance=0 og udsejlet distance ukendt), distanceBottom= Trækhast*fisketid i sømil (haulSpeedBot*fishingtime).
-data[is.na(data$distancePositions) & is.na(data$coursetrack) & !(data$stationType %in% c('RAM','VV'))  ,"Befisket_Areal_m2"] <- 
-  data[is.na(data$distancePositions) & is.na(data$coursetrack) & !(data$stationType %in% c('RAM','VV')) ,]$distanceBottom*1852*
-  data[is.na(data$distancePositions) & is.na(data$coursetrack) & !(data$stationType %in% c('RAM','VV')),]$redsk_dim
-data[is.na(data$distancePositions) & is.na(data$coursetrack) & !(data$stationType %in% c('RAM','VV')),"areal_metode"] <- "Træktid*trækhastighed"
+data[is.na(data$distancePositions) &
+       is.na(data$coursetrack) & 
+       !(data$stationType %in% c('RAM','VV'))  ,"Befisket_Areal_m2"] <- 
+  data[is.na(data$distancePositions) &
+         is.na(data$coursetrack) & 
+         !(data$stationType %in% c('RAM','VV')) ,]$distanceBottom*1852*
+  data[is.na(data$distancePositions) & 
+         is.na(data$coursetrack) & 
+         !(data$stationType %in% c('RAM','VV')),]$redsk_dim
+
+data[is.na(data$distancePositions) & 
+       is.na(data$coursetrack) &
+       !(data$stationType %in% c('RAM','VV')),"areal_metode"] <- "Træktid*trækhastighed"
 
 #Areal = rammeareal (Hvis redskab=ramme)
-data[data$gearType %like% '^RAM' & data$gearType!="RAM" & !is.na(data$gearType),"Befisket_Areal_m2"] <- data[data$gearType %like% '^RAM' & data$gearType!="RAM" & !is.na(data$gearType),]$redsk_dim
-data[data$gearType=="RAM" & !is.na(data$gearType),"Befisket_Areal_m2"] <- 0.01
-data[data$gearType %like% '^RAM' & !is.na(data$gearType),"areal_metode"] <- "Ramme-areal"
+data[data$gearType %like% '^RAM' & 
+       data$gearType!="RAM" & 
+       !is.na(data$gearType),"Befisket_Areal_m2"] <-
+  data[data$gearType %like% '^RAM' &
+         data$gearType!="RAM" & 
+         !is.na(data$gearType),]$redsk_dim
+
+data[data$gearType=="RAM" &
+       !is.na(data$gearType),"Befisket_Areal_m2"] <- 0.01
+data[data$gearType %like% '^RAM' & 
+       !is.na(data$gearType),"areal_metode"] <- "Ramme-areal"
 
 
 #Areal = sugeareal (Hvis redskab=sug)
-data[data$gearType %like% '^VV' & !is.na(data$gearType),"Befisket_Areal_m2"] <- data[data$gearType %like% '^VV' &
-     !is.na(data$gearType),]$redsk_dim
-data[data$gearType %like% '^SUG' & !is.na(data$gearType),"areal_metode"] <- "Suge-areal"
+data[data$gearType %like% '^VV' & 
+       !is.na(data$gearType),"Befisket_Areal_m2"] <- 
+  data[data$gearType %like% '^VV' &
+         !is.na(data$gearType),]$redsk_dim
+
+data[data$gearType %like% '^SUG' & 
+       !is.na(data$gearType),"areal_metode"] <- "Suge-areal"
 
 
 
@@ -186,15 +215,25 @@ data3 <- data2[!(grepl("KM", data2$remark)==TRUE),]
 ```{r, include=FALSE}
 
 
-mus_omr2 <- readShapeSpatial('Alle muslingeområder 2011_region', proj4string=CRS("+proj=longlat +datum=WGS84"))
+# mus_omr2 <- readShapeSpatial(areaString, 
+#                              proj4string=CRS("+proj=longlat +datum=WGS84"))
+mus_omr2 <- st_read(areaString) %>%
+  st_transform(crs=4326) 
 
+colnames(mus_omr2)[1]<-"Area"
+colnames(mus_omr2)[2]<-"AreaName"
 # Convert pointsDF to a SpatialPoints object 
-pointsSP <- SpatialPoints(data3[,c("lonPosStartDec","latPosStartDec")], proj4string=CRS("+proj=longlat +datum=WGS84"))
 
+data3$x <- data3$lonPosStartDec
+data3$y <- data3$latPosStartDec
 
-join_omr <- over(pointsSP, mus_omr2)
+pointsSP <- st_as_sf(data3, coords = c("x","y"),crs=4326)
+# pointsSP <- SpatialPoints(data3[,c("lonPosStartDec","latPosStartDec")], proj4string=CRS("+proj=longlat +datum=WGS84"))
 
-data_omr <- cbind(data3,join_omr[,c("OMRådENAVN","OMRådENUMM")])
+data_omr <- st_join(pointsSP,mus_omr2)
+# join_omr <- over(pointsSP, mus_omr2)
+
+# data_omr <- cbind(data3,join_omr[,c("OMRådENAVN","OMRådENUMM")])
 
 
 ```
@@ -204,14 +243,28 @@ data_omr <- cbind(data3,join_omr[,c("OMRådENAVN","OMRådENUMM")])
 ```{r, echo=FALSE, warning=FALSE,message=FALSE}
 
 
-data_table <- sqldf('select    sampleId, stationType, year, cruise, trip, station, stationName, latPosStartText,lonPosStartText, 
-                               latPosStartDec, lonPosStartDec, OMRådENUMM as Area, OMRådENAVN as AreaName,
-                               fishingtime, depthAveGear, Befisket_Areal_m2, areal_metode, speciesCode,  
-                               TotalWeight_kg, Length_cm, sum(TotalNumber) as Number
-                     from data_omr
-                     group by   sampleId, stationType, year, cruise, trip, station, stationName, Area, latPosStartText,lonPosStartText, 
-                                latPosStartDec, lonPosStartDec, fishingtime, depthAveGear, Befisket_Areal_m2, speciesCode,  
-                                TotalWeight_kg, Length_cm')
+# data_table <- sqldf('select    sampleId, stationType, year, cruise, trip, station, stationName, latPosStartText,lonPosStartText, 
+#                                latPosStartDec, lonPosStartDec, Area, AreaName,
+#                                fishingtime, depthAveGear, Befisket_Areal_m2, areal_metode, speciesCode,  
+#                                TotalWeight_kg, Length_cm, sum(TotalNumber) as Number
+#                      from data_omr
+#                      group by   sampleId, stationType, year, cruise, trip, station, stationName, Area, latPosStartText,lonPosStartText, 
+#                                 latPosStartDec, lonPosStartDec, fishingtime, depthAveGear, Befisket_Areal_m2, speciesCode,  
+#                                 TotalWeight_kg, Length_cm')
+
+
+data_table <- data_omr %>%  
+  group_by(sampleId, stationType, year, cruise, trip, station, stationName,
+           latPosStartText,lonPosStartText, latPosStartDec, lonPosStartDec, Area,
+           AreaName,fishingtime, depthAveGear, Befisket_Areal_m2, areal_metode,
+           speciesCode,TotalWeight_kg, Length_cm) %>% 
+  summarise(Number = sum(TotalNumber,na.rm=T)) #%>% 
+  # select(sampleId, stationType, year, cruise, trip, station, stationName,
+  #        latPosStartText,lonPosStartText, latPosStartDec, lonPosStartDec, Area,
+  #        AreaName,fishingtime, depthAveGear, Befisket_Areal_m2, areal_metode,
+  #        speciesCode, TotalWeight_kg, Length_cm,Number)
+
+st_geometry(data_table)<-NULL  
 
 ```
 
