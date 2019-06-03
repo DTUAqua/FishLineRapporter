@@ -15,6 +15,22 @@ output: pdf_document
 \sffamily
 
 ```{r define_input, echo=FALSE}
+#@paramCruise SELECT c.cruise, c.cruise
+# FROM FishLineDW.dbo.Cruise c
+# WHERE (c.year = @paramYear
+#   AND c.cruise LIKE '%BMS%' OR
+# 	  c.year = @paramYear
+#   AND c.cruise LIKE '%OES%' OR  
+#   	  c.year = @paramYear
+#   AND c.cruise LIKE '%MUSSE%' OR  
+#   	  c.year = @paramYear
+#   AND c.cruise LIKE '%SST%' OR
+#   	  c.year = @paramYear
+#   AND c.cruise LIKE '%HMS%')
+#   AND c.cruise<>'OESTER'
+
+
+
 #Parameters
 
 # year <- 2002; cruise <- "BV VH HMS april"; species <- "HMS"

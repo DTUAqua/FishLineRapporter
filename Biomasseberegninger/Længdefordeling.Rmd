@@ -13,21 +13,21 @@ output: pdf_document
 
 
 #Parameters
-# year<- @paramYear
-# cruise <- @paramCruise
-# species <- @paramSpecies
-# #trip <- '1 OES' #trip number
-# gearQuality <- "V"
-# redsk_dim <- 1
-# areaString <- 'Alle muslingeområder 2011_region'
-
-year<- 2018
-cruise <- 'BV LF OES OST april'
-species <- "OES"
+year<- @paramYear
+cruise <- @paramCruise
+species <- @paramSpecies
 #trip <- '1 OES' #trip number
 gearQuality <- "V"
 redsk_dim <- 1
-areaString <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/Muslingeomraader/Alle_muslingeområder_2011_region.shp"
+areaString <- 'Alle muslingeområder 2011_region.shp'
+
+# year<- 2018
+# cruise <- 'BV LF OES OST april'
+# species <- "OES"
+# #trip <- '1 OES' #trip number
+# gearQuality <- "V"
+# redsk_dim <- 1
+# areaString <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/Muslingeomraader/Alle_muslingeområder_2011_region.shp"
 
 ```
 
@@ -43,7 +43,7 @@ if (!require(pacman)) {
   library(pacman)
 }
 
-p_load(sqldf,RODBC,maptools,data.table,rgdal,dplyr,sf)
+p_load(RODBC,dplyr,sf)
 
 ```
 
@@ -214,9 +214,6 @@ data3 <- data2[!(grepl("KM", data2$remark)==TRUE),]
 
 ```{r, include=FALSE}
 
-
-# mus_omr2 <- readShapeSpatial(areaString, 
-#                              proj4string=CRS("+proj=longlat +datum=WGS84"))
 mus_omr2 <- st_read(areaString) %>%
   st_transform(crs=4326) 
 
@@ -228,13 +225,8 @@ data3$x <- data3$lonPosStartDec
 data3$y <- data3$latPosStartDec
 
 pointsSP <- st_as_sf(data3, coords = c("x","y"),crs=4326)
-# pointsSP <- SpatialPoints(data3[,c("lonPosStartDec","latPosStartDec")], proj4string=CRS("+proj=longlat +datum=WGS84"))
 
 data_omr <- st_join(pointsSP,mus_omr2)
-# join_omr <- over(pointsSP, mus_omr2)
-
-# data_omr <- cbind(data3,join_omr[,c("OMRådENAVN","OMRådENUMM")])
-
 
 ```
 
@@ -242,27 +234,12 @@ data_omr <- st_join(pointsSP,mus_omr2)
 
 ```{r, echo=FALSE, warning=FALSE,message=FALSE}
 
-
-# data_table <- sqldf('select    sampleId, stationType, year, cruise, trip, station, stationName, latPosStartText,lonPosStartText, 
-#                                latPosStartDec, lonPosStartDec, Area, AreaName,
-#                                fishingtime, depthAveGear, Befisket_Areal_m2, areal_metode, speciesCode,  
-#                                TotalWeight_kg, Length_cm, sum(TotalNumber) as Number
-#                      from data_omr
-#                      group by   sampleId, stationType, year, cruise, trip, station, stationName, Area, latPosStartText,lonPosStartText, 
-#                                 latPosStartDec, lonPosStartDec, fishingtime, depthAveGear, Befisket_Areal_m2, speciesCode,  
-#                                 TotalWeight_kg, Length_cm')
-
-
 data_table <- data_omr %>%  
   group_by(sampleId, stationType, year, cruise, trip, station, stationName,
            latPosStartText,lonPosStartText, latPosStartDec, lonPosStartDec, Area,
            AreaName,fishingtime, depthAveGear, Befisket_Areal_m2, areal_metode,
            speciesCode,TotalWeight_kg, Length_cm) %>% 
-  summarise(Number = sum(TotalNumber,na.rm=T)) #%>% 
-  # select(sampleId, stationType, year, cruise, trip, station, stationName,
-  #        latPosStartText,lonPosStartText, latPosStartDec, lonPosStartDec, Area,
-  #        AreaName,fishingtime, depthAveGear, Befisket_Areal_m2, areal_metode,
-  #        speciesCode, TotalWeight_kg, Length_cm,Number)
+  summarise(Number = sum(TotalNumber,na.rm=T))
 
 st_geometry(data_table)<-NULL  
 
@@ -284,8 +261,10 @@ st_geometry(data_table)<-NULL
 
 #Write csv
 cruise <- gsub(" ","_",cruise)
-write.csv(data_table, file=paste("Længdefordeling_",year,"_",cruise,"_",
-                                 species,"_Længde_",format(Sys.time(), "%d%b%Y"),".csv",sep=""),row.names=FALSE)
+write.csv(data_table, 
+          file=sprintf("Længdefordeling_%s_%s_%s_Længde_%s.csv",
+                       year,cruise,species,format(Sys.time(), "%d%b%Y",)),
+          row.names=FALSE)
 
 ```
 
