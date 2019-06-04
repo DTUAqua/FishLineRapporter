@@ -13,21 +13,21 @@ output: pdf_document
 
 
 #Parameters
-year<- @paramYear
-cruise <- @paramCruise
-species <- @paramSpecies
-#trip <- '1 OES' #trip number
-gearQuality <- "V"
-redsk_dim <- 1
-areaString <- 'Alle muslingeområder 2011_region.shp'
-
-# year<- 2018
-# cruise <- 'BV LF OES OST april'
-# species <- "OES"
+# year<- @paramYear
+# cruise <- @paramCruise
+# species <- @paramSpecies
 # #trip <- '1 OES' #trip number
 # gearQuality <- "V"
 # redsk_dim <- 1
-# areaString <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/Muslingeomraader/Alle_muslingeområder_2011_region.shp"
+# areaString <- 'Alle muslingeområder 2011_region.shp'
+
+year<- 2019
+cruise <- 'BV LF BMS april'
+species <- "OES"
+#trip <- '1 OES' #trip number
+gearQuality <- "V"
+redsk_dim <- 1
+areaString <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/Muslingeomraader/Alle_muslingeområder_2011_region.shp"
 
 ```
 
@@ -43,7 +43,7 @@ if (!require(pacman)) {
   library(pacman)
 }
 
-p_load(RODBC,dplyr,sf)
+p_load(RODBC,dplyr,sf,data.table,stringr,lwgeom,knitr)
 
 ```
 
@@ -214,19 +214,48 @@ data3 <- data2[!(grepl("KM", data2$remark)==TRUE),]
 
 ```{r, include=FALSE}
 
-mus_omr2 <- st_read(areaString) %>%
+mus_omr <- st_read(areaString,stringsAsFactors = F) %>% 
   st_transform(crs=4326) 
+# st_crs(mus_omr2) <- 4326
 
-colnames(mus_omr2)[1]<-"Area"
-colnames(mus_omr2)[2]<-"AreaName"
+colnames(mus_omr)[1]<-"Area"
+colnames(mus_omr)[2]<-"AreaName"
+
+# st_write(mus_omr, dsn = "mus_omr_made_valid.shp")
+
+if (mean(st_is_valid(mus_omr),na.rm=T) < 1){
+  mus_omr2 <- st_make_valid(mus_omr)
+} else {
+  mus_omr2 <- mus_omr
+}
+
+# st_write(mus_omr, dsn = "Alle muslingeområder 2011_region.shp")
+# st_write(mus_omr2, dsn = "Alle muslingeområder 2011_region_made_valid.shp")
+
+table(st_geometry_type(mus_omr2))
+# Encoding(mus_omr2$AreaName)[Encoding(mus_omr2$AreaName)=="unknown"]<-"UTF-8"
+
+# mus_omr2$AreaName <- gsub(pattern = "\xf8",replacement = "ø",x = mus_omr2$AreaName,
+#                           perl = F)
+
+```
+
+```{r, include=FALSE}
 # Convert pointsDF to a SpatialPoints object 
 
-data3$x <- data3$lonPosStartDec
-data3$y <- data3$latPosStartDec
+data3$x <- as.numeric(data3$lonPosStartDec)
+data3$y <- as.numeric(data3$latPosStartDec)
 
-pointsSP <- st_as_sf(data3, coords = c("x","y"),crs=4326)
+data4 <- data3 %>% 
+  filter(!is.na(x) | !is.na(y))
 
-data_omr <- st_join(pointsSP,mus_omr2)
+pointsSP <- st_as_sf(data4, coords = c("x","y"), crs = 4326)
+
+data_omr <- st_intersection(pointsSP,mus_omr2)
+
+st_geometry(data_omr) <- NULL
+
+data_omr2 <- full_join(data3,data_omr)
 
 ```
 
@@ -234,18 +263,18 @@ data_omr <- st_join(pointsSP,mus_omr2)
 
 ```{r, echo=FALSE, warning=FALSE,message=FALSE}
 
-data_table <- data_omr %>%  
+data_table <- data_omr2 %>%  
   group_by(sampleId, stationType, year, cruise, trip, station, stationName,
            latPosStartText,lonPosStartText, latPosStartDec, lonPosStartDec, Area,
            AreaName,fishingtime, depthAveGear, Befisket_Areal_m2, areal_metode,
            speciesCode,TotalWeight_kg, Length_cm) %>% 
   summarise(Number = sum(TotalNumber,na.rm=T))
 
-st_geometry(data_table)<-NULL  
+# st_geometry(data_table)<-NULL  
 
 ```
 
-#Data - Længdefordeling
+\section{Data - Længdefordeling}
 
 \begin{tcolorbox}[colback=white!5,colframe=blue!40!black,title=Information om udtrækket]
 \renewcommand{\arraystretch}{1.2}
@@ -266,5 +295,19 @@ write.csv(data_table,
                        year,cruise,species,format(Sys.time(), "%d%b%Y",)),
           row.names=FALSE)
 
+
+mus_omr$val <- as.character(st_is_valid(mus_omr,reason = T))
+mus_omr2$val_made_valid <- as.character(st_is_valid(mus_omr2,reason = T))
+
+st_geometry(mus_omr)<-NULL
+st_geometry(mus_omr2)<-NULL
+
+mus_omr %>% 
+  select(Area,val) %>% 
+  full_join(mus_omr2 %>% select(Area,val_made_valid)) %>% 
+  mutate(Area = as.numeric(Area)) %>% 
+  arrange(Area) %>% 
+  filter(val != "Valid Geometry" | is.na(val)) %>% 
+  kable()
 ```
 
