@@ -114,28 +114,28 @@ p_load(sqldf,RODBC,xtable,maptools,date,lubridate,data.table,tidyr,ggplot2,
 # v_year <- c("2018")
 # art_out <- c()
 
-# cruise_all <- c(@paramCruise1)
-# v_cruise <- c(@paramCruise2)
-# v_year <- c(@paramYear)
-# art_out <- c(@paramSpecies)
+cruise_all <- c(@paramCruise1)
+v_cruise <- c(@paramCruise2)
+v_year <- c(@paramYear)
+art_out <- c(@paramSpecies)
 
-cruise_all <- c("BITS")
-v_cruise <- c("BITS-2")
-v_year <- c("2012")
-# # art_out <- c("TBM")
-channel <- odbcConnect("FishLineDW")
-art_out <- sqlQuery(channel, sprintf("SELECT slr.speciesCode
-FROM FishLineDW.dbo.SpeciesList slr
-LEFT OUTER JOIN FishLine.dbo.L_Species s ON s.speciesCode = slr.speciesCode
-WHERE slr.year IN (%s)
-  AND slr.cruise IN ('%s')
-  AND slr.speciescode NOT IN ('INV', 'DTO', 'AF1', 'AF2', 'AF3',
-							  'AF4', 'AF5', 'AAA', 'AAG', 'ANA',
-							  'ANM', 'FED', 'SKL', 'TAN', 'UBS')
-GROUP BY slr.speciesCode
-ORDER BY slr.speciesCode", v_year,paste(v_cruise,collapse=("','"))),stringsAsFactors=F)
-close(channel)
-art_out <- art_out$speciesCode
+# cruise_all <- c("BITS")
+# v_cruise <- c("BITS-2")
+# v_year <- c("2012")
+# # # art_out <- c("TBM")
+# channel <- odbcConnect("FishLineDW")
+# art_out <- sqlQuery(channel, sprintf("SELECT slr.speciesCode
+# FROM FishLineDW.dbo.SpeciesList slr
+# LEFT OUTER JOIN FishLine.dbo.L_Species s ON s.speciesCode = slr.speciesCode
+# WHERE slr.year IN (%s)
+#   AND slr.cruise IN ('%s')
+#   AND slr.speciescode NOT IN ('INV', 'DTO', 'AF1', 'AF2', 'AF3',
+# 							  'AF4', 'AF5', 'AAA', 'AAG', 'ANA',
+# 							  'ANM', 'FED', 'SKL', 'TAN', 'UBS')
+# GROUP BY slr.speciesCode
+# ORDER BY slr.speciesCode", v_year,paste(v_cruise,collapse=("','"))),stringsAsFactors=F)
+# close(channel)
+# art_out <- art_out$speciesCode
 
 # cruise_all <- c("TBM")
 # v_cruise <- c("REYKJANES","Salling","Tobisskrabetogt LH.")
@@ -825,7 +825,7 @@ hhhlca3_1 <- data.frame(hhhlca2, "Length_HL" = hhhlca2$LngtClass,
 # DATA EJREP ----
 in_ejRep <- which(hhhlca3_1$rep == 1 & !is.na(hhhlca3_1$rep))
 
-hhhlca3_1[in_ejRep, "DataType"] <- '-9'
+#hhhlca3_1[in_ejRep, "DataType"] <- '-9'
 hhhlca3_1[in_ejRep, "representative"] <- 'ja'
 hhhlca3_1[in_ejRep, "SpecVal"] <- 0
 hhhlca3_1[in_ejRep, "Sex"] <- '-9'
