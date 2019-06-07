@@ -91,7 +91,7 @@ if (!require(pacman)) {
   library(pacman)
 }
 
-p_load(RODBC,dplyr,sf,Hmisc,knitr)
+p_load(RODBC,dplyr,sf,Hmisc,knitr,RColorBrewer,colormap,ggrepel,lubridate)
 
 detach(package:Hmisc)
 
@@ -135,8 +135,10 @@ trip <- c(1,2,4,6,8) # mandatory
 par <- "participants.csv"
 str_cruiseLeader <- "Henrik Degel"#@paramCruiseLeader
 coastString <- 'M:/123 - FiskeLine/Rapporter/Rapporter/Discardtjek/kort/europe_simple_wgs84'
-dk_eezString <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/EEZ/DK_EEZ_Jan_2017"
+# dk_eezString <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/EEZ/DK_EEZ_Jan_2017"
+dk_eezString <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/EEZ/World_EEZ_v10_20180221/EEZ_v10"
 sandeelAreas <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/Tobis/Tobisomr.shp"
+sandeelBanksString <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/Tobis/2018_opdatering/Tobisbanker2018.shp"
 
 str_weather <- ""
 str_guest <- ""
@@ -601,9 +603,10 @@ No_CTD <- 1 #nrow(SIS_info[SIS_info$Redskab=="SEA",])
 # yn_gear <- ifelse(str_gear!="","yes","no")
 
 
-pos <- data_sample[,c("station","stationName","gearType","gearQuality",
-                      "lat","lon","dfuArea","latPosStartText",
-                      "lonPosStartText","platform1")]
+pos <- data_sample %>% 
+  filter(gearType!="GRB") %>%
+  select(station,stationName,gearType,gearQuality,lat,lon,dfuArea,latPosStartText,
+         lonPosStartText,platform1)
 pos[is.na(pos$stationName),"stationName"] <- pos[is.na(pos$stationName),"station"]
 pos$stationName <- as.character(pos$stationName)
 pos$platform1 <- as.factor(pos$platform1)
@@ -684,7 +687,9 @@ xlim <- c(round(min(pos$lon,na.rm=T)-1),round(max(pos$lon,na.rm=T)+1))
 # bat <- marmap::getNOAA.bathy(lon1 = min(xlim)-1, lon2 = max(xlim)+1,
 #                       lat1 = min(ylim)-1, lat2 = max(ylim)+1, resolution = 1,keep = T)
 
-bat <- marmap::getNOAA.bathy(lon1 = 7, lon2 = 13,lat1 = 54, lat2 = 59, resolution = 1,keep = T)
+bat <- marmap::getNOAA.bathy(lon1 = 0, lon2 = 11,
+                             lat1 = 50, lat2 = 60, 
+                             resolution = 1,keep = T)
 
 
 bat2 <- fortify(bat)
@@ -694,6 +699,8 @@ bat2 <- fortify(bat)
 
 kyst <- st_read(paste0(coastString,".shp"))
 dkeez <- st_read(paste0(dk_eezString,".shp"))
+
+sandeelBanks <- st_read(sandeelBanksString)
 ```
 
 
@@ -722,19 +729,31 @@ stationMap <- function(data,x,y,labels="",cpue="",titleString = "",filename=""){
   
     geom_raster(data = d[d$z<0,], aes(x, y, fill = bin)) 
   
-    if (cpue == ""){
-     p <- p +  geom_point(data = data,aes(x=lon,y=lat,col=platform1),size=3)
-    }
-    
-  p <- p + geom_sf(data = dkeez, aes(linetype = "DK"),color="red",fill=NA)+
+
+  p <- p + 
+    geom_sf(data = dkeez, aes(linetype = "DK"),color="red",fill=NA)+
     geom_sf(data= kyst,fill="#555555ff")+
+    geom_sf(data = sandeelBanks, fill = "#999999",alpha = .8)+
     coord_sf(xlim = x, ylim = y,
                datum = st_crs(4326))
+  
+   if (cpue == ""){
+     
+     shipColors <- c('#e41a1c','#4daf4a','#984ea3','#ff7f00',
+                            '#ffff33','#a65628','#f781bf','#377eb8')
+            
+     for (i in 1:length(levels(pos$platform1))){
+     
+       p <- p + geom_point(data = data[data$platform1==levels(data$platform1)[i],],
+                           aes(x=lon,y=lat),size=3,
+                           shape = 21, col = "black", fill = shipColors[i])
+     }
+    }
     
     if (labels!=""){
       p <- p + geom_text_repel(data = data, 
-                               aes(x=lon,y=lat,label=stationName,col=platform1),
-                               size=4)+
+                               aes(x=lon,y=lat,label=station),
+                               size=4,segment.colour = "#222222")+
         labs(title = titleString)
     }
   
@@ -748,7 +767,8 @@ stationMap <- function(data,x,y,labels="",cpue="",titleString = "",filename=""){
     
   p <- p +
     scale_fill_manual(values = cols, limits = labs, labels = rev(labs)) +
-    scale_color_manual(values = wes_palette("GrandBudapest1"))+
+    # scale_color_manual(values = wes_palette("GrandBudapest1"))+
+    scale_color_brewer(palette = "Dark2")+
     theme_minimal() +
     labs(fill = "Depth (m)",y="Latitude",x="Longitude",col="Ship",linetype="EEZ")+
     theme(legend.position = "bottom",legend.box = "vertical")
@@ -756,18 +776,20 @@ stationMap <- function(data,x,y,labels="",cpue="",titleString = "",filename=""){
   # plot(p)
   
   if (filename!=""){
-    pdf(filename,width=10, height=11,pointsize = 8)
-    plot(p)
-    dev.off()
+    # pdf(filename,width=10, height=11,pointsize = 8)
+    # plot(p)
+    # dev.off()
     
-    # ggsave(filename=filename, plot = p,device = "png",width = 10,height = 11,dpi = 200)
+    ggsave(filename=filename, plot = p,device = "png",width = 10,height = 11,dpi = 200)
     
     # zipr_append(zipfile = zipfile,files = filename)
+    
+    cat("\\begin{figure}[H] \\centering")
+    cat(sprintf("\\includegraphics[width=0.9\\textwidth]{%s}",filename))
+    cat("\\end{figure}")
   }
   
-cat("\\begin{figure}[H] \\centering")
-cat(sprintf("\\includegraphics[width=0.9\\textwidth]{%s}",filename))
-cat("\\end{figure}")
+
   
 }
 
