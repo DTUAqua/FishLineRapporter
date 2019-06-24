@@ -27,7 +27,7 @@ areaString <- 'Alle muslingeområder 2011_region.shp'
 # #trip <- '1 OES' #trip number
 # gearQuality <- "V"
 # redsk_dim <- 1
-# areaString <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/Muslingeomraader/Alle_muslingeområder_2011_region.shp"
+# areaString <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/Muslingeomraader/Alle muslingeområder 2011_region.shp"
 
 ```
 
@@ -295,22 +295,23 @@ write.csv(data_table,
                        year,cruise,species,format(Sys.time(), "%d%b%Y",)),
           row.names=FALSE)
 
-cat("\\subsection{Info om shapefil} ")
-cat("I længdefordelingen bruges en shapefil til at tildele de enkelte stationer et områdenavn. 
-Tabellen nedenfor viser de fejl, som shapefilen indeholder i kolonnen 'val' og hvordan validiteten 
-er efter at have kørt en automatiseret validering af samme område i kolonnen 'val_made_lvaid'.")
-mus_omr$val <- as.character(st_is_valid(mus_omr,reason = T))
-mus_omr2$val_made_valid <- as.character(st_is_valid(mus_omr2,reason = T))
-
-st_geometry(mus_omr)<-NULL
-st_geometry(mus_omr2)<-NULL
-
-mus_omr %>% 
-  select(Area,val) %>% 
-  full_join(mus_omr2 %>% select(Area,val_made_valid)) %>% 
-  mutate(Area = as.numeric(Area)) %>% 
-  arrange(Area) %>% 
-  filter(val != "Valid Geometry" | is.na(val)) %>% 
-  kable()
+# cat("\\subsection{Info om shapefil} ")
+# cat("I længdefordelingen bruges en shapefil til at tildele de enkelte stationer et områdenavn. 
+# Tabellen nedenfor viser de fejl, som shapefilen indeholder i kolonnen 'val' og hvordan validiteten 
+# er efter at have kørt en automatiseret validering af samme område i kolonnen 'val_made_lvaid'.")
+# mus_omr$val <- as.character(st_is_valid(mus_omr,reason = T))
+# mus_omr2$val_made_valid <- as.character(st_is_valid(mus_omr2,reason = T))
+# 
+# st_geometry(mus_omr)<-NULL
+# st_geometry(mus_omr2)<-NULL
+# 
+# mus_omr %>%
+#   select(Area,val) %>%
+#   full_join(mus_omr2 %>% select(Area,val_made_valid)) %>%
+#   mutate(Area = as.numeric(Area)) %>%
+#   arrange(Area) %>%
+#   filter(val != "Valid Geometry" | is.na(val)) %>%
+#   kable()
 ```
 
+<!-- Biomasse-længdefordeling -->
