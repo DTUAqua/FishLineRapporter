@@ -106,6 +106,36 @@ mylatex <- function (...) {
 }
 
 
+textplot2 <- function(x, 
+                      y, 
+                      words, 
+                      cex = 1, 
+                      pch = 16, 
+                      pointcolor = "red", 
+                      new = TRUE,
+                      show.lines=TRUE, 
+                      ...){
+  if(new)
+    plot(x,y,type="n",...)
+  lay <- wordlayout(x,y,words,cex,...)
+  if(show.lines){
+    for(i in 1:length(x)){
+      xl <- lay[i,1]
+      yl <- lay[i,2]
+      w <- lay[i,3]
+      h <- lay[i,4]
+      if(x[i]<xl || x[i]>xl+w ||
+         y[i]<yl || y[i]>yl+h){
+        points(x[i],y[i],pch= pch,col= pointcolor,cex= .5)
+        nx <- xl+.5*w
+        ny <- yl+.5*h
+        lines(c(x[i],nx),c(y[i],ny),col="grey")
+      }
+    }
+  }
+  text(lay[,1]+.5*lay[,3],lay[,2]+.5*lay[,4],words,cex = cex,...)
+}
+
 ```
 
 
@@ -137,8 +167,8 @@ str_cruiseLeader <- "Henrik Degel"#@paramCruiseLeader
 coastString <- 'M:/123 - FiskeLine/Rapporter/Rapporter/Discardtjek/kort/europe_simple_wgs84'
 # dk_eezString <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/EEZ/DK_EEZ_Jan_2017"
 dk_eezString <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/EEZ/World_EEZ_v10_20180221/EEZ_v10"
-sandeelAreas <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/Tobis/Tobisomr.shp"
-sandeelBanksString <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/Tobis/2018_opdatering/Tobisbanker2018.shp"
+sandeelAreasString <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/Tobis/Tobisomr"
+sandeelBanksString <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/Tobis/2018_opdatering/Tobisbanker2018"
 
 str_weather <- ""
 str_guest <- ""
@@ -197,7 +227,7 @@ query4<-sprintf("SELECT Sample.cruise,Sample.trip,Sample.station, Sample.station
 Sample.latPosStartText, Sample.lonPosStartText,
                       Sample.gearType,Sample.gearQuality,Sample.haulType, Sample.selectionDevice,Sample.meshSize, Sample.dfuArea,
                       Sample.statisticalRectangle,Sample.quarterGearStart,
-                      Sample.netOpening,Sample.wireLength as warpLength, Sample.otterBoardDist as DoorSpread,
+                      Sample.netOpening,Sample.wireLength as warpLength, Sample.otterBoardDist as DoorSpread,Sample.dateGearEnd,
                       Sample.depthAvg,Sample.windDirection,Sample.windSpeed, Sample.dateGearStart, Trip.platform1
               FROM Sample
               left join Trip
@@ -234,11 +264,16 @@ close(channel)
 
 ```{r info_cruise2, echo=FALSE, message=FALSE, warning=FALSE,include=FALSE}
 # add tobis area to stations
-sea <- st_read(sandeelAreas,stringsAsFactors = F) %>% 
+sea <- st_read(sandeelAreasString,stringsAsFactors = F) %>% 
   st_transform(4326)
 # banker <- st_read()
 
-
+data_sample$shipName[data_sample$platform1=="L526"] <- "L526 - Lonny Hedvig"
+data_sample$shipName[data_sample$platform1=="REYKJA"] <- "E157 - Reykjanes"
+data_sample$shipName[data_sample$platform1=="SALLIN"] <- "E180 - Salling"
+  
+  
+  
 data_sample$x <- data_sample$lon
 data_sample$y <- data_sample$lat
 
@@ -606,10 +641,11 @@ No_CTD <- 1 #nrow(SIS_info[SIS_info$Redskab=="SEA",])
 pos <- data_sample %>% 
   filter(gearType!="GRB") %>%
   select(station,stationName,gearType,gearQuality,lat,lon,dfuArea,latPosStartText,
-         lonPosStartText,platform1)
+         lonPosStartText,platform1,shipName)
 pos[is.na(pos$stationName),"stationName"] <- pos[is.na(pos$stationName),"station"]
 pos$stationName <- as.character(pos$stationName)
 pos$platform1 <- as.factor(pos$platform1)
+pos$shipName <- as.factor(pos$shipName)
 
 ```
 
@@ -671,7 +707,8 @@ if (str_guest!=""){
 positions <- length(unique(data_sample$stationName[data_sample$fishingtime>0]))
 stationNames <- length(unique(data_sample$stationName))
 
-cat(sprintf("In total where %s stations fished using the dredges distributed on %s positions. Furthermore, %s sediment samples where obtained."))
+cat(sprintf("In total where %s stations fished using the dredges distributed on %s positions. Furthermore, %s sediment samples where obtained.",
+            nrow(pos),length(unique(pos$stationName)),nrow(data_sample %>% filter(gearType=="GRB"))))
 ```
 
 
@@ -697,212 +734,228 @@ bat2 <- fortify(bat)
 # dk_eez <- read.shapefile(dk_eezString)
 # bat[bat>=0] <- NA
 
-kyst <- st_read(paste0(coastString,".shp"))
-dkeez <- st_read(paste0(dk_eezString,".shp"))
+coast <- st_read(paste0(coastString,".shp"))%>%
+  st_transform(crs=4326)
+dkeez <- st_read(paste0(dk_eezString,".shp"))%>%
+  st_transform(crs=4326)
 
-sandeelBanks <- st_read(sandeelBanksString)
+sandeelBanks <- st_read(paste0(sandeelBanksString,".shp")) %>%
+  st_transform(crs=4326)
+
+# sandeelAreas <- st_read(paste0(sandeelAreasString,".shp")) %>%
+#   st_transform(crs=4326)
+
 ```
 
+```{r}
+p_load(mapplots,shapefiles,wordcloud,oce,oceData,colormap)
 
-```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis',fig.pos='h',fig.cap=paste0("Survey map with all sampling stations.\\label{fig:mapall}"),dpi=300, fig.width=10,fig.height=11}
+# coast <- read.shapefile(coastString)
+# sandeelBanks <- read.shapefile(sandeelBanksString)
 
-stationMap <- function(data,x,y,labels="",cpue="",titleString = "",filename=""){
-  
-  d <- bat2
-  d$z[d$z>=0]<- -1
-  
-  # breaks and labels for color scale
-  brks <- c(Inf, 0, -15, -30, -50, -75, -100, -150, -Inf)
-  labs <- c("Land", "-15:0", "-30:-15", "-50:-30",
-            "-75:-50", "-100:-75", "-150:-100", "< -150")
-  d$bin <- cut(d$z, breaks = brks, labels = labs)
-  
-  d <- d[!is.na(d$bin), ] # filter sneaky NA values
-  
-  gr   <- colormap(colormaps$greys, nshades = 10)[4:6]
-  bl   <- colormap(colormaps$velocity_blue, nshades = 13)[3:9]
-  cols <- c(bl, gr)
-  
-  # plot
-  set.seed(42)
-  p <- ggplot() +
-  
-    geom_raster(data = d[d$z<0,], aes(x, y, fill = bin)) 
-  
+```
 
-  p <- p + 
-    geom_sf(data = dkeez, aes(linetype = "DK"),color="red",fill=NA)+
-    geom_sf(data= kyst,fill="#555555ff")+
-    geom_sf(data = sandeelBanks, fill = "#999999",alpha = .8)+
-    coord_sf(xlim = x, ylim = y,
-               datum = st_crs(4326))
-  
-   if (cpue == ""){
-     
-     shipColors <- c('#e41a1c','#4daf4a','#984ea3','#ff7f00',
-                            '#ffff33','#a65628','#f781bf','#377eb8')
-            
-     for (i in 1:length(levels(pos$platform1))){
-     
-       p <- p + geom_point(data = data[data$platform1==levels(data$platform1)[i],],
-                           aes(x=lon,y=lat),size=3,
-                           shape = 21, col = "black", fill = shipColors[i])
-     }
-    }
-    
-    if (labels!=""){
-      p <- p + geom_text_repel(data = data, 
-                               aes(x=lon,y=lat,label=station),
-                               size=4,segment.colour = "#222222")+
-        labs(title = titleString)
-    }
-  
-    if (cpue!=""){
-      p <- p + geom_point(data = data, 
-                                aes(x=lon,y=lat,size=cpue),
-                          col="black",shape=21,fill="yellow",alpha=.8)+
-        labs(title = sprintf("CPUE: Sole"),
-             size = "CPUE")
-    }
-    
-  p <- p +
-    scale_fill_manual(values = cols, limits = labs, labels = rev(labs)) +
-    # scale_color_manual(values = wes_palette("GrandBudapest1"))+
-    scale_color_brewer(palette = "Dark2")+
-    theme_minimal() +
-    labs(fill = "Depth (m)",y="Latitude",x="Longitude",col="Ship",linetype="EEZ")+
-    theme(legend.position = "bottom",legend.box = "vertical")
-  
-  # plot(p)
-  
-  if (filename!=""){
-    # pdf(filename,width=10, height=11,pointsize = 8)
-    # plot(p)
-    # dev.off()
-    
-    ggsave(filename=filename, plot = p,device = "png",width = 10,height = 11,dpi = 200)
-    
-    # zipr_append(zipfile = zipfile,files = filename)
-    
-    cat("\\begin{figure}[H] \\centering")
-    cat(sprintf("\\includegraphics[width=0.9\\textwidth]{%s}",filename))
-    cat("\\end{figure}")
-  }
-  
+```{r}
 
-  
-}
+shipColors <- c('#e41a1c', '#984ea3','#ff7f00',
+                            '#ffff33','#a65628','#f781bf','#377eb8','#4daf4a')
+
+stations <- pos %>% 
+  group_by(stationName) %>% 
+  filter(row_number()==1) %>% 
+  mutate()
+
+bat[bat<=-150] <- -150
+bat[bat<=-100 & bat>-150] <- -100
+bat[bat<=-75 & bat>-100] <- -75
+bat[bat<=-50 & bat>-75] <- -50
+bat[bat<=-30 & bat>-50] <- -30
+bat[bat<=-15 & bat>-30] <- -15
+bat[bat<=-1 & bat>-15] <- -1
 
 
 ylim2 <- c(floor(min(pos$lat,na.rm=T)/.1)*.1,ceiling(max(pos$lat,na.rm=T)/.1)*.1)
 xlim2 <- c(floor(min(pos$lon,na.rm=T)/.5)*.5,ceiling(max(pos$lon,na.rm=T)/.5)*.5)
 
-stationMap(data = pos,x = xlim2,y = ylim2,labels = "yes",
-           filename = sprintf("%s-all_stations-%s.png",
-                              gsub(" ", "_",cruise_title),gsub("-","",Sys.Date())))
+  gr   <- colormap::colormap(colormaps$greys, nshades = 10)[4:6]
+  bl   <- colormap::colormap(colormaps$velocity_blue, nshades = 13)[3:9]
+  cols <- c(bl, gr)
+
+pdf("tripmap.pdf")
+# png("tripmap.png",width = 7,height = 7,units = "in",res = 300)
+basemap(xlim = xlim2, ylim = ylim2,bg = "transparent")
+
+plot(bat,image = T, land = T, lwd = 0,col="transparent",
+     bpal = list(c(0, max(bat), "grey"),
+                 c(min(bat),0,bl)), add=T)
+
+draw.rect()
+coastCol <- "#555555ff"
+sandeelBankCol <- "#999999"
+
+plot(coast,col = coastCol, add=T, border = "transparent")
+plot(sandeelBanks, col=sandeelBankCol, add=T, border = "black")
+
+# use sandeel areas or eez?
+plot(sea,add=T,col="transparent",border="black",lty=1,lwd=1) 
+plot(dkeez, add=T, col="transparent",border = "red")
 
 
+# add points for each vessel used in the cruise - and make the legend adapt to this
+platform1 <- c()
+color <- c()
+lty <- c()
+pch <- c()
+pt.bg <- c()
+
+for (i in 1:length(levels(pos$shipName))){
+
+  pos2 <- pos %>% filter(shipName == levels(pos$shipName)[i])
+
+  points(x=pos2$lon,y=pos2$lat,pch=20,col=shipColors[i])
+  
+  platform1 <- c(platform1, levels(pos$shipName)[i])
+  color <- c(color, shipColors[i])
+  lty <- c(lty,0)
+  pch <- c(pch,16)
+  pt.bg <- c(pt.bg,"white")
+}
+
+textplot2(x=stations$lon,y=stations$lat,words = paste0(" ",stations$station," "),
+                    new = F,pointcolor = NA)
+
+legend( x="bottomright",
+        legend=c("ICES rectangle","Sandeel bank",rev(platform1)),
+        lty=c(2,0,rev(lty)),pch=c(NA,15,rev(pch)), col = c(coastCol,sandeelBankCol,rev(color)),
+        cex = 0.9, pt.bg=c("white","#999999",rev(pt.bg)) ,bg=c("white"))
+
+dev.off()
+
+```
+
+
+
+```{r stationTable, echo=FALSE, message=FALSE, warning=FALSE, results='asis',fig.pos='h',fig.cap=paste0("Survey map with all sampling stations.\\label{fig:mapall}"),dpi=300, fig.width=10,fig.height=11}
+
+tableData <- data_sample3 %>% 
+  select(shipName,dateGearStart)
+
+  library(Hmisc) 
+  mylatex(pt2[,c(1,3,4,6)],
+       file='',
+       booktabs =T,
+       col.just = c(rep("l",4)),
+       rgroup = lines$Var1,
+       rowname=NULL,
+       n.rgroup=lines$Freq,
+       # rowlabel="",
+       # colnamesTexCmd="bfs",
+       # rgroupTexCmd="itshape",
+       where='H',
+       collabel.just=c(rep("l",4)),
+       center='none')
+  detach(package:Hmisc)
 
 
 ```
 
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis',fig.pos='h',dpi=300, fig.width=10,fig.height=11}
-cat("\\subsection{Stations by ICES area}")
-
-for (a in as.character(sort(unique(pos$dfuArea)))){
-
-  # if (any(pos$dfuArea==a)) {
-
-    cat(sprintf("\\subsubsection{Area %s} ",a))
-
-    caption <- sprintf("Survey map with sampling stations in area %s, %s.\\label{fig:map%s}",
-                       a,cruise_title,a)
-
-    pos2 <- pos[pos$dfuArea==a,]
-
-    #area 20
-    ylim2 <- c(floor((min(pos2$lat,na.rm=T)-.2)/.5)*.5,
-               ceiling((max(pos2$lat,na.rm=T)+.2)/.5)*.5)
-
-    xlim2 <- c(floor((min(pos2$lon,na.rm=T)-.5)/.5)*.5,
-               ceiling((max(pos2$lon,na.rm=T)+.5)/.5)*.5)
-
-
-    stationMap(data = pos2,x = xlim2,y = ylim2, labels="yes",
-               titleString =  sprintf("Stations in area %s",a),
-               filename = sprintf("%s-all_stations_in_area_%s-%s.pdf",
-                                  gsub(" ", "_",cruise_title),a,gsub("-","",Sys.Date())))
-
-    # colnames(participants) <- c("Name","Institute", "Function and tasks","Leg","no")
-
-    library(Hmisc)
-    mylatex <- function (...) {
-        o <- capture.output(latex(...))
-        # this will strip /all/ line-only comments; or if you're only
-        #  interested in stripping the first such comment you could
-        #  adjust accordingly
-        o <- grep('^%', o, inv=T, value=T)
-        cat(o, sep='\n')
-    }
-
-    pos3 <- pos2 %>%
-      dplyr::arrange(station) %>%
-      dplyr::select(-dfuArea,-station)
-
-    for (gear in sort(unique(pos3$gearType))){
-
-      pos4 <- pos3 %>% filter(gearType==gear)
-
-      for (q in sort(unique(pos4$gearQuality))){
-
-        pos5 <- pos4 %>%
-          filter(gearQuality == q) %>%
-          select(-gearType, -gearQuality) %>%
-          mutate(lat = sprintf("%2.6f",lat),
-                 lon = sprintf("%2.6f",lon))
-
-        cat(sprintf("\\paragraph{Area: %s, Geartype: %s, GearQuality: %s}",a,gear,q))
-
-
-
-    colnames(pos5)<-c("Station \\\\ Name","Latitude \\\\ dec.", "Longitude \\\\ dec."
-                      ,"Latitude \\\\ deg.", "Longitude \\\\ deg.","Ship")
-
-    colnames(pos5) <- sprintf("\\thead{%s} ",colnames(pos5))
-
-    cat("\\small ")
-    
-    mylatex(pos5,
-           file='',
-           booktabs =T,
-           rowname=NULL,
-           col.just = c(rep("l",ncol(pos5))),#,rep("p{17mm}",ncol(pos5)-1)),
-           longtable=T,
-           where='H',
-           collabel.just=c(rep("l",ncol(pos5))),#c("l",rep("p{17mm}",ncol(pos5)-1)),
-           center='none')
-
-    # options(xtable.comment = FALSE)
-    # 
-    # xtable(pos5,auto = T)
-
-    detach(package:Hmisc)
-
-cat("\\normalsize")
-
-      }
-
-    }
-
-
-
-    # cat("\\newpage ")
-  # }
-
-
-    cat("\\newpage ")
-    }
+# cat("\\subsection{Stations by ICES area}")
+# 
+# for (a in as.character(sort(unique(pos$dfuArea)))){
+# 
+#   # if (any(pos$dfuArea==a)) {
+# 
+#     cat(sprintf("\\subsubsection{Area %s} ",a))
+# 
+#     caption <- sprintf("Survey map with sampling stations in area %s, %s.\\label{fig:map%s}",
+#                        a,cruise_title,a)
+# 
+#     pos2 <- pos[pos$dfuArea==a,]
+# 
+#     #area 20
+#     ylim2 <- c(floor((min(pos2$lat,na.rm=T)-.2)/.5)*.5,
+#                ceiling((max(pos2$lat,na.rm=T)+.2)/.5)*.5)
+# 
+#     xlim2 <- c(floor((min(pos2$lon,na.rm=T)-.5)/.5)*.5,
+#                ceiling((max(pos2$lon,na.rm=T)+.5)/.5)*.5)
+# 
+# 
+#     stationMap(data = pos2,x = xlim2,y = ylim2, labels="yes",
+#                titleString =  sprintf("Stations in area %s",a),
+#                filename = sprintf("%s-all_stations_in_area_%s-%s.pdf",
+#                                   gsub(" ", "_",cruise_title),a,gsub("-","",Sys.Date())))
+# 
+#     # colnames(participants) <- c("Name","Institute", "Function and tasks","Leg","no")
+# 
+#     library(Hmisc)
+#     mylatex <- function (...) {
+#         o <- capture.output(latex(...))
+#         # this will strip /all/ line-only comments; or if you're only
+#         #  interested in stripping the first such comment you could
+#         #  adjust accordingly
+#         o <- grep('^%', o, inv=T, value=T)
+#         cat(o, sep='\n')
+#     }
+# 
+#     pos3 <- pos2 %>%
+#       dplyr::arrange(station) %>%
+#       dplyr::select(-dfuArea,-station)
+# 
+#     for (gear in sort(unique(pos3$gearType))){
+# 
+#       pos4 <- pos3 %>% filter(gearType==gear)
+# 
+#       for (q in sort(unique(pos4$gearQuality))){
+# 
+#         pos5 <- pos4 %>%
+#           filter(gearQuality == q) %>%
+#           select(-gearType, -gearQuality) %>%
+#           mutate(lat = sprintf("%2.6f",lat),
+#                  lon = sprintf("%2.6f",lon))
+# 
+#         cat(sprintf("\\paragraph{Area: %s, Geartype: %s, GearQuality: %s}",a,gear,q))
+# 
+# 
+# 
+#     colnames(pos5)<-c("Station \\\\ Name","Latitude \\\\ dec.", "Longitude \\\\ dec."
+#                       ,"Latitude \\\\ deg.", "Longitude \\\\ deg.","Ship")
+# 
+#     colnames(pos5) <- sprintf("\\thead{%s} ",colnames(pos5))
+# 
+#     cat("\\small ")
+#     
+#     mylatex(pos5,
+#            file='',
+#            booktabs =T,
+#            rowname=NULL,
+#            col.just = c(rep("l",ncol(pos5))),#,rep("p{17mm}",ncol(pos5)-1)),
+#            longtable=T,
+#            where='H',
+#            collabel.just=c(rep("l",ncol(pos5))),#c("l",rep("p{17mm}",ncol(pos5)-1)),
+#            center='none')
+# 
+#     # options(xtable.comment = FALSE)
+#     # 
+#     # xtable(pos5,auto = T)
+# 
+#     detach(package:Hmisc)
+# 
+# cat("\\normalsize")
+# 
+#       }
+# 
+#     }
+# 
+# 
+# 
+#     # cat("\\newpage ")
+#   # }
+# 
+# 
+#     cat("\\newpage ")
+#     }
 ```
 
 \section{Handling of the catch}
