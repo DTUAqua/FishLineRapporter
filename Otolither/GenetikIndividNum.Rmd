@@ -1,16 +1,18 @@
 ---
-fontsize: 12pt
-geometry: top=0.2cm, bottom=1.2cm, left=0.5cm, right=0.5cm
+fontsize: 11pt
+geometry: top=2cm, bottom=2cm, left=1cm, right=2cm,headsep=1cm
 header-includes:
 - \usepackage{booktabs}
 - \usepackage{longtable}
-- \usepackage{floatrow}
+- \usepackage{xcolor}
 - \usepackage[T1]{fontenc}
 - \usepackage[danish]{babel}
 - \usepackage[utf8]{inputenc}
+- \usepackage{fancyhdr}
+- \pagestyle{fancy}
+- \fancyhf{}
+- \fancyfoot{}
 - \usepackage{graphicx}
-- \floatsetup[table]{capposition=top}
-- \usepackage[table]{xcolor}
 - \usepackage{ragged2e}
 - \usepackage{catchfile}
 - \usepackage{array}
@@ -23,7 +25,7 @@ header-includes:
 - \usepackage{pbox}
 output:
   pdf_document: default
-word_document: default
+  word_document: default
 ---
   
   \renewcommand{\familydefault}{\sfdefault}
@@ -38,28 +40,20 @@ word_document: default
 # WHERE c.year = @paramYear
 # 
 # @paramTrip
-# SELECT t.tripType + ' - ' +t.trip, t.trip
+# SELECT t.trip, t.trip
 # FROM FishLineDW.dbo.Trip t
 # WHERE t.year = @paramYear
 #   AND t.cruise = @paramCruise
-# ORDER BY t.tripType + ' - ' + t.trip DESC
+# ORDER BY t.trip 
 # 
 # @paramStation
-# SELECT 'Station ' + s.station, s.station
+# SELECT s.station, s.station
 # FROM FishLineDW.dbo.Sample s
 # WHERE s.year = @paramYear
 #   AND s.cruise = @paramCruise
-#   AND s.trip = @paramTrip
-# ORDER BY s.station DESC
+#   AND s.trip in (@paramTrip)
+# ORDER BY s.station
 # 
-# @paramJournal
-# SELECT s.labJournalNum, s.labJournalNum
-# FROM FishLineDW.dbo.Sample s
-# WHERE s.year = @paramYear
-#   AND s.cruise = @paramCruise
-#   AND s.trip = @paramTrip
-#   AND s.station = @paramStation
-# ORDER BY s.labJournalNum DESC
 # 
 # @paramSpecies
 # SELECT A.speciesCode + ' - '+ ISNULL(s.dkName, ''), A.speciesCode
@@ -72,8 +66,8 @@ word_document: default
 #         ON s.speciesCode = A.speciesCode
 # WHERE A.year = @paramYear
 #   AND A.cruise = @paramCruise
-#   AND A.trip = @paramTrip
-#   AND A.station = @paramStation
+#   AND A.trip in (@paramTrip)
+#   AND A.station in (@paramStation)
 #   AND A.individNum != 0
 # GROUP BY s.dkName, A.speciesCode
 # ORDER BY A.speciesCode + ' - ' + ISNULL(s.dkName, '')
@@ -83,48 +77,39 @@ word_document: default
 
 ```{r define_input, echo=FALSE}
 
+
 #Parameters
 year <- @paramYear
 cruise <- @paramCruise
-trip <- @paramTrip
-station <- @paramStation
-journal <- @paramJournal
+trip <- c(@paramTrip)
+station <- c(@paramStation)
 species <- @paramSpecies
 
-
 # year <- 2019
-# cruise <- "KASU-1"
-# trip <- "1"
-# station <- c("21","23")
-# # journal <- ""
+# cruise <- "BITS-1"
+# trip <- c("1","2")
+# station <- c("21","23","95","107","109")
 # species <- "TOR"
-# 
-# stationSQL <- paste0(station,collapse = "','")
-# tripSQL <- ifelse(is.null(trip),
-#                "", sprintf("Animal.trip = ('%s') AND ",trip))
+
+stationSQL <- paste0(station,collapse = "','")
+tripSQL <- paste0(trip,collapse = "','")
 ```
 
+\lhead{\footnotesize Togt: `r cruise`, År: `r year`, Art: `r species` }
+\rhead{\footnotesize Udskrevet: \today }
+\fancyfoot[R]{\thepage}
 
 
 
 ```{r set_libraries, include=FALSE}
 
 #Libraries
+# try(detach("package:kableExtra", unload=TRUE))
 if (!require(pacman)) {
   install.packages("pacman", repos="http://ftp.ussg.iu.edu/CRAN/")
   library(pacman)
 }
-p_load(RODBC,dplyr,xtable)#,Hmisc,kableExtra,knitr)
-# 
-# if (!require(RODBC)) {
-#   install.packages("RODBC", repos="http://ftp.ussg.iu.edu/CRAN/")
-#   library(RODBC)
-# }
-# if (!require(xtable)) {
-#   install.packages("xtable", repos="http://ftp.ussg.iu.edu/CRAN/")
-#   library(xtable)
-# }
-
+p_load(RODBC,dplyr)
 ```
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
@@ -132,7 +117,7 @@ p_load(RODBC,dplyr,xtable)#,Hmisc,kableExtra,knitr)
 
 channel <- odbcConnect("FishLineDW")
 data <- sqlQuery(channel, sprintf("SELECT     Animal.animalId, Animal.year, Animal.cruise, Animal.trip, Animal.tripType, 
-                                Animal.station, Animal.dateGearStart,Animal.dfuArea, Animal.statisticalRectangle,
+                                Animal.station, Animal.dateGearStart,Animal.dfuArea, Animal.statisticalRectangle,Animal.tripType,
                                 Animal.speciesCode, Animal.landingCategory, 
                                 Animal.representative, Animal.sizeSortingEU as sorting,
                                 Animal.individNum, Animal.number, Animal.length, Animal.weight, Animal.sexCode, 
@@ -143,7 +128,7 @@ data <- sqlQuery(channel, sprintf("SELECT     Animal.animalId, Animal.year, Anim
                                 Trip ON Sample.tripId = Trip.tripId LEFT OUTER JOIN
                                 Age ON Animal.animalId = Age.animalId
                                 WHERE      (Animal.year = (%s) AND 
-                                %s
+                                Animal.trip in ('%s') AND
                                 Animal.cruise = ('%s') AND
                                 Animal.station in ('%s') AND
                                 Animal.speciesCode = ('%s') AND
@@ -168,107 +153,84 @@ data$genetics[data$genetics==1 & !is.na(data$genetics)] <- "Ja"
 data$genetics[data$genetics==0 & !is.na(data$genetics)] <- "Nej"
 data$genetics[is.na(data$genetics)] <- "Nej"
 
-data$labJournalNum[is.na(data$labJournalNum)] <- "-"; journal <- data$labJournalNum[1]
-data_table <- data[c("trip","station","sorting", "individNum","length","weight","age","sexCode","maturityIndex","genetics","animalId")]
-data_table2 <- data_table[order(data_table$sorting,data_table$individNum) ,]
-data_table2$comment <- ""
-data_table2[data_table2=="FALSE"] <- ""
+data$labJournalNum[is.na(data$labJournalNum)] <- "-"
+data$havn[is.na(data$havn)] <- "-"
+data$comment <- ""
+data$date <- format(data$dateGearStart,"%Y-%m-%d")
+```
+
+```{r, echo=F,warning=F,error=F,message=F,results='asis'}
+data_out <- data %>% 
+  select(cruise,trip,tripType,station,labJournalNum,dateGearStart,statisticalRectangle,dfuArea,havn,
+         speciesCode,sorting,individNum,length,weight,age,sexCode,maturityIndex,genetics,
+         animalId,comment,date)
 
 
-# tbl <- xtable(data_table2)
-# digits(tbl) <- c(0,0,0,0,0,0,3,0,0,0,0,0,0)
-# print(tbl,
-#       only.contents=TRUE,
-#       include.rownames=FALSE,
-#       include.colnames=FALSE,
-#       type="latex",
-#       file="tblout.tex")
+for (st in sort(unique(data_out$station))){
+  
+  dt2 <- data_out %>% 
+    filter(station==st) %>% 
+    arrange(sorting,individNum)
+  
+  cat("\\setlength{\\tabcolsep}{20pt} \n")
+  cat("\\renewcommand{\\arraystretch}{1.2} \n")
+  cat("\\begin{tabularx}{\\textwidth}{ l l l l l l} \n")
+  cat(sprintf("\\textbf{Togt:} %s  & \\textbf{Tur:} %s & \\textbf{Station:} %s & \\textbf{Type:} %s & \\textbf{Dato:} %s \\\\ \n",
+              dt2$cruise[1],dt2$trip[1],dt2$station[1],dt2$tripType[1],
+              dt2$date[1]))
 
+  cat(sprintf("\\textbf{Art:} %s  & \\textbf{Journal:} %s & \\textbf{Område:} %s & 
+    \\textbf{Square:} %s & \\textbf{Havn:} %s \\\\ \n", 
+    species,dt2$labJournalNum[1],dt2$dfuArea[1],dt2$statisticalRectangle[1],
+    dt2$havn[1]))
+  cat("\\end{tabularx} \n")
+  
+  
+    # cat("\\vspace{1cm}")
+  
+  dt3 <- dt2 %>% 
+    select(sorting,individNum,length,weight,age,sexCode,maturityIndex,genetics,
+           animalId,comment) %>% 
+    data.frame()
 
+  dt3[is.na(dt3)]<-"-"
+  
+  colnames(dt3) <- c("Sorte-ring","Indvid-nummer","Længde (mm)","Vægt (g)","Alder",
+                             "Køn","Moden-hed","Gene-tik","Animal Id","Bemærk-ninger")
 
+  # colnames(dt3) <- paste0("\\bf ",colnames(dt3))
+  
+  p_load(knitr,kableExtra)
+  a <- kable(dt3,format="latex",row.names = F,booktabs=T,longtable=T) %>% 
+    kable_styling(latex_options = c("striped","repeat_header"),
+                  full_width = T,
+                  repeat_header_continued = "\\textit{(fortsætter på næste side)}",
+                  repeat_header_text = "\\textit{(fortsat fra sidste side)}",
+                  # stripe_index = seq(2,nrow(dt3),2),
+                  # stripe_color = "lightgray"
+                  ) %>%
+    column_spec(9,width = "1cm") %>% 
+    column_spec(10,width = "1cm") 
 
+  cat(a)
+  p_unload(knitr,kableExtra)
+
+  
+  cat("\\newpage{}")
+  
+  
+}
 
 ```
 
+```{r, include=F}
 
-
-
-
-
-```{r, echo=F,warning=F,error=F,message=F,results='asis'}
-
-# \setlength{\tabcolsep}{20pt}
-# \renewcommand{\arraystretch}{1.2}
-# \begin{tabularx}{\textwidth}{ l l l l l l}
-# \textbf{Togt:} `r cruise`  & \textbf{Tur:} `r trip` & \textbf{Station:} `r station` & \textbf{Type:} `r data$tripType[1]` & \textbf{Dato:} `r date`\\
-# \textbf{Art:} `r species`  & \textbf{Journal:} `r journal` & \textbf{Område:} `r data$dfuArea[1]` &
-#   \textbf{Square:} `r data$statisticalRectangle[1]` & \textbf{Havn:} `r data$havn[1]` \\
-# \end{tabularx}
-
-minDate <- format(min(data$dateGearStart, na.rm=T),"%Y-%m-%d")
-maxDate <- format(max(data$dateGearStart, na.rm=T),"%Y-%m-%d")
-
-cat(paste0("\\begin{description} "))
-cat(sprintf("\\item[Togt:] %s ",unique(data$cruise)))
-cat(sprintf("\\item[Tur%s:] %s ",
-            ifelse(length(unique(data$trip))!=1,"e",""),
-            paste0(unique(data$trip),collapse = ", ")))
-cat(sprintf("\\item[Station%s:] %s ",
-            ifelse(length(unique(data$station))!=1,"er",""),
-            paste0(unique(data$station),collapse = ", ")))
-cat(sprintf("\\item[Art:] %s ",unique(data$speciesCode)))
-cat(sprintf("\\item[Periode:] %s ", 
-            ifelse(minDate == maxDate,
-                   minDate,
-                   paste(minDate,maxDate,sep = " - "))))
-cat(sprintf("\\item[Område%s:] %s ",
-            ifelse(length(unique(data$dfuArea))!=1,"r",""),
-            paste0(unique(data$dfuArea),collapse = ", ")))
-cat(sprintf("\\item[Square%s:] %s ",
-            ifelse(length(unique(data$statisticalRectangle))!=1,"s",""),
-            paste0(unique(data$statisticalRectangle),collapse = ", ")))
-cat("\\end{description} ")
-
-
-# cat("\\footnotesize ")
-```
-
-
-```{r, echo=F,warning=F,error=F,message=F,results='asis'}
-# data_table2 %>%
-#   # mutate_all(is.na(.) <- "") %>%
-#   kable() %>%
-#   kable_styling(latex_options = "striped")
-data_table3 <- data_table2 %>% 
-  arrange(trip,station,individNum) %>% 
-  select(-sorting)
-
-colnames(data_table3) <- c("Tur","Station","Indvid- nummer","Længde (mm)","Vægt (g)","Alder","Køn","Moden- hed","Gene- tik","Animal Id","Bemærk- ninger")
-colnames(data_table3) <- sprintf("\\bf %s ",colnames(data_table3))
-
-
-library(Hmisc)
-      mylatex <- function (...) {
-          o <- capture.output(latex(...))
-          o <- grep('^%', o, inv=T, value=T)
-          cat(o, sep='\n')
-      }
-
-
-      mylatex(data_table3,
-              file='',booktabs =T,rowname="",rowlabel="",where='H',
-              collabel.just=c(rep("l",2),rep("p{0.6in}",3),rep("l",2),rep("p{0.6in}",4)),
-              col.just=rep("l",ncol(data_table3)),size="small")
-
-    detach(package:Hmisc)
-
-write.table(data_table2 %>% 
-  arrange(trip,station,individNum) %>% 
-  select(-sorting),
+write.table(data_out %>% select(-date) %>% arrange(trip,station,individNum),
   file = sprintf("genetik_%s_%s_%s_%s.csv",year,cruise,species,format(Sys.Date(),"%Y%m%d")),
   sep = "\t",na = "",row.names = F,col.names = T)
-# tbl
+
 ```
 
 
 
+<!-- Genetik-rapport -->
