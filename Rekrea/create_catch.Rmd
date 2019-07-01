@@ -1,0 +1,183 @@
+
+---
+fontsize: 12pt
+geometry: top=2cm, bottom=2cm, left=2cm, right=2cm,headsep=1cm
+header-includes:
+- \usepackage{booktabs}
+- \usepackage{longtable}
+- \usepackage[T1]{fontenc}
+- \usepackage[danish]{babel}
+- \usepackage[utf8]{inputenc}
+- \usepackage{fancyhdr}
+- \pagestyle{fancy}
+- \fancyhf{}
+- \fancyfoot{}
+output:
+  pdf_document: default
+  word_document: default
+  fig_caption: false
+---
+
+\renewcommand{\familydefault}{\sfdefault}
+\sffamily
+
+\renewcommand{\familydefault}{\sfdefault}
+\sffamily
+
+```{r set_libraries, include=FALSE}
+
+# Libraries
+if (!require(pacman)) {
+  install.packages("pacman", repos = "http://ftp.ussg.iu.edu/CRAN/")
+  library(pacman)
+}
+p_load(RODBC,dplyr,knitr,kableExtra,tidyr)
+```
+
+
+
+```{r call_db, include=F}
+cruise <- "REKREA torsk"#"REKREA laks"
+targetSpecies <- ifelse(cruise == "REKREA torsk","TOR","LKS")
+speciesEN <- ifelse(targetSpecies == "TOR","Cod","Salmon")
+
+
+channel <- odbcConnect("FishLineDW")
+fish <- sqlQuery(channel, sprintf("SELECT * from Animal where cruise = '%s'",cruise),
+                 stringsAsFactors=F)
+ages <- sqlQuery(channel, sprintf("SELECT * from Age where cruise = '%s'",cruise),
+                 stringsAsFactors=F)
+people <- sqlQuery(channel, sprintf("select sampleId,tripId,year,cruise,trip,tripType,station,
+                                    dateGearStart,dateGearEnd,timeZone,quarterGearStart,
+                                    fishingtime,dfuArea,samplePersonId,samplePersonName,
+                                    sgId,weekdayWeekend
+                                    from sample where cruise = '%s'",cruise),
+                   stringsAsFactors=F)
+trips <- sqlQuery(channel, sprintf("select [year],[cruise],
+[trip],[tripType],[timeZone],[dateStart],[dateEnd],[sgTripId],[tripNum],[placeName],[placeCode],[postalCode],[numberInPlace],[respYes],[respNo],[respTot] from Trip where cruise = '%s'",cruise),
+                  stringsAsFactors=F)
+close(channel)
+
+
+
+```
+
+
+```{r data_massage, echo=F,include=F}
+
+data <- full_join(people,fish) %>% 
+  full_join(ages) %>% 
+  left_join(trips) %>% 
+  mutate(tripType = case_when(tripType == "REKHVN" ~ "Harbour",
+                              tripType == "REKOMR" ~ "Area",
+                              tripType == "REKTBD" ~ "Charter boat"))
+
+catchTS <- data %>%
+  # group_by(sgId) %>% 
+  filter(speciesCode == "TOR" & landingCategory == "KON") %>% 
+  select(sgId) %>% 
+  distinct()
+
+allCatches <- data %>% 
+  filter(!is.na(speciesCode))# %>%
+  # select(sgId,trip,dateGearStart,dateGearEnd,speciesCode,number,
+         # landingCategory,length,weight,otolithFinScale,age)
+
+
+noCatchTS <- data %>% 
+  filter(!sgId %in% catchTS$sgId) %>% 
+  # select(sgId,trip,dateGearStart,dateGearEnd,year,quarterGearStart,tripType) %>% 
+  mutate(speciesCode = "TOR",
+         catchNum = 0,
+         number = 0,
+         landingCAtegory = "KON",
+         length	= NA,
+         weight = NA,
+         code = NA,
+         otolithFinScale = NA,
+         age = NA
+         )
+
+catch <- bind_rows(allCatches,noCatchTS) %>% 
+  arrange(dateGearStart,sgId) %>% 
+  group_by(trip) %>%
+  mutate(respNum = as.numeric(factor(sgId)),
+         month = as.numeric(format(dateGearStart, "%m"))) %>%
+  ungroup() %>% 
+  # group_by(trip,respNum,landingCategory,animalId) %>%
+  # mutate(catchNum = 1:n()) %>%
+  # ungroup() %>% 
+  select(sgId,trip,dateGearStart,dateGearEnd,respNum,catchNum,speciesCode,number,
+    landingCategory,length,weight,otolithFinScale,age,weekdayWeekend,year,
+    quarterGearStart,month,tripType) 
+
+
+
+```
+
+
+
+```{r ,echo=F,message=F,warning=F,error=F,results='asis'}
+options(knitr.kable.NA = '')
+
+cat(sprintf("\\section{%s} ",cruise))
+
+
+cat("\\subsection{Trips}")
+
+trip_out <- catch %>% 
+  group_by(year,quarterGearStart,tripType) %>% 
+  summarise(Trips = n_distinct(trip)) %>% 
+  spread(key=tripType,value = Trips) 
+
+# trip_out[is.na(trip_out)] <- 0
+trip_out$Total <- rowSums(trip_out[,3:5], na.rm = T)
+
+colnames(trip_out)[1:2] <- c("Year","Quarter")
+
+trip_out %>% 
+  # drop_na() %>% 
+  kable(format="latex",booktabs=T,longtable=T) %>% 
+  kable_styling(bootstrap_options = "striped",full_width = T) %>% 
+  row_spec(0,bold=TRUE) 
+  
+cat("\\subsection{Respondents}")
+
+resp_out <- catch %>%
+  # drop_na() %>% 
+  group_by(year,quarterGearStart,tripType) %>% 
+  summarise(Respondents = n_distinct(sgId)) %>% 
+  spread(key=tripType,value = Respondents) 
+
+# resp_out[is.na(resp_out)] <- 0
+resp_out$Total <- rowSums(resp_out[,3:5], na.rm = T)
+
+colnames(resp_out)[1:2] <- c("Year","Quarter")
+
+resp_out %>% 
+  kable(format="latex",booktabs=T,longtable=T) %>% 
+  kable_styling(bootstrap_options = "striped",full_width = T) %>% 
+  row_spec(0,bold=TRUE) 
+
+cat("\\subsection{Sampled fish}")
+
+fish_out <- catch %>% 
+  full_join(catch %>% expand(year,quarterGearStart,tripType)) %>% 
+  group_by(tripType,year,quarterGearStart) %>% 
+  summarise(ts = sum(number[speciesCode == targetSpecies & 
+                              landingCategory == "KON"], na.rm = T),
+            other = sum(number[speciesCode != targetSpecies &
+                                 landingCategory == "KON"], na.rm = T),
+            Total = sum(number[landingCategory == "KON"], na.rm = T))
+
+colnames(fish_out)[1:5] <- c("Trip type","Year","Quarter",speciesEN,"Other fish")
+
+fish_out %>% 
+  kable(format="latex",booktabs=T,longtable=T,linesep="") %>% 
+  row_spec(0,bold=TRUE) %>% 
+  kable_styling(bootstrap_options = "striped",full_width = T)
+
+```
+
+
+<!-- rekrea: create catch -->
