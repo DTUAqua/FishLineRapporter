@@ -1,0 +1,205 @@
+---
+fontsize: 11pt
+geometry: top=2cm, bottom=2cm, left=1cm, right=2cm,headsep=1cm
+header-includes:
+- \usepackage{booktabs}
+- \usepackage{longtable}
+- \usepackage{xcolor}
+- \usepackage[T1]{fontenc}
+- \usepackage[danish]{babel}
+- \usepackage[utf8]{inputenc}
+- \usepackage{fancyhdr}
+- \pagestyle{fancy}
+- \fancyhf{}
+- \fancyfoot{}
+- \usepackage{graphicx}
+- \usepackage{ragged2e}
+- \usepackage{catchfile}
+- \usepackage{array}
+- \usepackage[export]{adjustbox}
+- \usepackage{multirow}
+- \linespread{1.15}
+- \usepackage{tabularx}
+- \usepackage{tcolorbox}
+- \usepackage{lipsum}
+- \usepackage{pbox}
+- \usepackage{lastpage}
+output:
+  pdf_document: default
+  word_document: default
+---
+  
+  \renewcommand{\familydefault}{\sfdefault}
+\sffamily
+
+
+
+
+
+```{r define_input, echo=FALSE}
+options(knitr.kable.NA = '')
+
+#Parameters
+# year <- @paramYear
+
+year <- 2019
+```
+
+\lhead{\footnotesize År: `r year`}
+\rhead{\footnotesize Udskrevet: \today }
+\fancyfoot[R]{\thepage/\pageref{LastPage}}
+
+\section{Kontrol af manglende aflæsere i Fiskeline}
+Her er en oversigt over arter på stationer, hvor der har været bestemt alder, modenhed eller klækningsmåned, men ikke er en aflæser tilknyttet den respektive aflæsning. Ved oversigten over manglende modenhedsaflæsere er metoden til modenhedsbestemmelse inkluderet. 
+
+```{r set_libraries, include=FALSE}
+
+#Libraries
+# try(detach("package:kableExtra", unload=TRUE))
+if (!require(pacman)) {
+  install.packages("pacman", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(pacman)
+}
+p_load(RODBC,dplyr)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+
+channel <- odbcConnect("FishLineDW")
+age <- sqlQuery(channel, sprintf("SELECT [year]
+      ,[cruise]
+      ,[trip]
+      ,[tripType]
+      ,[station]
+	  ,speciesCode
+	  ,sexcode
+	  ,sizeSortingEU
+	  ,age
+	  ,hatchMonth
+      ,[ageReadId]
+      ,[ageReadName]
+      ,[hatchMonthReaderId]
+      ,[hatchMonthReaderName]
+  FROM [FishLineDW].[dbo].[Age]
+  where year = %s and
+  ((age is not null and ageReadId is null) or 
+  (hatchMonth is not null and hatchMonthReaderId is null)) " ,
+                                year), 
+                 stringsAsFactors=FALSE)     
+
+animal <- sqlQuery(channel, sprintf("SELECT [year]
+      ,[cruise]
+      ,[trip]
+      ,[tripType]
+      ,[station]
+      ,[speciesCode]
+      ,sexCode
+      ,[sizeSortingEU]
+      ,[maturityIndex]
+      ,[maturityIndexMethod]
+      ,[maturityReaderId]
+      ,[maturityReader]
+  FROM [FishLineDW].[dbo].[Animal]
+  where year = %s and maturityIndex is not null and maturityReaderId is null " ,
+                                year), 
+                 stringsAsFactors=FALSE)    
+close(channel)
+
+
+data <- full_join(age,animal)
+```
+
+
+
+
+
+\subsection{Manglende aldersaflæser}
+```{r, echo=FALSE, message = FALSE, cache=FALSE, warning=FALSE,results='asis'}
+# missing age readers
+mar <- data %>% 
+  filter(!is.na(age) & is.na(ageReadId)) %>% 
+  distinct(year,cruise,trip,tripType,station,speciesCode,sexCode,sizeSortingEU) %>% 
+  arrange(year,cruise,desc(trip),tripType,desc(station),speciesCode,sexCode,sizeSortingEU)
+  
+colnames(mar) <- c("År","Togt","Tur","Turtype","Station","Art","Køn","Sortering")
+
+if (nrow(mar)>0){
+  
+  p_load(knitr,kableExtra)
+  a <- kable(mar,format = "latex",booktabs=T,longtable=T) %>% 
+  kable_styling(latex_options = c("striped","repeat_header"),
+                  full_width = T,
+                  repeat_header_continued = "\\textit{(fortsætter på næste side)}",
+                  repeat_header_text = "\\textit{(fortsat fra sidste side)}")
+  
+  cat(a)
+  p_unload(knitr,kableExtra)
+  
+} else{
+  cat("Alle aldersaflæsninger har tilknyttet en aldersaflæser.")
+  }
+```
+
+\subsection{Manglende modenhedsaflæser}
+```{r, echo=FALSE, message=FALSE, cache=FALSE, warning=FALSE,results='asis'}
+# missing maurity readers
+mmr <- data %>% 
+  filter(!is.na(maturityIndex) & is.na(maturityReaderId)) %>% 
+  distinct(year,cruise,trip,tripType,station,speciesCode,sexCode,
+           sizeSortingEU,maturityIndexMethod) %>% 
+  arrange(year,cruise,desc(trip),tripType,desc(station),speciesCode,sexCode,
+          sizeSortingEU,maturityIndexMethod)
+
+colnames(mmr) <- c("År","Togt","Tur","Turtype","Station","Art","Køn","Sortering",
+                   "Moden-heds-metode")
+
+if (nrow(mmr)>0){
+  
+  p_load(knitr,kableExtra)
+  a <- kable(mmr,format = "latex",booktabs=T,longtable=T) %>% 
+    kable_styling(latex_options = c("striped","repeat_header"),
+                  full_width = T,
+                  repeat_header_continued = "\\textit{(fortsætter på næste side)}",
+                  repeat_header_text = "\\textit{(fortsat fra sidste side)}")
+  
+  cat(a)
+  p_unload(knitr,kableExtra)
+  
+} else{
+  cat("Alle modenhedsaflæsninger har tilknyttet en modenhedsaflæser.")
+  }
+
+```
+
+\subsection{Manglende klækningsmånedsaflæser}
+```{r, echo=FALSE, message=FALSE, cache=FALSE, warning=FALSE,results='asis'}
+# missing hatch month readers
+mhr <- data %>% 
+  filter(!is.na(hatchMonth) & is.na(hatchMonthReaderId)) %>% 
+  distinct(year,cruise,trip,tripType,station,speciesCode,sexCode,
+           sizeSortingEU) %>% 
+ arrange(year,cruise,desc(trip),tripType,desc(station),speciesCode,sexCode,sizeSortingEU)
+
+
+colnames(mhr) <- c("År","Togt","Tur","Turtype","Station","Art","Køn","Sortering")
+
+if (nrow(mhr)>0){
+  
+  p_load(knitr,kableExtra)
+  a <- kable(mhr,format = "latex",booktabs=T,longtable=T) %>% 
+    kable_styling(latex_options = c("striped","repeat_header"),
+                  full_width = T,
+                  repeat_header_continued = "\\textit{(fortsætter på næste side)}",
+                  repeat_header_text = "\\textit{(fortsat fra sidste side)}")
+  cat(a)
+  p_unload(knitr,kableExtra)
+  
+} else{
+  cat("Alle klækningsmånedsaflæsninger har tilknyttet en klækningsmånedsaflæser.")
+  }
+
+
+```
+
+<!-- Tjek af aflæsere -->
