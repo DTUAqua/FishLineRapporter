@@ -32,6 +32,10 @@ word_document: default
 
 
 ```{r define_input, echo=FALSE}
+# this report is used by lab technicians when they need info about an animalId
+# in e.g. a microscope picture. It prints up to 500 rows of information aobut animals in 
+# the database or information about just a single fish. 
+
 options(kableExtra.latex.load_packages = FALSE,knitr.kable.NA = '', scipen = 999)
 
 #Parameters
