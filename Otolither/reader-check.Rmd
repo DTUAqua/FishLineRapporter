@@ -24,9 +24,10 @@ header-includes:
 - \usepackage{lipsum}
 - \usepackage{pbox}
 - \usepackage{lastpage}
+- \usepackage{tabu}
 output:
-  pdf_document: default
-  word_document: default
+  pdf_document: 
+    number_sections: true
 ---
   
   \renewcommand{\familydefault}{\sfdefault}
@@ -37,17 +38,31 @@ output:
 
 
 ```{r define_input, echo=FALSE}
-options(knitr.kable.NA = '')
+# @paramYear 
+# select year, year 
+# from FishLineDW.dbo.cruise
+# 
+# where year < 2100
+# 
+# group by year
+# order by year desc
+
+
+options(knitr.kable.NA = '-',kableExtra.latex.load_packages = F)
 
 #Parameters
-# year <- @paramYear
+year <- as.numeric(@paramYear)
 
-year <- 2019
+# year <- 2019
 ```
 
 \lhead{\footnotesize År: `r year`}
 \rhead{\footnotesize Udskrevet: \today }
 \fancyfoot[R]{\thepage/\pageref{LastPage}}
+
+\tableofcontents
+
+\newpage
 
 \section{Kontrol af manglende aflæsere i Fiskeline}
 Her er en oversigt over arter på stationer, hvor der har været bestemt alder, modenhed eller klækningsmåned, men ikke er en aflæser tilknyttet den respektive aflæsning. Ved oversigten over manglende modenhedsaflæsere er metoden til modenhedsbestemmelse inkluderet. 
@@ -60,7 +75,7 @@ if (!require(pacman)) {
   install.packages("pacman", repos="http://ftp.ussg.iu.edu/CRAN/")
   library(pacman)
 }
-p_load(RODBC,dplyr)
+p_load(RODBC,dplyr,knitr,kableExtra)
 ```
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
@@ -86,7 +101,7 @@ age <- sqlQuery(channel, sprintf("SELECT [year]
   ((age is not null and ageReadId is null) or 
   (hatchMonth is not null and hatchMonthReaderId is null)) " ,
                                 year), 
-                 stringsAsFactors=FALSE)     
+                 stringsAsFactors=FALSE,as.is=T)     
 
 animal <- sqlQuery(channel, sprintf("SELECT [year]
       ,[cruise]
@@ -103,11 +118,27 @@ animal <- sqlQuery(channel, sprintf("SELECT [year]
   FROM [FishLineDW].[dbo].[Animal]
   where year = %s and maturityIndex is not null and maturityReaderId is null " ,
                                 year), 
-                 stringsAsFactors=FALSE)    
+                 stringsAsFactors=FALSE,as.is=T)    
 close(channel)
 
 
+
 data <- full_join(age,animal)
+
+
+createTable <- function(data, type=""){
+  
+  ct <- data %>% 
+    kable(format = "latex",booktabs=T,longtable=T) %>% 
+    kable_styling(latex_options = c("repeat_header"),
+                  full_width = F,
+                  repeat_header_continued = "\\textit{(fortsætter på næste side)}",
+                  repeat_header_text = sprintf("\\textit{(%sfortsat)}",type))
+  
+  return(ct)
+}
+
+
 ```
 
 
@@ -126,15 +157,11 @@ colnames(mar) <- c("År","Togt","Tur","Turtype","Station","Art","Køn","Sorterin
 
 if (nrow(mar)>0){
   
-  p_load(knitr,kableExtra)
-  a <- kable(mar,format = "latex",booktabs=T,longtable=T) %>% 
-  kable_styling(latex_options = c("striped","repeat_header"),
-                  full_width = T,
-                  repeat_header_continued = "\\textit{(fortsætter på næste side)}",
-                  repeat_header_text = "\\textit{(fortsat fra sidste side)}")
+  # p_load(knitr,kableExtra)
+  a <- createTable(mar, "Manglende aldersaflæser, ")
   
   cat(a)
-  p_unload(knitr,kableExtra)
+  # p_unload(knitr,kableExtra)
   
 } else{
   cat("Alle aldersaflæsninger har tilknyttet en aldersaflæser.")
@@ -152,19 +179,15 @@ mmr <- data %>%
           sizeSortingEU,maturityIndexMethod)
 
 colnames(mmr) <- c("År","Togt","Tur","Turtype","Station","Art","Køn","Sortering",
-                   "Moden-heds-metode")
+                   "Modenhedsmetode")
 
 if (nrow(mmr)>0){
   
-  p_load(knitr,kableExtra)
-  a <- kable(mmr,format = "latex",booktabs=T,longtable=T) %>% 
-    kable_styling(latex_options = c("striped","repeat_header"),
-                  full_width = T,
-                  repeat_header_continued = "\\textit{(fortsætter på næste side)}",
-                  repeat_header_text = "\\textit{(fortsat fra sidste side)}")
+  # p_load(knitr,kableExtra)
+  a <- createTable(mmr, "Manglende modenhedsaflæser, ") 
   
   cat(a)
-  p_unload(knitr,kableExtra)
+  # p_unload(knitr,kableExtra)
   
 } else{
   cat("Alle modenhedsaflæsninger har tilknyttet en modenhedsaflæser.")
@@ -186,14 +209,13 @@ colnames(mhr) <- c("År","Togt","Tur","Turtype","Station","Art","Køn","Sorterin
 
 if (nrow(mhr)>0){
   
-  p_load(knitr,kableExtra)
-  a <- kable(mhr,format = "latex",booktabs=T,longtable=T) %>% 
-    kable_styling(latex_options = c("striped","repeat_header"),
-                  full_width = T,
-                  repeat_header_continued = "\\textit{(fortsætter på næste side)}",
-                  repeat_header_text = "\\textit{(fortsat fra sidste side)}")
+  # p_load(knitr,kableExtra)
+  
+  a <- createTable(mhr, "Manglende klækningsmånedsaflæser, ")
+  
   cat(a)
-  p_unload(knitr,kableExtra)
+  
+  # p_unload(knitr,kableExtra)
   
 } else{
   cat("Alle klækningsmånedsaflæsninger har tilknyttet en klækningsmånedsaflæser.")
