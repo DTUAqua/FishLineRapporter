@@ -55,7 +55,7 @@ output:
 #Parameters
 year <- @paramYear
 
-# year <- 2016
+# year <- 2012
 
 ```
 
@@ -70,7 +70,7 @@ Denne rapport gennemgår en log-fil, der indeholder fejl og advarsler i forbinde
 
 Viser en fejl eller advarsel sig, kan man undersøge togtet og prøve at oparbejde det til datawarehouset igen. Kommer der ingen advarsler her, og fornys tidspunktet i errorloggen ikke når denne rapport genereres igen, betyder det at fejlen er blevet udbedret. 
 
-```{r set_libraries, include=FALSE}
+```{r librariesAndFunctions, include=FALSE}
 
 #Libraries
 if (!require(pacman)) {
@@ -78,34 +78,6 @@ if (!require(pacman)) {
   library(pacman)
 }
 p_load(dplyr,RODBC,knitr,kableExtra,stringr)
-```
-
-
-```{r getdata, echo=FALSE, message=FALSE, warning=FALSE}
-
-
-channel <- odbcConnect("FishLineDW")
-data <- sqlQuery(channel, sprintf("SELECT  [transferErrorId]
-      ,[errorType]
-      ,[cruiseId]
-      ,[origin]
-      ,[recordType]
-      ,[recordTypeId]
-      ,[description]
-      ,[logTime]
-  FROM [FishLineDW].[dbo].[ErrorLog]
-
-  where origin like '%s->BV%s'",year,"%"), stringsAsFactors=FALSE) 
-
-close(channel)
-
-data2 <- data %>% 
-  mutate(year = as.numeric(str_split(origin,pattern = "->",simplify = T)[,1]),
-         cruise = trimws(str_split(origin,pattern = "->",simplify = T)[,2]),
-         trip = trimws(str_split(origin,pattern = "->",simplify = T)[,3]),
-         station = trimws(str_split(origin,pattern = "->",simplify = T)[,4]))
-
-#If want to selcet by trip: Sample.trip = ('",trip,"') AND
 
 makeTable <- function(eT,text){
   
@@ -139,14 +111,51 @@ makeTable <- function(eT,text){
 }
 ```
 
+
+```{r getdata, echo=FALSE, message=FALSE, warning=FALSE}
+
+
+channel <- odbcConnect("FishLineDW")
+data <- sqlQuery(channel, sprintf("SELECT  [transferErrorId]
+      ,[errorType]
+      ,[cruiseId]
+      ,[origin]
+      ,[recordType]
+      ,[recordTypeId]
+      ,[description]
+      ,[logTime]
+  FROM [FishLineDW].[dbo].[ErrorLog]
+
+  where origin like '%s->BV%s'",year,"%"), stringsAsFactors=FALSE) 
+
+close(channel)
+
+
+
+#If want to selcet by trip: Sample.trip = ('",trip,"') AND
+
+if (nrow(data)>0){
+  data2 <- data %>% 
+  mutate(year = as.numeric(str_split(origin,pattern = "->",simplify = T)[,1]),
+         cruise = trimws(str_split(origin,pattern = "->",simplify = T)[,2]),
+         trip = trimws(str_split(origin,pattern = "->",simplify = T)[,3]),
+         station = trimws(str_split(origin,pattern = "->",simplify = T)[,4]))
+}
+
+```
+
 \subsection{Advarsler i overførsel til datawarehouse}
 ```{r warnings, echo=F, results='asis', warning = F, error = F, message = F}
-w <- makeTable("Warning","Advarsler")
-cat(w)
+if (nrow(data)>0){
+  w <- makeTable("Warning","Advarsler")
+  cat(w)
+  } else{cat("Ingen advarsler blev fundet i loggen.")}
 ```
 
 \subsection{Fejlmeddelelser i errorloggen}
 ```{r errors, echo=F, results='asis', warning = F, error = F, message = F}
-er <- makeTable("Error","Fejlmeddelelser")
-cat(er)
+if (nrow(data)>0){
+  er <- makeTable("Error","Fejlmeddelelser")
+  cat(er)
+  } else{cat("Ingen fejlmeddelelser blev fundet i loggen.")}
 ```
