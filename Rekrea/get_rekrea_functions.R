@@ -1048,3 +1048,50 @@ columnAdjust <- function(df){
     return(df)
 }
 
+
+# functions to be used in the salmon survey
+priority <- function(x){y = ifelse(x == "Vigtigste<br /> grund", 1,
+                                   ifelse(x == "Anden vigtigste<br /> grund",2,
+                                          ifelse(x == "Tredje vigtigste<br /> grund",3, NA)))
+return(y)
+}
+
+priority2 <- function(x){y = ifelse(x == "Vigtigste<br />hobby", 1,
+                                    ifelse(x == "Næstvigtigste<br />hobby",2,
+                                           ifelse(x == "3. vigtigste<br />hobby",3,
+                                                  ifelse(x == "En hobby blandt<br />mange",4,NA))))
+return(y)
+}
+
+priority3 <- function(x){y = ifelse(x == "Meget<br />bedre", 2,
+                                    ifelse(x == "Noget<br />bedre",1,
+                                           ifelse(x == "Som<br />gennemsnittet",0,
+                                                  ifelse(x == "Noget<br />dårligere",-1,
+                                                         ifelse(x == "Meget<br />dårligere",-2,NA)))))
+return(y)
+}
+
+
+agreeing <- function(x){y = ifelse(x == "Fuldstændig<br />enig", 2,
+                                   ifelse(x == "Overvejende<br />enig",1,
+                                          ifelse(x == "Hverken<br />eller",0,
+                                                 ifelse(x == "Overvejende<br />uenig",-1,
+                                                        ifelse(x == "Fuldstændig<br />uenig",-2,NA)))))
+return(y)
+}
+
+agreeing2 <- function(x){y = ifelse(x == "Mange<br />flere ture", 3,
+                                    ifelse(x == "Flere ture",2,
+                                           ifelse(x == "Lidt flere ture",1,
+                                                  ifelse(x == "Ca. det samme",0,
+                                                         ifelse(x == "Lidt færre ture",-1,
+                                                                ifelse(x == "Færre ture",-2,
+                                                                       ifelse(x == "Meget færre ture",-3,NA)))))))
+return(y)
+}
+
+
+timeMaker <- function(start,end){
+  return(paste0(trimws(str_pad(as.character(start),width = 2,pad = "0")),
+                trimws(str_pad(as.character(end),width = 2,pad = "0"))))
+}
