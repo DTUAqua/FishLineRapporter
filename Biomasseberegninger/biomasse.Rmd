@@ -649,7 +649,8 @@ if (species %in% c("OES","BMS","HMS")) {
 
 if (species %in% c("OES","OST","BMS","HMS","TRU")){
   
-  musOmr <- st_read(musOmrString)
+  musOmr <- st_read(musOmrString) 
+  musOmr <- musOmr %>% select(OMR.e5.dENUMM,OMR.e5.dENAVN)
   
   data4$lat <- data4$latPosStartDec
   data4$lon <- data4$lonPosStartDec
@@ -660,7 +661,7 @@ if (species %in% c("OES","OST","BMS","HMS","TRU")){
   
   st_geometry(data6) <- NULL
   final_data <- data6 %>% 
-    select(-AREAL,-STATUS,-Area_km2,-Nr,) %>% 
+    # select(-AREAL,-STATUS,-Area_km2,-Nr,) %>% 
     as.data.frame()
   
 } else{
