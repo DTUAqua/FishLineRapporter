@@ -28,10 +28,11 @@ writeTrip <- @paramCatch
 writeResp <- @paramResp
 writeRespCatch <- @paramRespCatch
 prefix <- ""
+path<-""
 
 
-# writeCatch <- "all"
-# writeTrip <- "all"
+# writeCatch <- "onlyNew"# "all"
+# writeTrip <- writeCatch
 # writeResp <- "no"
 # writeRespCatch <- "no"
 # prefix <- ""
@@ -40,19 +41,26 @@ prefix <- ""
 
 ```{r libraries, include=F}
 # This script downloads data related to the COD23 sub project and arranges it into
-# csv files with trip information, catch information (both suitable for fiskeline)
-# survey responses and a mix of catch and surveyresponses.
+# csv files with trip information, catch information (both useable for importing data
+# to fiskeline), survey responses and a mix of catch and surveyresponses.
 # 
-# Because data is entered on a tablet in often poor conditions, you will need to 
-# manually go through the data in order to spot typos and errors.
+# Because data is entered on a tablet in difficult poor conditions, you will need to 
+# manually go through the data in order to spot typos and errors. The script contains many
+# corrections and as of August 2019, the observers has been instructed in how to correct data
+# in Surveygizmo, the current survey system being used.
 #
 # Data comes from SurveyGizmo in exports named "auto export" for each survey. 
 # In this script they will be stitched together and prepared for upload to Fiskeline.
 #
 # When a trip has been imported to Fiskeline, it will be ignored in later imports. So if there
-# are any changes in the trip data or the responses in the trip, tey will not be uploaded.
+# are any changes in the trip data or the responses in the trip, they will not be uploaded.
+# 
 # Therefore: make sure data is cleaned before importing it to Fiskeline!
-
+# 
+# The script creates a small report with some data quality checks, and data for import in
+# Fiskeline will also need to go through a data analysis in Fiskeline before it is allowed to be
+# imported.
+# 
 
 # rm(list=ls())
 
@@ -137,6 +145,11 @@ for (u in 1:nrow(exports)){
 
 ## Loading functions ----
 
+# This script will load a bunch of functions from get_rekrea_functions.R. If a function fails, 
+# the easiest way to see where it fails will be to rename the proper input data in the function 
+# and go through the steps on your local machine. Most functions is about connecting 
+# different dataset and reshaping data. 
+
 source("get_rekrea_functions.R")
 
 
@@ -152,15 +165,22 @@ source("get_rekrea_functions.R")
 channel <- RODBC::odbcConnect("FishLineDW")
 ages <- RODBC::sqlQuery(channel,
                         "SELECT
-                        a.[station] as respNum
+                        a.animalId
+                        ,a.[station] as respNum
                         ,sam.sgId
+                        ,a.trip as tripId
+                        ,a.landingCategory
                         ,a.[speciesCode] as species
                         ,age.age
+                        ,a.individNum
+                        ,a.length
+                        ,a.weight
+                        ,a.number
                         ,a.[catchNum]
   FROM [FishLineDW].[dbo].[Animal] as a
-  inner join [FishLineDW].[dbo].[Age] as age
+  left join [FishLineDW].[dbo].[Age] as age
   on a.animalId = age.animalId
-  inner join [FishLineDW].[dbo].[Sample] as sam
+  left join [FishLineDW].[dbo].[Sample] as sam
   on a.year = sam.year
   and a.cruise = sam.cruise
   and a.trip = sam.trip
@@ -170,6 +190,11 @@ ages <- RODBC::sqlQuery(channel,
 knownTrips <- sqlQuery(channel,  
                        "select trip from Trip where cruise = 'rekrea torsk' and year < 2100",
                        stringsAsFactors=F)
+
+species <- sqlQuery(channel,  
+                       "select speciesCode, dkName from L_Species",
+                       stringsAsFactors=F)
+
 close(channel)
 
 age_data0 <- read.csv(paste0(inPath,"ages_05_03_2019.csv"),
@@ -633,6 +658,7 @@ OFS$b.spm1_1[OFS$Response.ID=="OF1466"] <- 11
 age_data <- subset(age_data, !sgId == "OF1465")
 age_data$respNum[age_data$sgId == "OF1466"] <- 11
 
+
 # trip 117
 OFS$b.spm1_1[OFS$Response.ID == "OF1487"] <- 3
 
@@ -675,6 +701,8 @@ OFS <- subset(OFS, !Response.ID %in% c("OF167"))
 OFS$a.spm1_1[is.na(OFS$a.spm1_1)] <- 1
 OFS$c.spm1_1 <- paste(OFS$f.spm1_1,OFS$a.spm1_1,sep="-")
 OFS$TripRespId <- paste(OFS$c.spm1_1,as.numeric(OFS$b.spm1_1),sep="-")
+
+age_data <- subset(age_data,!(sgId == "ON5" & catchNum==1 & age == 4))
 
 #Online surveys data -----
 # online.ship <- read.csv(paste0(inPath,"online.csv"), 
@@ -863,6 +891,7 @@ CS$b.spm1_1[CS$Response.ID=="CS12"] <- 4
 CS$b.spm1_1[CS$Response.ID=="CS179"] <- 10
 CS$b.spm1_1[CS$Response.ID=="CS241"] <- 3
 CS$b.spm1_1[CS$Response.ID=="CS406"] <- 19
+CS$b.spm1_1[CS$Response.ID=="CS670"] <- 6
 
 CS$a.spm1_1 <- ifelse(str_detect(CS$f.spm1_1,"r")==T, CS$a.spm1_1, 1)
 CS$b.spm1_1 <- as.character(as.numeric(CS$b.spm1_1))
@@ -1117,7 +1146,14 @@ age_data1 <- age_data %>%
   select(sgId,tripId,respNum,catchNum,species,catchCategory,number,length,weight,
          code,age) 
 
-catch_data$tripRespCatch <- paste(catch_data$tripId,catch_data$respNum,
+age_data1 <- subset(age_data1, !(sgId == "OF136" & catchNum == 1 & age==4))
+age_data1 <- subset(age_data1, !(sgId == "OF46" & catchNum == 2 & age==4))
+age_data1 <- subset(age_data1, !(sgId == "OF46" & catchNum == 3 & age==4))
+age_data1 <- subset(age_data1, !(sgId == "OF53" & catchNum == 4 & age==4))
+# age_data1 <- subset(age_data1, !(sgId == "OF838" & catchNum == 1 & weight = 0.78))
+# age_data1 <- subset(age_data1, !(sgId == "OF838" & catchNum == 2 & weight = 0.88))
+
+ catch_data$tripRespCatch <- paste(catch_data$tripId,catch_data$respNum,
                                    catch_data$catchNum,catch_data$catchCategory,
                                    catch_data$species,sep="-")  
 age_data1$tripRespCatch <- paste(age_data1$tripId,age_data1$respNum,age_data1$catchNum,
@@ -1153,11 +1189,37 @@ catch_age_data$dateGearStart <- as.POSIXct(catch_age_data$dateGearStart,
                                            origin = "1970-01-01")
 catch_age_data$dateGearEnd <- as.POSIXct(catch_age_data$dateGearEnd, 
                                          origin = "1970-01-01")
+catch_age_data$tripRespCatch <- paste(catch_age_data$tripId,catch_age_data$respNum,catch_age_data$catchNum,sep="-")
+# overwrite values from surveygizmo with most recent values from fiskeline ----
+# in case of changes made in fiskeline after import
 
+ages2 <- ages %>% 
+  mutate(catchCategory = ifelse(landingCategory=="KON","C","R"),
+         length = length/10,
+         tripRespCatch = paste(tripId,respNum,catchNum,sep="-")) #%>% 
+  # select(-landingCategory) %>% 
+  # rename(species = species)
 
-resp_catch_tor <- unique(catch_age_data[catch_age_data$species=="TOR" &
-                                            catch_age_data$catchCategory=="C" &
-                                            catch_age_data$number>=0,"sgId"])
+catchInFiskeline <- catch_age_data %>% 
+  # mutate(tripRespCatch = paste(tripId,respNum,catchNum,sep="-")) %>% 
+  filter(tripRespCatch %in% ages2$tripRespCatch) %>% 
+  select(-length,-weight,-age,-number,-code,-species,-catchCategory,
+         -otolith,-tripRespCatch, -inAge,-source,-date,-catchNum) %>% 
+  distinct()
+
+catchInFiskeline2 <- left_join(catchInFiskeline,ages2) #%>% 
+  # distinct()
+
+newCatch <- catch_age_data %>% 
+  filter(!tripRespCatch %in% ages2$tripRespCatch) 
+
+catch_age_data2 <- bind_rows(newCatch, catchInFiskeline2) %>% 
+  select(-animalId, -individNum, - tripRespCatch) 
+
+# detect respondents with cod catches that they bring home ----
+resp_catch_tor <- unique(catch_age_data2[catch_age_data2$species=="TOR" &
+                                            catch_age_data2$catchCategory=="C" &
+                                            catch_age_data2$number>=0,"sgId"])
 
 
 # Add zero cod catches ----
@@ -1198,11 +1260,11 @@ no_catch_tor <- no_catch_tor0 %>%
                        endHourInt,endMinInt),
                origin="1970-01-01")) 
                
-catch_age_data2 <- bind_rows(catch_age_data, 
+catch_age_data3 <- bind_rows(catch_age_data2, 
                              no_catch_tor %>% select(-startHourTrip, -startMinTrip,
                                                      -endHourInt, -endMinInt))
 
-ca_data_out <- catch_age_data2[,c("sgId","tripId","dfuArea","respNum", "catchNum", 
+ca_data_out <- catch_age_data3[,c("sgId","tripId","dfuArea","respNum", "catchNum", 
                                   "species", "catchCategory", "number", 
                                   "length", "weight","code", "otolith", "age",
                                   "dateGearStart","dateGearEnd")]
@@ -1291,20 +1353,16 @@ catch_db_fiskeline1 <- catch_db_fiskeline %>%
          dateGearStart = as.numeric(dateGearStart)) %>% 
   arrange(tripId,respNum,catchCategory,catchNum)
 
-catch_db_fiskeline1$dateGearEnd <- 
-  as.POSIXct(ifelse(as.numeric(catch_db_fiskeline1$dateGearEnd) < 
-                      as.numeric(catch_db_fiskeline1$dateGearStart),
-                    catch_db_fiskeline1$dateGearStart,
-                    catch_db_fiskeline1$dateGearEnd),
-             origin = "1970-01-01",tz = "UTC")
-catch_db_fiskeline1$dateGearStart <- as.POSIXct(catch_db_fiskeline1$dateGearStart,
-                                               origin = "1970-01-01",tz = "UTC")
-
-# catch_db_fiskeline1$dateGearEnd <- as.POSIXct(catch_db_fiskeline1$dateGearEnd,
-#                                              origin = "1970-01-01",tz = "UTC")
+catchFinal <- catch_db_fiskeline1 %>% 
+  group_by(sgId) %>% 
+  mutate(dateGearEnd = as.POSIXct(max(c(as.numeric(dateGearStart),as.numeric(dateGearEnd)),na.rm=T),
+                                  origin = "1970-01-01",tz = "UTC"),
+         dateGearStart = as.POSIXct(min(dateGearStart, na.rm=T),
+                                    origin = "1970-01-01",tz = "UTC")) %>% 
+  ungroup()
 
 
-# View(catch_db_out[duplicated(catch_db_out)==T,])
+
 
 # Rename trip data
 # names(trip_db)[names(trip_db) %in% c("date","quarter")] <- 
@@ -1340,9 +1398,6 @@ names(resp_db1)[names(resp_db1) %in% c("tripsFreshSalt12","tripsFreshSalt3")] <-
 \section{Torsk i Øresund}
 
 ```{r write_output, echo=F, results = 'asis',message=F}
-path <- ""#"../../data_out/COD23/"
-
-
 v_today <- format(Sys.Date(),"%d%m%y")
 v_today_ymd <- format(Sys.Date(),"%y%m%d")
 
@@ -1368,9 +1423,6 @@ write.csv2 <- function(x,filename){
    return(cat(msg))
 }
 
-# write.csv2(catch_db_out,
-#           paste0(path,prefix,"REKREA_CATCH_COD23_",v_today,".csv"))
-
 # check for one sgId per resp/trip  
 ids <- 
   catch_age_data %>%
@@ -1381,63 +1433,31 @@ ids <-
 
 ids_final <- 
   # catch_age_data %>%
-  catch_db_fiskeline1 %>%
+  catchFinal %>%
   group_by(tripId,respNum) %>% 
   summarise(ids = length(unique(sgId))) %>% 
   filter(ids>1)
 
+missingValuesInTrip <- checkMissingValues(trip_db_out[,c("sgTRid","tripId","tripNum")])
+missingValuesInCatch <- checkMissingValues(catchFinal[,c("sgId","respNum","sampleType","speciesCode","number","dateGearStart","dateGearEnd","treatment","representative","stepNum","landingCategory","ageMeasureMethod")])
 
-if (checkMissingValues(catch_db_fiskeline1[,c("sgId","respNum","sampleType",
-                                              "speciesCode","number",
-                                              "dateGearStart","dateGearEnd",
-                                              "treatment","representative",
-                                              "stepNum","landingCategory",
-                                              "ageMeasureMethod")])==0){
-
-    if (nrow(ids)==0){
-      
-      if (writeCatch %in% c("all","onlyNew")){
-        
-        cat("\\subsection{Catch}")
-        
-        if (writeCatch == "onlyNew"){
-        
-        catch_db_fiskeline2 <- catch_db_fiskeline1 %>% 
-          filter(!tripId %in% knownTrips$trip)
-        } else{
-          catch_db_fiskeline2 <- catch_db_fiskeline1
-        }
-        
-        cat("\\subsection{Resp}")
-        write.csv2(catch_db_fiskeline2,
-                   paste0(path,prefix,"REKREA_CATCH_COD23_fiskeline_",v_today,".csv"))
-
-              } 
-    
-    # catch_db_fiskeline_test <- catch_db_fiskeline1 %>%
-    #   mutate(dateGearStart=gsub("\\d{4}","2100",dateGearStart),
-    #          dateGearEnd=gsub("\\d{4}","2100",dateGearEnd))%>% 
-    #   filter(!is.na(speciesCode))
-    # 
-    # write.csv2(catch_db_fiskeline_test,
-    #            sprintf("%s%sREKREA_CATCH_COD23_TEST_%s.csv",path,prefix,v_today))
-    }
-  } 
-# else{View(catch_db_fiskeline1 %>% 
-#              filter(tripId %in% ids_final$tripId))}
 
 # all trips - trips already in fiskeline will be ignored in the import
-if (checkMissingValues(trip_db_out[,c("sgTRid","tripId","tripNum")])==0){
+if (missingValuesInTrip + missingValuesInCatch == 0){
   
   if (writeTrip %in% c("all","onlyNew")){
     
     if (writeTrip == "onlyNew"){
       
-          trip_db_out2 <- trip_db_out %>% 
+        trip_db_out2 <- trip_db_out %>% 
             filter(!tripId %in% knownTrips$trip)
-
-    } else{
-      trip_db_out2 <- trip_db_out
+          
+        catchFinal <- catchFinal %>% 
+          filter(!tripId %in% knownTrips$trip)
+        } else{
+          
+          catchFinal <- catchFinal
+          trip_db_out2 <- trip_db_out
       }
     
     cat("\\subsection{Trip}")
@@ -1445,15 +1465,16 @@ if (checkMissingValues(trip_db_out[,c("sgTRid","tripId","tripNum")])==0){
     write.csv2(trip_db_out2, #%>% filter(year==2019),
                paste0(path,prefix,"REKREA_TRIP_COD23_",v_today,".csv"))
     
-    cat(paste0("\\\\ Seneste tur i trip-fil: ",tail(trip_db_out2$tripId,1)))
+    cat(paste0("\\newline Seneste tur i trip-fil: ",tail(trip_db_out2$tripId,1)))
+    
+            
+        cat("\\subsection{Catch}")
+        write.csv2(catchFinal,
+                   paste0(path,prefix,"REKREA_CATCH_COD23_fiskeline_",v_today,".csv"))
+
   }
-  
-  # trip_db_out_test <- trip_db_out %>%
-  #   mutate(year=2100,dateStart=gsub("\\d{4}","2100",dateStart)) 
-  # 
-  # write.csv2(trip_db_out_test,
-  #            sprintf("%s%sREKREA_TRIP_COD23_TEST_%s.csv",path,prefix,v_today))
 }
+
 
 if (writeResp == "yes"){
   
@@ -1467,9 +1488,9 @@ if (writeRespCatch == "yes"){
     
     # merge resp and catch data
 # class(resp_db1$respNum)<-class(catch_db_out$respNum)
-  respcatch <- full_join(catch_db_out, resp_db1)
+  respcatch <- full_join(catchFinal, resp_db1)
   # respcatch$date <- as.Date(respcatch$date,"%d/%m/%Y")
-  respcatch <- respcatch[order(respcatch[,14],respcatch[,3],respcatch[,2]),]
+  # respcatch <- respcatch[order(respcatch[,14],respcatch[,3],respcatch[,2]),]
     
   cat("\\subsection{RespCatch}")
     write.csv2(respcatch,
@@ -1481,10 +1502,12 @@ if (writeRespCatch == "yes"){
 ```{r sanity_check, echo=F, warning=F, message=F, error=T, results = 'asis'}
 cat("\\newpage \\section{Kvalitetstjek} ")
 
-catch_db_fiskeline3 <- left_join(catch_db_fiskeline2, trip_db_out)
+catch_db_fiskeline3 <- left_join(catch_db_fiskeline1, trip_db_out) %>% 
+  mutate(where = ifelse(tripId %in% knownTrips$trip,"FiskeLine","SurveyGizmo")) %>% 
+  mutate(where = as.factor(where))
 
 cat("\\subsection{Længde-vægt-plots} ")
-cat("I de følgende længe-vægt-plots er de registrerede torsk illustreret. De største outliers er fundet med cooks distance og bliver vist i en tabel under plottet med information om turnummer, respondetnummer og fangstnummer. \\\\")
+cat("I de følgende længe-vægt-plots er de registrerede torsk illustreret. De største outliers er fundet med cooks distance og bliver vist i en tabel under plottet med information om turnummer, respondetnummer og fangstnummer. Hvis outlieren allerede er i Fiskeline, kan man med fordel rette outlieren i fiskeline. Hvis outlieren er i SurveyGizmo, kan man med fordel rette outlieren i SurveyGizmo. \\newline")
 
 for (sp in unique(catch_db_fiskeline3$speciesCode)){
   
@@ -1511,11 +1534,17 @@ for (sp in unique(catch_db_fiskeline3$speciesCode)){
   outliers <- db_spec %>% filter(db_spec$diffId <= lim)
   
   db_spec2 <- db_spec %>% 
-    group_by(dfuArea,length,weight) %>% 
+    group_by(where,dfuArea,length,weight) %>% 
     summarise(number = sum(number, na.rm=T))
 
-  lwp <- ggplot(db_spec2, aes(x=length, y= weight, ))+
-    geom_point(aes(col=dfuArea)) 
+  lwp <- ggplot(db_spec2, aes(x=length, y= weight))+
+    geom_point(aes(col=where))
+  
+  # if (nrow(catch_db_fiskeline3[catch_db_fiskeline3$source=="SG"])>0){
+  #   
+  #   lwp <- lwp + geom_point(catch_db_fiskeline3[catch_db_fiskeline3$source=="SG"],
+  #                           mapping = aes(x=length, y= weight),col="black")
+  # }
     
     if (nrow(outliers)>0){
       lwp <- lwp + geom_label_repel(outliers,mapping = aes(x=length, y= weight,label=diffId))
@@ -1523,7 +1552,7 @@ for (sp in unique(catch_db_fiskeline3$speciesCode)){
   
   lwp <- lwp +
     theme_bw() +
-    labs(title = sp, x = "Length (cm)",y = "Weight (kg)") 
+    labs(title = sp, x = "Length (cm)",y = "Weight (kg)",col="Datakilde") 
     
   
   plot(lwp)
@@ -1533,11 +1562,11 @@ for (sp in unique(catch_db_fiskeline3$speciesCode)){
     o2 <- outliers %>%
       mutate(dfuArea = as.numeric(dfuArea)) %>% 
       select(diffId,sgId, tripId,respNum,catchNum,
-             speciesCode,number,length,weight,interviewPerson) %>% 
+             speciesCode,number,length,weight,interviewPerson,where) %>% 
       arrange(diffId)
     
     colnames(o2) <- c("Outlier","sgId","Tur","Respnr.","Fangstnr.","Art","Antal",
-                      "Længde","Vægt","Observatør")
+                      "Længde","Vægt","Observatør","Kilde")
       
     
     o2 %>% 
@@ -1568,9 +1597,9 @@ for (sp in unique(catch_db_fiskeline3$speciesCode)){
     
     lap <- ggplot(cf, aes(x=age2, y= length))+
       geom_boxplot() +
-      geom_point(aes( col=dfuArea)) +
+      geom_point(aes( col=where)) +
       theme_bw() +
-      labs(title = sp, x = "Alder", y = "Længde (cm)") + 
+      labs(title = sp, x = "Alder", y = "Længde (cm)",col="Datakilde") + 
       scale_x_discrete(breaks = seq(0, (max(cf$age,na.rm=T)+1), 1)) + 
       coord_flip()
     
@@ -1579,22 +1608,85 @@ for (sp in unique(catch_db_fiskeline3$speciesCode)){
   }
 }
 
+printDataCheck <- function(df,noString){
+  if (nrow(df)>0){
+    df %>% 
+      kable(format = "latex",booktabs=T,longtable=T) %>% 
+      kable_styling(#latex_options = c("repeat_header"),
+                    repeat_header_continued = "\\textit{(fortsætter på næste side)}",
+                    repeat_header_text = sprintf("\\textit{(fortsat)}")#,
+                    #full_width = T
+                    ) %>% 
+      row_spec(0, angle = 90)
+  } else{cat(noString)}
+  
+  
+}
 cat("\\subsection{Registrerede arter}")
 options(knitr.kable.NA = '')
 
-catch_db_fiskeline3 %>% 
-  group_by(year,quarterStart,speciesCode) %>% 
+spPerQtr <- catch_db_fiskeline3 %>% 
+  left_join(species) %>% 
+  mutate(spC = paste(speciesCode,dkName, sep = " - ")) %>% 
+  group_by(year,quarterStart,spC) %>% 
   summarise(Antal = sum(number,na.rm=T)) %>% 
-  spread(key = speciesCode, value = Antal) %>% 
+  spread(key = spC, value = Antal) %>% 
   rename(Kvartal=quarterStart,
-         År=year) %>% 
+         År=year) 
   # replace(is.na(.),"-") %>% 
-  kable(format = "latex",booktabs=T,longtable=T) %>% 
-      kable_styling(latex_options = c("repeat_header"),
-                  repeat_header_continued = "\\textit{(fortsætter på næste side)}",
-                  repeat_header_text = sprintf("\\textit{(fortsat)}"),
-                  full_width = T) %>% 
-  row_spec(0, angle = 45)
+
+printDataCheck(spPerQtr, "Ingen registrerede arter er indsamlet")
+
+unknownSp <- catch_db_fiskeline3 %>% 
+  filter(!speciesCode %in% species$speciesCode) 
+
+printDataCheck(unknownSp, "Ingen registrerede arter er ukendte for fiskeline.")
+
+cat("\\subsection{Arter pr. område}")
+
+spPerArea <- catch_db_fiskeline3 %>% 
+  left_join(species) %>% 
+  mutate(spC = paste(speciesCode,dkName, sep = " - ")) %>% 
+  group_by(tripId,interviewPerson,dfuArea,spC) %>% 
+  summarise(Antal = sum(number,na.rm=T)) %>% 
+  spread(key = spC, value = Antal) 
+  # replace(is.na(.),"-") %>% 
+
+printDataCheck(spPerArea, "Ingen registrerede arter er indsamlet")
+
+
+cat("\\subsection{Check af unikke værdier}")
+cat("\\subsubsection{Check af unikke værdier}")
+
+
+doubleSgId <- catch_db_fiskeline3 %>% 
+  group_by(sgId) %>% 
+  summarise(TripIds = length(unique(tripId))) %>% 
+  filter(TripIds > 1) 
+  
+printDataCheck(doubleSgId,"Ingen SurveyGizmo-id'er ser ud til at være knyttet til den samme respondent. \\newline ")
+  
+respCheck <- catch_db_fiskeline3 %>% 
+  group_by(tripId,respNum) %>% 
+  summarise(sgIds = length(unique(sgId))) %>% 
+  filter(sgIds > 1)
+
+printDataCheck(respCheck,"Ingen respondenter ser ud til at være knyttet til flere SurveyGizmo-id'er \\newline ")
+
+sgIdCheck <- catch_db_fiskeline3 %>% 
+  group_by(sgId) %>% 
+  summarise(sgIds = length(unique(respNum))) %>% 
+  filter(sgIds > 1)
+
+printDataCheck(sgIdCheck,"Ingen SurveyGizmo-id'er ser ud til at være knyttet til flere respondenter. \\newline ")
+
+duplicateTrips <- trip_db_out %>% 
+  group_by(sgTRid) %>% 
+  summarise(tripIds = length(unique(tripId))) %>% 
+  filter(tripIds>1)
+
+printDataCheck(duplicateTrips,"Ingen Ture ser ud til at være afviklet flere gange. \\newline ")
+
 
 
 ```
