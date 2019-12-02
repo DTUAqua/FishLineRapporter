@@ -11,7 +11,7 @@ The idea being these are specified outside the script in an excel sheet - to mak
 
 gearType:
 
-gearVal: This may not be needed in the future, since it is only used for specifying the  - *TODO - check*
+gearVal: This may not be needed in the future, since it is only used for specifying the gear dimensions - *TODO - check*
 
 stationType: This may not be needed in the future - *TODO - check*
 
@@ -19,7 +19,7 @@ redsk_dim:
 
 speciesCode: the relevant species - at this moment BMS, OES, SST, SKL, HMS, TRU and OST
 
-correction_fun: the function for correcting Fangst_kg_m2 (x) for the gear effectiveness e.g. f(x) = x*2.47
+correction_fun: the function for correcting Fangst_kg_m2 (x) for gear effectiveness e.g. f(x) = x*2.47
 
 
 ```{r setup, include = F}
@@ -35,7 +35,7 @@ knitr::opts_chunk$set( echo = F,
   error = F,
   comment = F, results = 'asis')
 
-output_dir <- "Q:/mynd/kibi/fishLine/Rapporter/Biomasseberegninger/creating_a_new_biomasse_report/output/"
+output_dir <- "Q:/mynd/kibi/fishLine/FishLineRapporter/Biomasseberegninger/creating_a_new_biomasse_report/output/"
 
 ```
 
@@ -63,7 +63,7 @@ close(channel)
 ```
 
 
-# gear dimemsion (redsk_dim)- original version
+# gear dimemsion (redsk_dim) - gearVal not corrected - original version
 
 line 114-159 from old biomasse.rmd
 
@@ -73,7 +73,8 @@ skal være 1,435 for bmsok
 BOS = 0,965 m
 stationtype=MSK18 = 
 
-```{r redsk_dim, include = F}
+
+```{r redsk_dim_new, include = F}
 
 data <- data_org
 
@@ -111,78 +112,12 @@ data[!is.na(data$gearVal) & data$stationType=="RAM","redsk_dim"] <-
   data[!is.na(data$gearVal) & data$stationType=="RAM","gearVal"]
 data[is.na(data$redsk_dim),"redsk_dim"] <- 1
 
-```
-
-```{r}
-
-kable(distinct(data, gearType, gearVal, stationType, redsk_dim))
-
-
-write.csv(distinct(data, gearType, gearVal, stationType, redsk_dim), paste0(output_dir, "ref_table_original_", Sys.Date(), ".csv"), row.names = F)
 
 ```
-
-# gear dimemsion (redsk_dim) - gearVal corrected
-
-Assuming an error in original script
-
-A lot of the original script don't do as expected, since gearVal is often misspelled as gearval - the v in lower case
-
-Trying to run all statements with gearVal
-
-```{r redsk_dim_new, include = F}
-
-data <- data_org
-
-data$stationType <- ifelse(data$gearType == "MSKOES" & !is.na(data$gearType),"BOS",
-                      ifelse(data$gearType %like% "^OSK" & !is.na(data$gearType),"OES",
-                      ifelse(data$gearType=="MSK-OKYST15" & !is.na(data$gearType),"BMSOK",
-                      ifelse(data$gearType == "MSK" & !is.na(data$gearType),"BMS",
-                      ifelse(data$gearType == "MSK18" & !is.na(data$gearType),"BMS18", 
-                      ifelse(data$gearType %like% "^RAM" & !is.na(data$gearType),"RAM",
-                      ifelse(data$gearType %like% "^SUG" & !is.na(data$gearType),"SUG",
-                      ifelse(data$gearType %like% "^VV" & !is.na(data$gearType),"VV","SST"))))))))
-
-
-
-data[grepl("\\d",(data$gearType)) & data$stationType!="RAM","gearVal"] <-  
-      as.numeric(gsub("[^\\d]+", "", data[grepl("\\d",(data$gearType)) & data$stationType!="RAM",]$gearType, perl=TRUE) )
-
-data[grepl("\\d",(data$gearType)) & data$stationType=="RAM","gearVal"] <-  
-  as.numeric(paste0("0.",gsub("[^\\d]+", "", data[grepl("\\d",(data$gearType)) & data$stationType=="RAM",]$gearType, perl=TRUE) ))
-
-data[data$stationType=="SST","redsk_dim"] <- 2.4
-data[is.na(data$gearVal) & 
-       data$stationType %in% c("BMS","OES","BMSOK"),"redsk_dim"] <- 1 # skal være 1,435 for bmsok
-          # BOS = 0,965 m
-          # stationtype=MSK18 =
-data[is.na(data$gearVal) &
-       data$stationType %in% c("BOS"),"redsk_dim"] <- 0.965
-data[is.na(data$gearVal) &
-      data$stationType %in% c("MSK18"),"redsk_dim"] <- 1.8
-data[!is.na(data$gearVal) & data$stationType=="SUG","redsk_dim"] <-
-  data[!is.na(data$gearVal) & data$stationType=="SUG","gearVal"]/100
-data[!is.na(data$gearVal) & data$stationType %in% c("BMS","BMSOK"),"redsk_dim"] <-
-  data[!is.na(data$gearVal) & data$stationType %in% c("BMS","BMSOK"),"gearVal"]/10
-data[!is.na(data$gearVal) & data$stationType=="RAM","redsk_dim"] <-
-  data[!is.na(data$gearVal) & data$stationType=="RAM","gearVal"]
-data[is.na(data$redsk_dim),"redsk_dim"] <- 1
-
-```
-
-
-```{r}
-
-kable(distinct(data, gearType, gearVal, stationType, redsk_dim))
-
-write.csv(distinct(data, gearType, gearVal, stationType, redsk_dim), paste0(output_dir, "ref_table_corrected_gearVal_", Sys.Date(), ".csv"), row.names = F)
-
-```
-
 
 # speciesCode
 
-```{r}
+```{r, include = F}
 
 speciesCode <- c("BMS", "OES", "SST", "SKL", "HMS", "TRU", "OST")
 speciesCode <- data.frame(speciesCode)
@@ -192,4 +127,19 @@ ref <- merge(distinct(data, gearType, gearVal, stationType, redsk_dim), speciesC
 
 ```
 
+# correction_fun
+
+To be filled in manually based on biomasse.rmd (version 23/9 - 2019) - line 383-521
+
+```{r, include = F}
+
+ref_1 <- mutate(ref, correction_fun = "")
+
+```
+
+```{r, include = F}
+
+write.csv(ref_1, paste0(output_dir, "ref_table.csv"), row.names = F)
+
+```
 
