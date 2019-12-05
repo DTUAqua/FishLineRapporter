@@ -15,6 +15,20 @@ output: pdf_document
 \sffamily
 
 ```{r define_input, echo=FALSE}
+#@paramCruise 
+# SELECT c.cruise, c.cruise
+# FROM FishLineDW.dbo.Cruise c
+# WHERE c.year = @paramYear
+#   AND (c.cruise LIKE '%BMS%' OR
+# 	  c.cruise LIKE '%OES%' OR  
+#   	  c.cruise LIKE '%MUSSE%' OR  
+#   	  c.cruise LIKE '%SST%' OR
+#   	  c.cruise LIKE '%HMS%' OR
+#   	  c.cruise LIKE '%OST%')
+#   AND c.cruise<>'OESTER'
+
+
+
 #Parameters
 
 # year <- 2002; cruise <- "BV VH HMS april"; species <- "HMS"
@@ -23,12 +37,12 @@ output: pdf_document
 # year <- 2017; cruise <- "BV VH HMS okt sug +R"; species <- "HMS"
 # year <- 2018; cruise <- "BV LF HMS april"; species <- "HMS"
 # year <- 2018; cruise <- "BV VH BMS OST april"; species <- "BMS"
-year <- 2017; cruise <- "BV HF BMS sept"; species <- "BMS"
+
 # year <- 2018; cruise <- "BV VH HMS apr ekstra"; species <- "HMS"
 
 
 # #Parameters
- # year<- @paramYear ; cruise <- @paramCruise;  species <- @paramSpecies
+ year<- @paramYear ; cruise <- @paramCruise;  species <- @paramSpecies; musOmrString <- "Alle muslingeområder 2011_region.shp"
 
 ```
 
@@ -36,46 +50,12 @@ year <- 2017; cruise <- "BV HF BMS sept"; species <- "BMS"
 ```{r set_libraries, include=FALSE}
 
 #Libraries
-if (!require(sqldf)) {
-  install.packages("sqldf", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(sqldf)
+if (!require(pacman)) {
+  install.packages("pacman", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(pacman)
 }
-if (!require(RODBC)) {
-  install.packages("RODBC", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(RODBC)
-}
-if (!require(plyr)) {
-  install.packages("plyr", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(plyr)
-}
-if (!require(data.table)) {
-  install.packages("data.table", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(data.table)
-}
-if (!require(tidyr)) {
-  install.packages("tidyr", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(tidyr)
-}
-if (!require(dplyr)) {
-  install.packages("dplyr", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(dplyr)
-}
-if (!require(knitr)) {
-  install.packages("knitr", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(knitr)
-}
-# if (!require(kableExtra)) {
-#   install.packages("kableExtra", repos="http://ftp.ussg.iu.edu/CRAN/")
-#   library(kableExtra)
-# }
-if (!require(xtable)) {
-  install.packages("xtable", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(xtable)
-}
-if (!require(Hmisc)) {
-  install.packages("Hmisc", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(Hmisc)
-}
+p_load(sqldf,RODBC,plyr,data.table,tidyr,dplyr,knitr,xtable,Hmisc,sf)
+
 detach("package:Hmisc", unload=TRUE)
 ```
 
@@ -678,7 +658,27 @@ if (species %in% c("OES","BMS","HMS")) {
 
 }
 
-final_data <- data4
+if (species %in% c("OES","OST","BMS","HMS","TRU")){
+  
+  musOmr <- st_read(musOmrString) 
+  musOmr <- musOmr %>% select(OMR.e5.dENUMM,OMR.e5.dENAVN)
+  
+  data4$lat <- data4$latPosStartDec
+  data4$lon <- data4$lonPosStartDec
+  
+  data5 <- st_as_sf(data4, coords = c("lon","lat"),crs = 4326)
+  
+  data6 <- st_join(data5,musOmr)
+  
+  st_geometry(data6) <- NULL
+  final_data <- data6 %>% 
+    # select(-AREAL,-STATUS,-Area_km2,-Nr,) %>% 
+    as.data.frame()
+  
+} else{
+  final_data <- data4
+}
+
 
 final_data[, c(23:ncol(final_data))][
   is.na(final_data[, c(23:ncol(final_data))])] <- 0
@@ -719,7 +719,7 @@ makeTable <- function(data){
 }
      
 cat("# Meddelelser fra datawarehouset\n")
-cat("Her vil der blive vist eventuelle fejl og advarsler fra ejsporten af togtet fra databasen til datawarehouset. Fejl og advarsler kan forklare uventede resultater, men kan også være af mindre betydning. Hvis der er lavet ændringer siden den anførte logTime og der har været efterfølgende eksport af togtet uden at logTime har ændret sig, betyder det at togtet efter ændringer ikke har udløst nye fejl.\n\n")
+cat("Her vil der blive vist eventuelle fejl og advarsler fra ejsporten af togtet fra databasen til datawarehouset. Fejl og advarsler kan forklare uventede resultater, men kan også være af mindre betydning. Hvis der er lavet ændringer siden den anførte logTime, og der har været efterfølgende eksport af togtet uden at logTime har ændret sig, betyder det at togtet efter ændringer ikke har udløst nye fejl.\n\n")
 
 if (nrow(db_message)>0){
   

@@ -1,0 +1,356 @@
+---
+fontsize: 11pt
+geometry: top=2cm, bottom=2cm, left=1cm, right=2cm,headsep=1cm
+header-includes:
+- \usepackage{booktabs}
+- \usepackage{longtable}
+- \usepackage{xcolor}
+- \usepackage[T1]{fontenc}
+- \usepackage[danish]{babel}
+- \usepackage[utf8]{inputenc}
+- \usepackage{fancyhdr}
+- \pagestyle{fancy}
+- \fancyhf{}
+- \fancyfoot{}
+- \usepackage{graphicx}
+- \usepackage{ragged2e}
+- \usepackage{catchfile}
+- \usepackage{array}
+- \usepackage[export]{adjustbox}
+- \usepackage{multirow}
+- \linespread{1.15}
+- \usepackage{tabularx}
+- \usepackage{tcolorbox}
+- \usepackage{lipsum}
+- \usepackage{pbox}
+- \usepackage{lastpage}
+- \usepackage{tabu}
+output:
+  pdf_document: 
+    number_sections: true
+---
+  
+  \renewcommand{\familydefault}{\sfdefault}
+\sffamily
+
+
+
+
+
+```{r paramValues, include=FALSE}
+# @paramYear 
+# select year, year 
+# from FishLineDW.dbo.cruise
+# 
+# where year < 2100
+# 
+# group by year
+# order by year desc
+
+# # @paramCruise
+# select cruise, cruise 
+# from FishLineDW.dbo.Cruise
+# 
+# where year = @paramYear
+# 
+# order by cruise
+
+# # @paramSpecies
+# SELECT slr.speciesCode + ' - ' + ISNULL(s.dkName, '') ,
+#        slr.speciesCode
+# FROM FishLineDW.dbo.Animal slr
+# LEFT OUTER JOIN FishLine.dbo.L_Species s 
+# ON s.speciesCode = slr.speciesCode
+# WHERE slr.year = @paramYear
+# 
+# and (slr.length is not null or slr.weight is not null)
+# 
+# GROUP BY s.dkName, slr.speciesCode
+# order by slr.speciesCode
+```
+
+
+```{r define_input, echo=FALSE}
+options(knitr.kable.NA = '-',kableExtra.latex.load_packages = F)
+
+#Parameters
+year <- as.numeric(@paramYear)
+cruise <- c(@paramCruise)
+species <- c(@paramSpecies)
+missingOrComplete <- c(@paramMissing)
+
+# year <- 2019
+# cruise <- c()#"SEAS","BITS-1")
+# species <- c()#"TOR")
+# missingOrComplete <- c("complete")#c("missing","complete")
+```
+
+\lhead{\footnotesize År: `r year`}
+\rhead{\footnotesize Udskrevet: `r Sys.time()`}
+\fancyfoot[R]{\thepage/\pageref{LastPage}}
+
+\tableofcontents
+
+\newpage
+
+```{r echo=F, results='asis'}
+if (missingOrComplete=="missing"){
+  cat("\\section{Kontrol af manglende aflæsere i Fiskeline} ")
+  cat("Her er en oversigt over arter på stationer, hvor der har været bestemt alder, modenhed eller klækningsmåned, men ikke er angivet en aflæser på den respektive aflæsning. Ved oversigten over manglende modenhedsaflæsere er metoden til modenhedsbestemmelse inkluderet. ")
+} else{
+    cat("\\section{Kontrol af angivne aflæsere i Fiskeline} ")
+    cat("Her er en oversigt over arter på stationer, hvor der har været bestemt alder, modenhed eller klækningsmåned, og også er angivet en aflæser på den respektive aflæsning. Ved oversigten over angivne modenhedsaflæsere er metoden til modenhedsbestemmelse inkluderet. ")
+}
+
+cat("\\newline Et togt kan blive undersøgt, men hvis der ikke er aflæst aldre, modenhed eller klækningsmåned i togtet, vil det ikke fremgå af tabellerne nedenfor. Det samme gælder for arter.")
+```
+
+
+
+```{r set_libraries, include=FALSE}
+
+#Libraries
+# try(detach("package:kableExtra", unload=TRUE))
+if (!require(pacman)) {
+  install.packages("pacman", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(pacman)
+}
+p_load(RODBC,dplyr,knitr,kableExtra)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+channel <- odbcConnect("FishLineDW")
+
+cruisesThisYear <- sqlQuery(channel,
+                                   sprintf("select cruise from Cruise where year = %s 
+                                           group by cruise order by cruise",year),
+                                   stringsAsFactors = F)
+
+speciesThisYear <- sqlQuery(channel,
+                                    sprintf("select speciesCode from speciesList where year = %s 
+                                            group by speciesCode order by speciesCode",year),
+                                    stringsAsFactors = F)
+
+
+cruiseQ <- sprintf("cruise in ('%s') and",
+                   ifelse(is.null(cruise),
+                          paste0(cruisesThisYear$cruise, collapse = "', '"),
+                          paste0(cruise, collapse = "', '")))
+speciesQ <- sprintf("speciesCode in ('%s') and",
+                    ifelse(is.null(species),
+                           paste0(speciesThisYear$speciesCode, collapse = "', '"),
+                           paste0(species, collapse = "', '")))
+mcQ <- ifelse(missingOrComplete == "missing",
+              "",
+              "not")
+
+
+
+
+age <- sqlQuery(channel, sprintf("SELECT [year]
+      ,[cruise]
+      ,[trip]
+      ,[tripType]
+      ,[station]
+	  ,speciesCode
+	  ,sexcode
+	  ,sizeSortingEU
+	  ,age
+	  ,hatchMonth
+      ,[ageReadId]
+      ,[ageReadName]
+      ,[hatchMonthReaderId]
+      ,[hatchMonthReaderName]
+  FROM [FishLineDW].[dbo].[Age]
+  where year = %s and
+  %s 
+  %s
+  ((age is not null and ageReadId is %s null) or 
+  (hatchMonth is not null and hatchMonthReaderId is %s null)) " ,
+                                year,cruiseQ,speciesQ,mcQ,mcQ), 
+                 stringsAsFactors=FALSE,as.is=T)     
+
+animal <- sqlQuery(channel, sprintf("SELECT [year]
+      ,[cruise]
+      ,[trip]
+      ,[tripType]
+      ,[station]
+      ,[speciesCode]
+      ,sexCode
+      ,[sizeSortingEU]
+      ,[maturityIndex]
+      ,[maturityIndexMethod]
+      ,[maturityReaderId]
+      ,[maturityReader]
+  FROM [FishLineDW].[dbo].[Animal]
+  where year = %s and 
+  %s
+  %s
+  maturityIndex is not null and maturityReaderId is %s null " ,
+                              year,cruiseQ,speciesQ,mcQ), 
+                 stringsAsFactors=FALSE,as.is=T)    
+close(channel)
+
+
+
+data <- full_join(age,animal) %>% 
+  mutate(station2 = as.numeric(station))
+
+
+createTable <- function(data, type=""){
+  
+  ct <- data %>% 
+    kable(format = "latex",booktabs=T,longtable=T) %>% 
+    kable_styling(latex_options = c("repeat_header"),
+                  full_width = F,
+                  repeat_header_continued = "\\textit{(fortsætter på næste side)}",
+                  repeat_header_text = sprintf("\\textit{(%sfortsat)}",type))
+  
+  return(ct)
+}
+
+
+
+
+```
+
+
+
+
+```{r, echo=FALSE, message = FALSE, cache=FALSE, warning=FALSE,results='asis'}
+cat("\\subsection*{Togter undersøgt:} ")
+cat(paste0(sort(unique(data$cruise)),collapse= ", "))
+cat("\\subsection*{Arter undersøgt:} ")
+cat(paste0(sort(unique(data$speciesCode)),collapse= ", "))
+
+
+cat(ifelse(missingOrComplete=="missing",
+                          "\\subsection{Manglende aldersaflæser} ",
+                          "\\subsection{Angivet aldersaflæser} "))
+
+# missing age readers
+mar <- if (missingOrComplete == "missing"){
+  data %>% 
+    filter(!is.na(age) & is.na(ageReadId)) 
+} else {
+  data %>% 
+    filter(!is.na(age) & !is.na(ageReadId)) 
+}
+
+mar <- mar %>% 
+  distinct(year,cruise,trip,tripType,station,speciesCode,sexCode,sizeSortingEU,station2) %>% 
+  arrange(year,cruise,desc(trip),tripType,desc(station2),speciesCode,sexCode,sizeSortingEU) %>% 
+  select(-station2)
+  
+colnames(mar) <- c("År","Togt","Tur","Turtype","Station","Art","Køn","Sortering")
+
+if (nrow(mar)>0){
+  
+  # p_load(knitr,kableExtra)
+  a <- createTable(mar, 
+                   ifelse(missingOrComplete=="missing",
+                          "Manglende aldersaflæser, ",
+                          "Angivet alderssaflæser, "))
+  
+  cat(a)
+  # p_unload(knitr,kableExtra)
+  
+} else{
+  cat(ifelse(missingOrComplete=="missing",
+             "Alle aldersaflæsninger har angivet en aldersaflæser.",
+             "Ingen aldersaflæsninger har angivet en aldersaflæser."))
+  }
+```
+
+
+```{r, echo=FALSE, message=FALSE, cache=FALSE, warning=FALSE,results='asis'}
+cat(ifelse(missingOrComplete=="missing",
+                          "\\subsection{Manglende modenhedsaflæser} ",
+                          "\\subsection{Angivet modenhedsaflæser} "))
+
+# missing maurity readers
+# missing age readers
+mmr <- if (missingOrComplete == "missing"){
+  data %>% 
+    filter(!is.na(maturityIndex) & is.na(maturityReaderId))  
+} else {
+  data %>% 
+    filter(!is.na(maturityIndex) & !is.na(maturityIndex)) 
+}
+
+mmr <- mmr %>% 
+  distinct(year,cruise,trip,tripType,station,speciesCode,sexCode,
+           sizeSortingEU,maturityIndexMethod,station2) %>% 
+  arrange(year,cruise,desc(trip),tripType,desc(station2),speciesCode,sexCode,
+          sizeSortingEU,maturityIndexMethod) %>% 
+  select(-station2)
+
+colnames(mmr) <- c("År","Togt","Tur","Turtype","Station","Art","Køn","Sortering",
+                   "Modenhedsmetode")
+
+if (nrow(mmr)>0){
+  
+  # p_load(knitr,kableExtra)
+  a <- createTable(mmr, 
+                   ifelse(missingOrComplete=="missing",
+                          "Manglende klækningsmånedsaflæser, ",
+                          "Angivne klækningsmånedsaflæser, ")) 
+  
+  cat(a)
+  # p_unload(knitr,kableExtra)
+  
+} else{
+  cat(ifelse(missingOrComplete=="missing",
+             "Alle klækningsmånedsaflæsninger har angivet en modenhedssaflæser.",
+             "Ingen klækningsmånedsaflæsninger har angivet en modenhedsaflæser."))
+  }
+
+```
+
+
+```{r, echo=FALSE, message=FALSE, cache=FALSE, warning=FALSE,results='asis'}
+cat(ifelse(missingOrComplete=="missing",
+                          "\\subsection{Manglende klækningsmånedsaflæser} ",
+                          "\\subsection{Angivet klækningsmånedsaflæser} "))
+
+
+# missing hatch month readers
+mhr <- if (missingOrComplete == "missing"){
+  data %>% 
+    filter(!is.na(hatchMonth) & is.na(hatchMonthReaderId))  
+} else {
+  data %>% 
+    filter(!is.na(hatchMonth) & !is.na(hatchMonthReaderId)) 
+}
+
+mhr <- mhr %>% 
+  distinct(year,cruise,trip,tripType,station,speciesCode,sexCode,
+           sizeSortingEU,station2) %>% 
+ arrange(year,cruise,desc(trip),tripType,desc(station2),speciesCode,sexCode,sizeSortingEU)
+
+
+colnames(mhr) <- c("År","Togt","Tur","Turtype","Station","Art","Køn","Sortering")
+
+if (nrow(mhr)>0){
+  
+  # p_load(knitr,kableExtra)
+  
+  a <- createTable(mhr, 
+                   ifelse(missingOrComplete=="missing",
+                          "Manglende klækningsmånedsaflæser, ",
+                          "Angivne klækningsmånedsaflæser, "))
+  
+  cat(a)
+  
+  # p_unload(knitr,kableExtra)
+  
+} else{
+  cat(ifelse(missingOrComplete=="missing",
+             "Alle klækningsmånedsaflæsninger har angivet en klækningsmånedsaflæser.",
+             "Ingen klækningsmånedsaflæsninger har angivet en klækningsmånedsaflæser."))
+  }
+
+
+```
+
+<!-- Tjek af aflæsere -->

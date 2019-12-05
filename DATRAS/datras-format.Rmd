@@ -36,58 +36,64 @@ classoption: landscape
 # LIBRARIES ###################################################################
 
 # Libraries
-if (!require(sqldf)){
-  install.packages("sqldf", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(sqldf)
+if (!require(pacman)){
+  install.packages("pacman", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(pacman)
 }
-if (!require(RODBC)){
-  install.packages("RODBC", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(RODBC)
-}
-if (!require(plyr)){
-  install.packages("plyr", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(plyr)
-}
-if (!require(xtable)){
-  install.packages("xtable", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(xtable)
-}
-if (!require(maptools)){
-  install.packages("maptools", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(maptools)
-}
-if (!require(date)){
-  install.packages("date", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(date)
-}
-if (!require(lubridate)){
-  install.packages("lubridate", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(lubridate)
-}
-if (!require(data.table)){
-  install.packages("data.table", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(data.table)
-}
-if (!require(tidyr)){
-  install.packages("tidyr")
-  library(tidyr)
-}
-if (!require(ggplot2)){
-  install.packages("ggplot2", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(ggplot2)
-}
-if (!require(scales)){
-  install.packages("scales", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(scales)
-}
-if (!require(grid)){
-  install.packages("grid", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(grid)
-}
-if (!require(dplyr)){
-  install.packages("dplyr", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(dplyr)
-}
+p_load(sqldf,RODBC,xtable,maptools,date,lubridate,data.table,tidyr,ggplot2,
+       scales,grid,dplyr)
+# if (!require(sqldf)){
+#   install.packages("sqldf", repos="http://ftp.ussg.iu.edu/CRAN/")
+#   library(sqldf)
+# }
+# if (!require(RODBC)){
+#   install.packages("RODBC", repos="http://ftp.ussg.iu.edu/CRAN/")
+#   library(RODBC)
+# }
+# # if (!require(plyr)){
+# #   install.packages("plyr", repos="http://ftp.ussg.iu.edu/CRAN/")
+# #   library(plyr)
+# # }
+# if (!require(xtable)){
+#   install.packages("xtable", repos="http://ftp.ussg.iu.edu/CRAN/")
+#   library(xtable)
+# }
+# if (!require(maptools)){
+#   install.packages("maptools", repos="http://ftp.ussg.iu.edu/CRAN/")
+#   library(maptools)
+# }
+# if (!require(date)){
+#   install.packages("date", repos="http://ftp.ussg.iu.edu/CRAN/")
+#   library(date)
+# }
+# if (!require(lubridate)){
+#   install.packages("lubridate", repos="http://ftp.ussg.iu.edu/CRAN/")
+#   library(lubridate)
+# }
+# if (!require(data.table)){
+#   install.packages("data.table", repos="http://ftp.ussg.iu.edu/CRAN/")
+#   library(data.table)
+# }
+# if (!require(tidyr)){
+#   install.packages("tidyr")
+#   library(tidyr)
+# }
+# if (!require(ggplot2)){
+#   install.packages("ggplot2", repos="http://ftp.ussg.iu.edu/CRAN/")
+#   library(ggplot2)
+# }
+# if (!require(scales)){
+#   install.packages("scales", repos="http://ftp.ussg.iu.edu/CRAN/")
+#   library(scales)
+# }
+# if (!require(grid)){
+#   install.packages("grid", repos="http://ftp.ussg.iu.edu/CRAN/")
+#   library(grid)
+# }
+# if (!require(dplyr)){
+#   install.packages("dplyr", repos="http://ftp.ussg.iu.edu/CRAN/")
+#   library(dplyr)
+# }
 
 
 ```
@@ -107,14 +113,15 @@ if (!require(dplyr)){
 # v_cruise <- c('Tunger')
 # v_year <- c("2018")
 # art_out <- c()
+
 cruise_all <- c(@paramCruise1)
 v_cruise <- c(@paramCruise2)
 v_year <- c(@paramYear)
 art_out <- c(@paramSpecies)
-# 
-# cruise_all <- c("TBM")
-# v_cruise <- c("LONNY HEDVIG","Tobisskrabetogt LH.","Tobisskrabetogt R.")
-# v_year <- c("2018")
+
+# cruise_all <- c("BITS")
+# v_cruise <- c("BITS-2")
+# v_year <- c("2012")
 # # # art_out <- c("TBM")
 # channel <- odbcConnect("FishLineDW")
 # art_out <- sqlQuery(channel, sprintf("SELECT slr.speciesCode
@@ -126,8 +133,9 @@ art_out <- c(@paramSpecies)
 # 							  'AF4', 'AF5', 'AAA', 'AAG', 'ANA',
 # 							  'ANM', 'FED', 'SKL', 'TAN', 'UBS')
 # GROUP BY slr.speciesCode
-# ORDER BY slr.speciesCode", v_year,paste(v_cruise,collapse=("','"))))
+# ORDER BY slr.speciesCode", v_year,paste(v_cruise,collapse=("','"))),stringsAsFactors=F)
 # close(channel)
+# art_out <- art_out$speciesCode
 
 # cruise_all <- c("TBM")
 # v_cruise <- c("REYKJANES","Salling","Tobisskrabetogt LH.")
@@ -255,18 +263,25 @@ if (any(v_cruise %like% "BV +")){survey <- 'MS'}
 hh1_b <- hh1_a[order(as.integer(hh1_a$dateGearStart)),]
 if (survey %in% c("MS")){
 
-  hh1_b <- ddply(hh1_b,
-                 c("year", "quarterGearStart", "platform1","gearType","station"),
-                 transform,
-                 HaulNo = seq_along(dateGearStart))
+  # hh1_b <- ddply(hh1_b,
+  #                c("year", "quarterGearStart", "platform1","gearType","station"),
+  #                transform,
+  #                HaulNo = seq_along(dateGearStart))
+    hh1_b <- hh1_b %>% 
+      group_by(year,quarterGearStart,platform1,gearType,station) %>% 
+      mutate(HaulNo = seq_along(dateGearStart)) %>% 
+      data.frame()
   # HaulNo = sampleId)
 
 }else{
-  hh1_b <- ddply(hh1_b,
-                 c("year", "cruise", "trip"),
-                 transform,
-                 HaulNo = seq_along(dateGearStart))
-
+  # hh1_b <- ddply(hh1_b,
+  #                c("year", "cruise", "trip"),
+  #                transform,
+  #                HaulNo = seq_along(dateGearStart))
+  hh1_b <- hh1_b %>% 
+    group_by(year,cruise,trip) %>% 
+    mutate(HaulNo = seq_along(dateGearStart)) %>% 
+    data.frame()
 }
 
 ```
@@ -789,7 +804,12 @@ rep <- sqldf('select distinct  sampleid, specieslistid, representative
              order by         sampleid, specieslistid, representative')
 
 # If first occurence of speciesListID then rep=1
-rep[c(1, 1+which(diff(rep$speciesListId) != 0)), "rep"] <- 1
+# rep[c(1, 1 + which(diff(rep$speciesListId) != 0)), "rep"] <- 1
+
+rep <- rep %>% 
+  dplyr::group_by(sampleId,speciesListId) %>% 
+  dplyr::mutate(rep = ifelse(row_number()==1,1,NA)) %>% 
+  data.frame()
 
 rep2 <- rep[!is.na(rep$rep) & rep$representative == "nej" &
               !is.na(rep$representative),]
@@ -799,19 +819,19 @@ rep2 <- rep[!is.na(rep$rep) & rep$representative == "nej" &
 hhhlca2 <- merge(hhhlca, rep2, all = TRUE)
 
 hhhlca3_1 <- data.frame(hhhlca2, "Length_HL" = hhhlca2$LngtClass,
-                        "LngtCode_HL" = hhhlca2$LngtCode,"ageRecord"=0,
+                        "LngtCode_HL" = hhhlca2$LngtCode,"ageRecord" = 0,
                         stringsAsFactors = FALSE)
 
-#DATA EJREP
-in_ejRep <- which(hhhlca3_1$rep == "1" & !is.na(hhhlca3_1$EjRep))
+# DATA EJREP ----
+in_ejRep <- which(hhhlca3_1$rep == 1 & !is.na(hhhlca3_1$rep))
 
-hhhlca3_1[in_ejRep, "DataType"] <- '-9'
+#hhhlca3_1[in_ejRep, "DataType"] <- '-9'
 hhhlca3_1[in_ejRep, "representative"] <- 'ja'
 hhhlca3_1[in_ejRep, "SpecVal"] <- 0
 hhhlca3_1[in_ejRep, "Sex"] <- '-9'
 hhhlca3_1[in_ejRep, "TotalNo"] <- -9
-hhhlca3_1[in_ejRep, "QCatIdentifier"] <- -9
-hhhlca3_1[in_ejRep, "QNoMeas"] <- -9
+hhhlca3_1[in_ejRep, "CatIdentifier"] <- -9
+hhhlca3_1[in_ejRep, "NoMeas"] <- -9
 hhhlca3_1[in_ejRep, "subFactor"] <- -9
 hhhlca3_1[in_ejRep, "subWgt"] <- -9
 hhhlca3_1[in_ejRep, "CatCatchWgt"] <- -9
@@ -1011,17 +1031,20 @@ data_hh2 <- data.frame(station = DATA_HH$StNo,
                        recordtype = DATA_HH$RecordType,
                        string = capture.output(
                          write.table(DATA_HH[,!colnames(DATA_HH) %in% notTheseCols],
-                                     sep=",", row.names = FALSE, quote=FALSE, col.names = FALSE)))
+                                     sep=",", row.names = FALSE, quote=FALSE, 
+                                     col.names = FALSE)))
 data_hl2 <- data.frame(station = DATA_HL$StNo,
                        recordtype = DATA_HL$RecordType,
                        string = capture.output(
                          write.table(DATA_HL[,!colnames(DATA_HL) %in% notTheseCols],
-                                     sep=",", row.names = FALSE, quote=FALSE, col.names = FALSE)))
+                                     sep=",", row.names = FALSE, quote=FALSE,
+                                     col.names = FALSE)))
 data_ca2 <- data.frame(station = DATA_CA$StNo,
                        recordtype = DATA_CA$RecordType,
                        string = capture.output(
                          write.table(DATA_CA[,!colnames(DATA_CA) %in% notTheseCols], 
-                                     sep=",", row.names = FALSE, quote=FALSE, col.names = FALSE)))
+                                     sep=",", row.names = FALSE, quote=FALSE,
+                                     col.names = FALSE)))
 
 DATA_ALL <- merge(merge(data_hh2, data_hl2, all = TRUE),data_ca2, all=TRUE)
 DATA_ALL$recordtype <- factor(DATA_ALL$recordtype, levels=recordtypes )
@@ -1040,8 +1063,9 @@ data_out <- DATA_ALL$string
 
 #path <- "C:\\Users\\lipi\\Documents\\"
 path <- ""
-V_years <- ifelse(length(v_year) > 1, paste(min(v_year), max(v_year),
-                                            sep = '-'), v_year)
+V_years <- ifelse(length(v_year) > 1, 
+                  paste(min(v_year), max(v_year),sep = '-'),
+                  v_year)
 V_today <- format(Sys.Date(),"%d%m%y")
 
 

@@ -40,72 +40,26 @@ output:
 \sffamily
 
 ```{r set_libraries, include=FALSE}
+# Denne rapport bruges til at sammenligne data indsamlet af DTU's observatører på 
+# discard-programmet med hvad der officielt er registreret af BMS i logbøger og 
+# landingsdeklarationer. 
+# 
+# Som input skal bruges :
+# - logdata, brug nylogYYYY.rds. Hvis logdata flyttes til en database, kan man med fordel kalde den i stedet. Så kan rapporten måske komme til at virke i Fiskeline.
+# - bms_table, brug den i dfad/data/data/afr
+# - kutterliste - hent den seneste fra fiskeriforening.dk
+# 
+# Rapporten genererer en pdf-fil og nogle csv-filer. Tjek op med csv-filerne at 
+# tallene svarer til dem i pdf-rapporten. Tallene SKAL passe, selv om det måske er småting 
+# der er i forskel. 
+
 
 # Libraries
-if (!require(sqldf)) {
-  install.packages("sqldf", repos = "http://ftp.ussg.iu.edu/CRAN/")
-  library(sqldf)
+if (!require(pacman)) {
+  install.packages("pacman", repos = "http://ftp.ussg.iu.edu/CRAN/")
+  library(pacman)
 }
-if (!require(RODBC)) {
-  install.packages("RODBC", repos = "http://ftp.ussg.iu.edu/CRAN/")
-  library(RODBC)
-}
-# if (!require(xtable)) {
-#   install.packages("xtable", repos="http://ftp.ussg.iu.edu/CRAN/")
-#   library(xtable)
-# }
-# if (!require(xlsx)) {
-#   install.packages("xlsx", repos = "http://ftp.ussg.iu.edu/CRAN/")
-#   library(xlsx)
-# }
-if (!require(gplots)) {
-  install.packages("gplots", repos = "http://ftp.ussg.iu.edu/CRAN/")
-  library(gplots)
-}
-# if (!require(grid)) {
-#   install.packages("grid", repos="http://ftp.ussg.iu.edu/CRAN/")
-#   library(grid)
-# }
-if (!require(httr)) {
-  install.packages("httr", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(httr)
-}
-if (!require(reshape2)) {
-  install.packages("reshape2", repos = "http://ftp.ussg.iu.edu/CRAN/")
-  library(reshape2)
-}
-if (!require(ggrepel)) {
-  install.packages("ggrepel", repos = "http://ftp.ussg.iu.edu/CRAN/")
-  library(ggrepel)
-}
-if (!require(knitr)) {
-  install.packages("knitr", repos = "http://ftp.ussg.iu.edu/CRAN/")
-  library(knitr)
-}
-if (!require(rvest)) {
-  install.packages("rvest", repos = "http://ftp.ussg.iu.edu/CRAN/")
-  library(rvest)
-}
-if (!require(stringr)) {
-  install.packages("stringr", repos = "http://ftp.ussg.iu.edu/CRAN/")
-  library(stringr)
-}
-if (!require(lubridate)) {
-  install.packages("lubridate", repos = "http://ftp.ussg.iu.edu/CRAN/")
-  library(lubridate)
-}
-if (!require(dplyr)) {
-  install.packages("dplyr", repos = "http://ftp.ussg.iu.edu/CRAN/")
-  library(dplyr)
-}
-if (!require(tidyr)) {
-  install.packages("tidyr", repos = "http://ftp.ussg.iu.edu/CRAN/")
-  library(tidyr)
-}
-if (!require(pdftools)) {
-  install.packages("pdftools", repos = "http://ftp.ussg.iu.edu/CRAN/")
-  library(pdftools)
-}
+p_load(sqldf,RODBC,stringr,lubridate,dplyr,tidyr,readxl,)
 # try(detach("package:hms", unload=TRUE))
 ```
 
@@ -114,14 +68,18 @@ if (!require(pdftools)) {
 # rm(list = ls())
 # Parameters
 dateString <- format(Sys.Date(), "%Y%m%d")
+
+
 filePath <- "Q:/dfad/users/trkj/data/data_fil_ff/"
 year <- 2018
 quarter <- 4
 species <- NULL
 areas <- NULL # "Østlige Østersø"
 logbookPath <- sprintf("Q:/dfad/data/Data/logdata/nylog%s.rds", year - 2000)
-# logbookPath <- "Q:/dfad/users/trkj/data/logbook18.rds"
 landingDecPath <- "Q:/dfad/data/Data/afrdata/bms_tabel.rds"
+members <- "21082019-kutterliste.xlsx"
+speciesPath <- "Q:/mynd/SAS Library/Arter/art.csv"
+
 if (!exists("logbook0")) {
   logbook0 <- readRDS(logbookPath)
 }
@@ -131,12 +89,15 @@ if (!exists("landingDec0")) {
 }
 
 
+# filePath <- ""
 # year<- @paramYear
 # quarter <- @paramQuarter
 # species <- c(@paramSpecies)
 # areas <- c(@paramAreas)
-# logbook0 <- read_sas("BMSlog.sas7bdat")
-# landingDecPath0 <- read_sas("BMStable.sas7bdat")
+# logbook0 <- readRDS(@paramBMSlog)
+# landingDecPath0 <- readRDS(@paramBMStable)
+# members <- @paramMembers
+# speciesPath <- "art.csv"
 
 konsum_cats <- c("IND", "KON")
 discard_cats <- c("DIS", "SLP", "BMS", "SÆL")
@@ -169,35 +130,8 @@ startNextQuarter <- as.Date(startOfQuarter) %m+% months(3)
 ```
 
 ```{r find_members, include=F}
-# This part reads a list of members. Only discardtrips with members should be included (gdpr...)
-# ua <- user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.103 Safari/537.36")
-# 
-# ffurl <- "https://fiskeriforening.dk"
-# omos <- "/om-os/vi-er/fiskere-og-fartoejer/"
-# 
-# # a <- 
-# 
-# urls <- html_session(paste0(ffurl,omos),ua) %>% 
-#   read_html() %>% 
-#   html_nodes("a") %>% 
-#   html_attr("href")
-# url <- paste0(ffurl,grep("kutterliste.pdf",urls,value = T))
-# 
-# ffmembers <- pdftools::pdf_text(url)
-# memberboats <- c()
-# 
-# for (page in 1:length(ffmembers)) {
-#   
-#   members <- strsplit(split = "\r\n",
-#                       x = sub(x = ffmembers[page],
-#                               pattern = ".*[Ss]uspenderet\r\n(.+)",
-#                               replacement = "\\1"))
-#   
-#   members2 <- sub(members[[1]],pattern = " {2,}.+",replacement = "" )
-#  
-#   memberboats <- c(memberboats,members2) 
-# }
-
+members2 <- readxl::read_xlsx(members,skip = 1)
+memberFids <- trimws(unique(members2$Kutternr.))
 ```
 
 
@@ -363,7 +297,7 @@ makeDiscardTable <- function(temptable) {
 ```
 
 ```{r echo = F}
-opts_chunk$set(fig.lp = "")
+# opts_chunk$set(fig.lp = "")
 options(OutDec = ",", scipen = 999)
 ```
 
@@ -398,9 +332,9 @@ query <- sprintf("SELECT s.[year]
   and s.speciesCode not in ('INV')
   and s.year = %s
   and t.dateEnd > '%s'
-  and t.dateEnd < '%s'",
-  #--and t.platform1 in ('%s')", 
-  year, startOfQuarter, startNextQuarter)#,paste0(memberboats,collapse="','"))
+  and t.dateEnd < '%s'
+  and t.platform1 in ('%s')", 
+  year, startOfQuarter, startNextQuarter,paste0(memberFids,collapse="','"))
 
 
 channel <- odbcConnect("FishLineDW")
@@ -485,7 +419,7 @@ MLS2010$length_mm <- MLS2010$length * 10
 
 ```{r loadSAS, include=F}
 # In this chunk, species from DFAD is aligned with speciesCodes from Fiskeline (there are some differences)
-speciesDFAD <- read.csv("Q:/mynd/SAS Library/Arter/art.csv")
+speciesDFAD <- read.csv(speciesPath)
   # read_sas("Q:/mynd/SAS Library/Arter/art.sas7bdat")
 
 speciesDFAD$SSOAPAphiaId <- as.numeric(speciesDFAD$SSOAPAphiaId)
@@ -771,6 +705,10 @@ omraader <- data %>%
 \tableofcontents
 
 \newpage
+
+
+
+
 
 \rowcolors{12}{}{lightgray}
 
@@ -1093,4 +1031,3 @@ for (area in sort(unique(areatable$farvand2))) { # unique(data$farvand)){
   }
 }
 ```
-

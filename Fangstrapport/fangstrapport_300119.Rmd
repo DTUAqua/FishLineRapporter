@@ -33,104 +33,16 @@ output:
 
 
 ```{r set_libraries, include=FALSE}
-if (!require(ggplot2)) {
-  install.packages("ggplot2", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(ggplot2)
+#Libraries
+if (!require(pacman)) {
+  install.packages("pacman", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(pacman)
 }
 
-#Libraries
-if (!require(sqldf)) {
-  install.packages("sqldf", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(sqldf)
-}
-if (!require(RODBC)) {
-  install.packages("RODBC", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(RODBC)
-}
-if (!require(plyr)) {
-  install.packages("plyr", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(plyr)
-}
-if (!require(dplyr)) {
-  install.packages("dplyr", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(dplyr)
-}
-if (!require(stringr)) {
-  install.packages("stringr", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(stringr)
-}
-if (!require(xtable)) {
-  install.packages("xtable", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(xtable)
-}
-if (!require(ggmap)) {
-  install.packages("ggmap", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(ggmap)
-}
-if (!require(gplots)) {
-  install.packages("gplots", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(gplots)
-}
-if (!require(grid)) {
-  install.packages("grid", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(grid)
-}
-if (!require(ggrepel)) {
-  install.packages("ggrepel", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(ggrepel)
-}
-if (!require(reshape2)) {
-  install.packages("reshape2", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(reshape2)
-}
- if (!require(directlabels)) {
-  install.packages("directlabels", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(directlabels)
- }
- if (!require(ggrepel)) {
-  install.packages("ggrepel", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(ggrepel)
- }
- if (!require(marmap)) {
-  install.packages("marmap", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(marmap)
-}
- if (!require(rgdal)) {
-  install.packages("rgdal", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(rgdal)
-}
- if (!require(maptools)) {
-  install.packages("maptools", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(maptools)
-}
- if (!require(rasterVis)) {
-  install.packages("rasterVis", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(rasterVis)
-}
- if (!require(shapefiles)) {
-  install.packages("shapefiles", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(shapefiles)
-}
- if (!require(mapplots)) {
-  install.packages("mapplots", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(mapplots)
- }
- if (!require(TeachingDemos)) {
-  install.packages("TeachingDemos", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(TeachingDemos)
- }
- if (!require(geosphere)) {
-  install.packages("geosphere", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(geosphere)
- }
- if (!require(plotrix)) {
-  install.packages("plotrix", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(plotrix)
- }
- if (!require(scales)) {
-  install.packages("scales", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(scales)
-}
+p_load(sqldf,RODBC,plyr,dplyr,stringr,xtable,ggmap,gplots,grid,ggrepel,reshape2,
+       marmap,sf,ggrepel,lwgeom,rgdal,mapplots,maptools,shapefiles)
+
+
 
 ```
  
@@ -139,39 +51,41 @@ if (!require(reshape2)) {
 ```{r define_input, echo=FALSE}
 
 #Parameters
-year<- @paramYear
-cruise <- @paramCruise
-trip <- @paramTrip
-input_art_multiplot <- c(@paramMultiSpecies) #Art (multiplot)
-input_art <- c(@paramSpecies)  #Art (længdefordeling)
-hilsen <- c(@paramHilsen)  #hilsen
-species_individ <- c(@paramSpecLW)
-coast_string <- 'europe_simple_wgs84'
-dk_eez_string <- 'eez_dk_line'
-ices_areas_string <- "ICES_areas"
-KVARTAL <- @paramQuarter
-AREA <- @paramArea
-FID <- @paramFid
+# year<- @paramYear
+# cruise <- @paramCruise
+# trip <- @paramTrip
+# input_art_multiplot <- c(@paramMultiSpecies) #Art (multiplot)
+# input_art <- c(@paramSpecies)  #Art (længdefordeling)
+# hilsen <- c(@paramHilsen)  #hilsen
+# species_individ <- c(@paramSpecLW)
+# coast_string <- 'europe_simple_wgs84.shp'
+# dk_eez_string <- 'eez_dk_line.shp'
+# ices_areas_string <- "ICES_areas.shp"
+# ices_sq_string <- "ices_squares.shp"
+# KVARTAL <- @paramQuarter
+# AREA <- @paramArea
+# FID <- @paramFid
 
 
-# year<- 2018
-# cruise <- 'SEAS'
-# trip <- 1646
-# 
-# channel <- odbcConnect("FishLineDW")
-#  multiplot <- sqlQuery(channel, sprintf("select distinct speciesCode from animal where year = %s and cruise = '%s' and trip = '%s' ",year,cruise,trip),stringsAsFactors=FALSE)
-# individ <- sqlQuery(channel,
-#                             paste(sprintf("SELECT A.speciesCode FROM FishLineDW.dbo.Animal A LEFT OUTER JOIN FishLine.dbo.L_Species s ON s.speciesCode = A.speciesCode WHERE A.year = %s   AND A.cruise = '%s'   AND A.trip = '%s'   AND A.individNum != 0 GROUP BY  s.dkName, A.speciesCode ORDER BY A.speciesCode",year,cruise,trip)),
-#                             stringsAsFactors=FALSE)
-# close(channel)
-# 
-# species_individ <- individ$speciesCode
-# input_art_multiplot <- multiplot$speciesCode
-# input_art <-  input_art_multiplot
-# hilsen <- ""
-# coast_string <- '../Togtrapporter/maps/europe_simple_wgs84'
-# dk_eez_string <- 'kort/eez_dk_line'
-# ices_areas_string <- "kort/ICES_areas"
+year<- 2019
+cruise <- 'SEAS'
+trip <- 1718
+
+channel <- odbcConnect("FishLineDW")
+ multiplot <- sqlQuery(channel, sprintf("select distinct speciesCode from animal where year = %s and cruise = '%s' and trip = '%s' ",year,cruise,trip),stringsAsFactors=FALSE)
+individ <- sqlQuery(channel,
+                            paste(sprintf("SELECT A.speciesCode FROM FishLineDW.dbo.Animal A LEFT OUTER JOIN FishLine.dbo.L_Species s ON s.speciesCode = A.speciesCode WHERE A.year = %s   AND A.cruise = '%s'   AND A.trip = '%s'   AND A.individNum != 0 GROUP BY  s.dkName, A.speciesCode ORDER BY A.speciesCode",year,cruise,trip)),
+                            stringsAsFactors=FALSE)
+close(channel)
+
+species_individ <- individ$speciesCode
+input_art_multiplot <- multiplot$speciesCode
+input_art <-  input_art_multiplot
+hilsen <- ""
+coast_string <- "M:/123 - FiskeLine/Rapporter/Rapporter/kort/europe_simple_wgs84.shp"
+dk_eez_string <- "M:/123 - FiskeLine/Rapporter/Rapporter/kort/eez_dk_line.shp"
+ices_areas_string <- "M:/123 - FiskeLine/Rapporter/Rapporter/kort/ICES_areas.shp"
+ices_sq_string <- "M:/123 - FiskeLine/Rapporter/Rapporter/kort/ices_squares.shp"
 
 ```
 
@@ -359,59 +273,19 @@ if (catchOperation3=="Træk") {catchOperation3 <- "Nummer"}
 \rhead{\footnotesize Observat\o r: `r observator`}
 \lfoot{\footnotesize Udskrevet: \today }
 
+```{r , include=F}
+# coast <- st_read(coast_string) %>% st_transform(crs=4326)
+# dkeez <- st_read(dk_eez_string) %>% st_transform(crs=4326)
+# ices_areas <- st_read(ices_areas_string) %>% st_transform(crs=4326)
+# ices_sq <- st_read(ices_sq_string) %>% st_transform(crs=4326)  
 
+coast <- read.shapefile(substr(coast_string,start = 0,stop = nchar(coast_string)-4))
+ices_areas <- read.shapefile(substr(ices_areas,start = 0,stop = nchar(ices_areas)-4))
+map <- NULL
+  
+```
 
 ```{r, echo=FALSE, include=FALSE}
-
-#------------Frontpage figure----------------------------
-
-
-# position <- data4[complete.cases(data4[,c(3:8,1,13,14)]),c(3:8,1,13,14)]
-position <- data4 %>% 
-  dplyr::select(station,lat,lon,latEnd,lonEnd) %>% 
-  dplyr::arrange(station)
-
-if (nrow(position)>0){
-  min_lon <- min(c(position$lon,position$lonEnd))
-  max_lon <- max(c(position$lon,position$lonEnd))
-  min_lat <- min(c(position$lat,position$latEnd))
-  max_lat <- max(c(position$lat,position$latEnd))
-  
-  
-  if (max_lat-min_lat >2) {
-   
-    minlon <- min_lon-2
-    minlat <- min_lat-4
-    maxlon <- max_lon+2
-    maxlat <- max_lat+4
-  } else {
-    minlon <- min_lon-1
-    minlat <- min_lat-1
-    maxlon <- max_lon+1
-    maxlat <- max_lat+1
-  }
-  
-  latlimit <- c(minlat,maxlat)
-  lonlimit <- c(minlon,maxlon)
-  
-  coast <- read.shapefile(coast_string)
-  ices_areas <- read.shapefile(ices_areas_string)
-  map <- NULL
-
-    
-  lat_m = c(min_lat,max_lat)
-  lon_m = c(min_lon,max_lon)
-
-if (max_lat-min_lat >2) {
-  xlim <- c(min_lon-2,max_lon+2)
-  ylim <- c(min_lat-4,max_lat+4)
-} else {
-  xlim <- c(min_lon-1,max_lon+1)
-  ylim <- c(min_lat-1,max_lat+1)
-
-}
-
-########
 pos <- matrix(c(position$lon,position$lat,position$lonEnd,position$latEnd),
             ncol=4,dimnames = list(position$station,NULL))
 set.seed(42)
@@ -424,24 +298,17 @@ pdf("tripmap3.pdf")
 basemap(xlim=xlim, ylim=ylim, main = "",
         xlab=expression("Grader nordlig bredde"),
         ylab=expression("Grader østlig længde"),bg = "lightblue" ) #, bg="white")
-
-
 draw.rect(col="grey")
 draw.shape(ices_areas, col="transparent",border="grey40", xlim=xlim, ylim=ylim)
 draw.shape(coast, col="cornsilk", border="grey40", xlim=xlim, ylim=ylim)
-
 par(cex = 1)
-
-
 segments(x0=pos[,1], y0=pos[,2], x1=pos[,3], y1=pos[,4],
          cex=0.8, length = .05,col="blue")
 points(x = pos[,1], y =pos[,2], pch=16, col="red", cex=.8)
 points(x =pos[,3], y = pos[,4], pch=24, col="black",bg="green", cex=.8)
-
 # wordcloud::textplot(x=pos[,1]-.3, y=pos[,2],words = rownames(pos),
 #          show.lines = T,new = F,cex=.8)
 # spread.labels(pos[,1],pos[,2],labels = rownames(pos),cex=.8)
-
 pos <- cbind(pos,rep(min(pos[,1],na.rm = T)-1,nrow(pos)))
 tmp.y <- sort(as.vector(spread.labs(pos[,2],mindiff = .1,min = min(ylim),
                                     max=max(ylim))),decreasing = T)
@@ -454,45 +321,178 @@ for (i in 1:nrow(pos)){
   midy <- rbind(midy,a[,2])
 }
 pos <- cbind(pos,midx,midy)
-
 # station numbers ----
 # textbox(x = pos[,5], y= pos[,6], textlist = rownames(pos),justify = "l",
 #         fill = "white",cex = .9,adj=c(0,.2),border = "white")
 # graphics::text(x=pos[,5],y=pos[,6],labels=rownames(pos),cex=1,col="#7F0799")
 # legend(x=pos[,5],y=pos[,6],rownames(pos),cex=1,box.col=c("white"))
 # segments(x0=pos[,7],x1=pos[,5]+.4,y0=pos[,8],y1=pos[,6],col = "grey60")
-
 legend(x="bottomright",legend=c("ICES-område","ICES-kvadrat",
                                 "Station start","Station","Station slut"),
        lty=c(1,2,0,1,0),pch=c(NA,NA,16,NA,24),
        col = c("grey40","grey","red","blue","black"),cex = 0.9, 
        pt.bg=c("white","white","white","white","green") ,bg=c("white"))
 
-# coast2 <- shapefile("kort/europe_simple_wgs84.shp")
-# coast_df <- fortify(coast2)
-# coast_df <- fortify(map("worldHires", xlim=xlim, ylim=ylim, fill=T,plot=F))
-# ia <- shapefile("kort/ICES_areas")
-# ia_df <- fortify(ia)
-# p <- ggplot()+
-#   geom_path(data=ia_df, aes(x=long, y=lat, group=group),alpha=.2)+
-#   geom_polygon(data=coast_df,aes(x=long,y=lat,group=group),fill="cornsilk")+
-#   coord_map(xlim=xlim, ylim=ylim)+
-#   # geom_path(data=coast_df,aes(x=long,y=lat,group=group),fill="cornsilk")+
-#   geom_segment(data=position,aes(x = lon, xend = lonEnd, y= lat, yend=lonEnd),
-#                colour="darkblue")+
-#   geom_point(data=position, aes(x=lon,y=lat),col="red")+
-#   geom_point(data=position, aes(x=lonEnd,y=latEnd),
-#              colour="black",fill="green",pch=24)+
-#   geom_text_repel(data=position,aes(x=lon,y=lat,label=station),alpha=.9)+
-#   scale_x_continuous(limits=xlim)+
-#   scale_y_continuous(limits=ylim)+
-#   theme(panel.background = element_rect(fill = "lightblue",
-#                                         colour = "lightblue",
-#                                         size = 0.5, linetype = "solid"))
-# plot(p)
-
 dev.off()
 }
+
+```
+
+```{r, echo=FALSE, include=FALSE}
+#  
+# a <- vector()
+#   
+# for (l in LETTERS[2:8]){
+#         for (n in seq(0,9,1)){
+#           a <- c(a,paste0(l,n))
+#         }
+#    }
+# labels <- data.frame(x = seq(-44,29,1),
+#                      ices = c(paste0("A",seq(0,3,1)),a),
+#                      stringsAsFactors = F)
+# 
+# #------------Frontpage figure----------------------------
+# 
+# 
+# # position <- data4[complete.cases(data4[,c(3:8,1,13,14)]),c(3:8,1,13,14)]
+# position <- data4 %>% 
+#   dplyr::select(station,lat,lon,latEnd,lonEnd) %>% 
+#   dplyr::arrange(station) %>% 
+#   # this is not the super correct way of finding a midpoint, 
+#   # but it works sufficiently for out needs
+#   dplyr::mutate(latMid = (lat+latEnd)/2,
+#                 lonMid = (lon+lonEnd)/2)
+# 
+# pdf("tripmap3.pdf")
+# set.seed(42)
+# 
+# ylim <- c(min(c(position$lat,position$latEnd)-.25,na.rm=T),
+#               max(c(position$lat,position$latEnd),na.rm=T))
+# xlim <- c(min(c(position$lon,position$lonEnd)-.5,na.rm=T),
+#               max(c(position$lon,position$lonEnd),na.rm=T)+.5)
+# 
+# 
+# ia_centroid <- ices_areas %>%
+#   st_make_valid() %>% 
+#   st_crop(xmin = min(xlim), xmax = max(xlim), 
+#           ymin = min(ylim), ymax = max(ylim)) 
+#   
+# 
+# iac <- cbind(ia_centroid,
+#                  st_coordinates(st_centroid(ia_centroid)))
+# st_geometry(iac)<-NULL
+# iac2 <- iac %>% 
+#   dplyr::select(ICES_SUB,X,Y) %>% 
+#   dplyr::mutate(type = "ICES area")
+# 
+# 
+# 
+# 
+# isc <- ices_sq %>% 
+#   st_crop(xmin = min(xlim)-.5, xmax = max(xlim)+.5,
+#           ymin = min(ylim)-.25, ymax = max(ylim)+.25)
+# isc2 <- cbind(isc, st_coordinates(st_centroid(isc)))
+# 
+# 
+# set.seed(42)
+# pdf("tripmap3.pdf")
+# # col <- terrain.colors(13)
+# # 
+# # # plot.new()
+# # # plot(pos[,1],pos[,2])
+# # 
+# basemap(xlim=xlim, ylim=ylim, main = "",
+#         xlab=expression("Grader nordlig bredde"),
+#         ylab=expression("Grader østlig længde"),bg = "lightblue" ) #, bg="white")
+# draw.rect(col="grey")
+# draw.shape(ices_areas, col="transparent",border="grey40", xlim=xlim, ylim=ylim)
+# draw.shape(coast, col="cornsilk", border="grey40", xlim=xlim, ylim=ylim)
+# par(cex = 1)
+# segments(x0=pos[,1], y0=pos[,2], x1=pos[,3], y1=pos[,4],
+#          cex=0.8, length = .05,col="blue")
+# points(x = pos[,1], y =pos[,2], pch=16, col="red", cex=.8)
+# points(x =pos[,3], y = pos[,4], pch=24, col="black",bg="green", cex=.8)
+# wordcloud::textplot(x=pos[,1]-.3, y=pos[,2],words = rownames(pos),
+#          show.lines = T,new = F,cex=.8)
+# spread.labels(pos[,1],pos[,2],labels = rownames(pos),cex=.8)
+# pos <- cbind(pos,rep(min(pos[,1],na.rm = T)-1,nrow(pos)))
+# tmp.y <- sort(as.vector(spread.labs(pos[,2],mindiff = .1,min = min(ylim),
+#                                     max=max(ylim))),decreasing = T)
+# pos <- cbind(pos,tmp.y)
+# midx <- numeric()
+# midy <- numeric()
+# for (i in 1:nrow(pos)){
+#   a <- midPoint(p1 = c(pos[i,1],pos[i,2]), p2=c(pos[i,3],pos[i,4]))
+#   midx <- rbind(midx,a[,1])
+#   midy <- rbind(midy,a[,2])
+# }
+# pos <- cbind(pos,midx,midy)
+
+dev.off()
+
+
+
+
+# p <- ggplot()+
+#   
+#   geom_sf(data = isc2, #col = "grey60",
+#           fill="lightblue",
+#           aes(linetype = "ICES square",size = "ICES square",col="ICES square"))+
+#   # geom_sf(data = ices_areas,#col = "grey40",
+#   #         fill=NA,
+#   #         aes(linetype = "ICES område",size = "ICES område",col="ICES område")) +
+#   # geom_sf(data = coast, fill="cornsilk") +
+#   # geom_sf(data = dkeez, aes(linetype = "DK EEZ",size="DK EEZ",col="DK EEZ")) +
+#   coord_sf(xlim = xlim, ylim = ylim,crs = 4326) +
+#   
+#   geom_segment(data=position,aes(x = lon, xend = lonEnd, y= lat,
+#                                  yend=latEnd,group=station,
+#                                  col="Station",linetype="Station",size="Station"),
+#                fill=NA)+#,
+#                # colour="darkblue")+
+#   geom_point(data=position, 
+#              aes(x=lon,y=lat,fill="Start",shape="Start"))+
+#   geom_point(data=isc2, aes(x=X,y=Y),alpha=1)+
+#   geom_point(data=position, aes(x=lonEnd,y=latEnd,fill="Slut",shape="Slut"))+
+#   
+#   # geom_text(data = iac, aes(label=ICES_SUB2,x=X,y=Y),col="grey40")+
+#   # geom_text(data = isc2, aes(label = ICESNAME, x=X,y=Y),col="grey70")+
+#   
+#   geom_text_repel(data=position,
+#                   aes(x=lonMid,y=latMid,label=station),alpha=.8,
+#                   segment.color = "grey50",force = 50)+
+#   scale_color_manual(values = c("DK EEZ"="red","ICES square"="grey40",
+#                                 "ICES område"="grey60","Station"="darkblue"))+
+#   scale_fill_manual(values = c("Start" = "red","Slut"= "green"),
+#                     guide = guide_legend(reverse=TRUE))+
+#   scale_shape_manual(values = c("Start"= 24, "Slut" = 21),
+#                      guide = guide_legend(reverse=TRUE))+
+#   scale_size_manual(values = c("ICES square" = 0.25, "ICES område" = .5,
+#                                "DK EEZ"=.25,"Station"=.5))+
+#   scale_linetype_manual(values = c("ICES square" = "solid", "ICES område" = "twodash",
+#                                    "DK EEZ" = "solid","Station"="solid"))+
+#   # scale_y_continuous(sec.axis = dup_axis())+
+#   # sec_axis(trans = ~ (.-36+.5)*2,
+#   #                   name="ICES lat"))+
+#   scale_x_continuous(sec.axis = dup_axis(labels = labels$ices,
+#                                          name = ""))+##trans = ~ floor(./10)+4))+
+#                               # breaks = seq(from=min(xlim),to=max(xlim), by=1),
+#                               # name="ICES lon")+
+#   labs(y = "Grader nordlig bredde",
+#        x = ifelse(min(xlim)>0,"Grader østlig længde","Grader vestlig længde"),
+#        shape = "Station",color="",fill="Station",linetype="",size="")+
+#   theme_bw()
+  # theme(#axis.ticks.length = unit(3, "cm"),
+  #       legend.position = "none"
+  #       )
+
+
+# 
+# plot(p)
+# 
+# 
+# dev.off()
+# }
 
 
 
@@ -563,7 +563,7 @@ dev.off()
 
 \vspace*{-0.8cm}
 
-#FANGSTRAPPORT
+\section{FANGSTRAPPORT}
 
 \vspace{0.1cm}
 
@@ -581,7 +581,7 @@ dev.off()
 
 \inputencoding{utf8}
 
-##Kære `r skipper`
+\subsection{Kære `r skipper`}
 
 \vspace{0.1cm}
 
@@ -606,7 +606,7 @@ Første figur viser vægten af de arter, som er vist i tabellerne - fordelt på 
 
 Alle arter er længdemålt i centimeter, undtagen jomfruhummer og rejer, som er angivet i millimeter. Fiskenes aldersfordeling er ikke med i rapporten, da aldersaflæsning først foretages senere. Figurerne viser derfor kun fiskenes længde.
 
-\pagebreak
+\vspace{0.2cm}
 
 \textbf{Det bruger vi oplysningerne til}\
 Oplysningerne om fangsten bliver brugt i vurderingerne af, hvor store fiskebestandene er. I vores beregninger indgår information om antal fisk per art, vægten af fiskene og alderen. 
@@ -633,7 +633,7 @@ DTU Aqua
 
 \vspace{2cm}
 
-\begin{tcolorbox}[colback=white!5,colframe=blue!40!black,title=Information om turen]
+<!-- \begin{tcolorbox}[colback=white!5,colframe=blue!40!black,title=Information om turen] -->
 \renewcommand{\arraystretch}{1.2}
 \begin{tabularx}{\textwidth}{@{}lXr@{}}
 \textbf{Dato og Tid} & `r start_date`  `r end_date` &\\ 
@@ -643,7 +643,7 @@ DTU Aqua
 \textbf{Maskevidde} & `r mesh` &\\ 
 \textbf{Selektionsredskab} & `r selection` & 
 \end{tabularx}
-\end{tcolorbox}
+<!-- \end{tcolorbox} -->
 
 
 \pagebreak
@@ -764,7 +764,7 @@ print(tbl,
 
 <!-- Tabel1: samlet fangst -->
 
-#Samlet fangst
+\section{Samlet fangst}
 
 \inputencoding{latin5}
 
@@ -918,7 +918,7 @@ print(tbl,
 
 <!-- Tabel for fangst/time -->
 
-#Samlet fangst per `r catchOperation2`
+\section{Samlet fangst per `r catchOperation2`}
 
 \inputencoding{latin5}
 

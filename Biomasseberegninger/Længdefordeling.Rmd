@@ -1,48 +1,71 @@
 ---
-geometry: top=1.5cm, bottom=1.5cm, left=1cm, right=1cm
+geometry: top=2cm, bottom=1.5cm, left=1.5cm, right=5cm
+header-includes:
+- \usepackage{tabularx}
+- \usepackage{tcolorbox}
 output: pdf_document
 ---
 
+\renewcommand{\familydefault}{\sfdefault}
+\sffamily
+
 ```{r define_input, echo=FALSE}
 
+
 #Parameters
-year<- 2014 # @paramYear 
-cruise <- 'Musse Sis Horsens' # @paramCruise
-gearQuality <- 'V'
-trip <- 1
-species <- "BMS"
-redsk_dim=1
+year<- @paramYear
+cruise <- @paramCruise
+species <- @paramSpecies
+#trip <- '1 OES' #trip number
+gearQuality <- "V"
+redsk_dim <- 1
+areaString <- 'Alle muslingeområder 2011_region.shp'
+
+# year<- 2019
+# cruise <- 'BV LF BMS april'
+# species <- "OES"
+# #trip <- '1 OES' #trip number
+# gearQuality <- "V"
+# redsk_dim <- 1
+# areaString <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/Muslingeomraader/Alle muslingeområder 2011_region.shp"
 
 ```
+
+
+
+
 
 ```{r set_libraries, include=FALSE}
 
 #Libraries
-library(sqldf)
-library(RODBC)
-library(stringi)
+if (!require(pacman)) {
+  install.packages("pacman", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(pacman)
+}
+
+p_load(RODBC,dplyr,sf,data.table,stringr,lwgeom,knitr)
 
 ```
-
 
 ```{r getdata, echo=FALSE, message=FALSE, warning=FALSE}
 
 
 channel <- odbcConnect("FishLineDW")
 data <- sqlQuery(channel, paste("SELECT    Sample.sampleId, Sample.year, Sample.cruise, Sample.trip, Sample.remark, Sample.station, 
-                                           Sample.stationName, Sample.latPosStartText, Sample.lonPosStartText, Sample.latPosEndText, 
-                                           Sample.lonPosEndText, Sample.latPosStartDec, Sample.lonPosStartDec, Sample.latPosEndDec, 
-                                           Sample.lonPosEndDec, Sample.fishingtime, Sample.distancePositions, Sample.gearQuality, 
-                                           SpeciesList.speciesCode, SpeciesList.dfuBase_Category, SpeciesList.weightStep0, 
+                                           Sample.stationName, Sample.latPosStartText, Sample.lonPosStartText, 
+                                           Sample.latPosStartDec, Sample.lonPosStartDec, Sample.distanceBottom,Sample.coursetrack,
+                                           Sample.fishingtime, Sample.distancePositions, Sample.gearQuality, 
+                                           SpeciesList.speciesCode, SpeciesList.weightStep0, 
                                            SpeciesList.weightStep1, SpeciesList.weightStep2, SpeciesList.weightStep3, 
                                            SpeciesList.raisingFactor, Animal.representative, Animal.individNum, Animal.length, 
-                                           Animal.number, Animal.weight, SpeciesList.speciesListId, Animal.animalId, Sample.depthAveGear
+                                           Animal.number, Animal.weight, SpeciesList.speciesListId, Animal.animalId, Sample.depthAveGear,
+                                           Sample.gearType
                                  FROM      Animal RIGHT OUTER JOIN
                                            SpeciesList ON Animal.speciesListId = SpeciesList.speciesListId RIGHT OUTER JOIN
                                            Sample ON SpeciesList.sampleId = Sample.sampleId
                                  WHERE     Sample.year = (",year, ") AND
                                            Sample.cruise = ('",cruise, "') AND
-                                           Sample.gearQuality = ('",gearQuality, "') ", sep=""), stringsAsFactors=FALSE)                         
+                                           Sample.gearQuality = 'V' ", sep=""), stringsAsFactors=FALSE)                         
 close(channel)
 
     
@@ -50,33 +73,21 @@ close(channel)
 
 ```{r, echo=FALSE, warning=FALSE,message=FALSE}
 
-#Korrektion 2011
-#I 2011 er østers- og muslingtrækkene taget på samme tur, men hvis træktid=4min, så OES ellers BMS;
+data$stationType <- ifelse(data$gearType == "MSKOES" & !is.na(data$gearType),"BOS",
+                      ifelse(data$gearType %like% "^OSK" & !is.na(data$gearType),"OES",
+                      ifelse(data$gearType %like% "^MSK" & !is.na(data$gearType),"BMS", 
+                      ifelse(data$gearType %like% "^RAM" & !is.na(data$gearType),"RAM",
+                      ifelse(data$gearType %like% "^SUG" & !is.na(data$gearType),"SUG",
+                      ifelse(data$gearType %like% "^VV" & !is.na(data$gearType),"VV","SST"))))))
 
-#Korrektion 2011 - kun 2011?
-#I 2011 er østers- og muslingtrækkene taget på samme tur, men hvis træktid=4min, så OES ellers BMS;
-data$stationType <- ifelse(year!=2011,species,ifelse(year==2011 & data$fishingtime < 4,"BMS","OES"))
-
-
-#### DistancePosition corrections 2012 ####
-#BMS
-if (year == 2012 & cruise=='HF BMS mar') {
-    data[data$station %in% c('3848','3851','3855','3859','3866','3900','4117')]$distancePositions <- 0.06
-    data[data$station %in% c('3901')]$distancePositions <- 0.05
-    data[data$station %in% c('4110,4114')]$distancePositions <- 0.07
-    data[data$station %in% c('4109')]$distancePositions <- 0.08
-    data[data$station %in% c('4154','4156')]$distancePositions <- 0.03
-    data[data$station %in% c('4084')]$distancePositions <- 0.01
-    data[data$station %in% c('4105')]$distancePositions <- 0.011
-    data[data$station %in% c('3848','4184','4219','4240')]$distancePositions <- 0.230
-}
-
-#OES
-data[year == 2012 & cruise=='HF OES mar' & data$station %in% c('3848','4184','4219','4240')]$distancePositions <- 0.230
+data[grepl("\\d",(data$gearType)),"gearVal"] <-  as.numeric(substring(data[grepl("\\d",(data$gearType)),]$gearType, 4))
 
 
-# keep only rows with stationtype=species 
-data2 <- data[data$stationType==species,]
+data[data$stationType=="SST","redsk_dim"] <- 2.4
+data[data$stationType %in% c("BMS","OES","BOS"),"redsk_dim"] <- 1
+data[!is.na(data$gearVal),"redsk_dim"] <- data[!is.na(data$gearVal),"gearVal"]/100
+data[is.na(data$redsk_dim),"redsk_dim"] <- 1
+
 
 
 
@@ -86,14 +97,90 @@ data2 <- data[data$stationType==species,]
 
 
 
-data2$Befisket_Areal_m2=data2$distancePositions*1852*redsk_dim
+#####################################################
+
+#Calculate Befisket areal depending on species
 
 
-if(year==2011 & data$station %in% c('3213','3241','3262','3489') ) {Befisket_Areal_m2 <- 400
-} else if(year==2011 & data$station %in% c('3313','3407','3426','3527') ) {Befisket_Areal_m2 <- 100}
+data[data$coursetrack==0 & 
+       !is.na(data$coursetrack),"coursetrack"] <- NA
+data[data$distancePositions==0 & 
+       !is.na(data$distancePositions),"distancePositions"] <- NA
 
-data2$TotalWeight_kg <- as.numeric(apply(data[,c("weightStep0","weightStep1","weightStep2","weightStep3")], 
-                                        1, function(x) min(x[1], x[2], x[3], x[4], na.rm=TRUE)))*data$raisingFactor
+
+#Areal = udsejlet distance* redskabsbredde (Hvis udsejlet distance er kendt)
+data[!is.na(data$coursetrack) & 
+       !(data$stationType %in% c('RAM','VV')) ,"Befisket_Areal_m2"] <- 
+  data[!is.na(data$coursetrack) & 
+         !(data$stationType %in% c('RAM','VV')) ,]$coursetrack * 
+  data[!is.na(data$coursetrack) & 
+         !(data$stationType %in% c('RAM','VV')) ,]$redsk_dim
+
+data[!is.na(data$coursetrack) & 
+       !(data$stationType %in% c('RAM','VV')) ,"areal_metode"] <- "Udsejlet distance"
+  
+#Areal = Distance*redskabsbredde (Hvis Distance ≠0 og courstrack=NA)
+data[!is.na(data$distancePositions) &
+       is.na(data$coursetrack) & 
+       !(data$stationType %in% c('RAM','VV')) ,"Befisket_Areal_m2"] <- 
+  data[!is.na(data$distancePositions) &
+         is.na(data$coursetrack) & 
+         !(data$stationType %in% c('RAM','VV')) ,]$distancePositions*1852*
+  data[!is.na(data$distancePositions) & 
+         is.na(data$coursetrack) & 
+         !(data$stationType %in% c('RAM','VV')) ,]$redsk_dim
+
+data[!is.na(data$distancePositions) & 
+       is.na(data$coursetrack) & 
+       !(data$stationType %in% c('RAM','VV')) ,"areal_metode"] <- "Distance start-slut"
+
+#Areal = træktid*træhastighed*redskabsbredde (Distance=0 og udsejlet distance ukendt), distanceBottom= Trækhast*fisketid i sømil (haulSpeedBot*fishingtime).
+data[is.na(data$distancePositions) &
+       is.na(data$coursetrack) & 
+       !(data$stationType %in% c('RAM','VV'))  ,"Befisket_Areal_m2"] <- 
+  data[is.na(data$distancePositions) &
+         is.na(data$coursetrack) & 
+         !(data$stationType %in% c('RAM','VV')) ,]$distanceBottom*1852*
+  data[is.na(data$distancePositions) & 
+         is.na(data$coursetrack) & 
+         !(data$stationType %in% c('RAM','VV')),]$redsk_dim
+
+data[is.na(data$distancePositions) & 
+       is.na(data$coursetrack) &
+       !(data$stationType %in% c('RAM','VV')),"areal_metode"] <- "Træktid*trækhastighed"
+
+#Areal = rammeareal (Hvis redskab=ramme)
+data[data$gearType %like% '^RAM' & 
+       data$gearType!="RAM" & 
+       !is.na(data$gearType),"Befisket_Areal_m2"] <-
+  data[data$gearType %like% '^RAM' &
+         data$gearType!="RAM" & 
+         !is.na(data$gearType),]$redsk_dim
+
+data[data$gearType=="RAM" &
+       !is.na(data$gearType),"Befisket_Areal_m2"] <- 0.01
+data[data$gearType %like% '^RAM' & 
+       !is.na(data$gearType),"areal_metode"] <- "Ramme-areal"
+
+
+#Areal = sugeareal (Hvis redskab=sug)
+data[data$gearType %like% '^VV' & 
+       !is.na(data$gearType),"Befisket_Areal_m2"] <- 
+  data[data$gearType %like% '^VV' &
+         !is.na(data$gearType),]$redsk_dim
+
+data[data$gearType %like% '^SUG' & 
+       !is.na(data$gearType),"areal_metode"] <- "Suge-areal"
+
+
+
+######################################################
+
+
+data2 <- data[data$speciesCode==species,]
+
+data2$TotalWeight_kg <- as.numeric(apply(data2[,c("weightStep0","weightStep1","weightStep2","weightStep3")], 
+                                        1, function(x) min(x[1], x[2], x[3], x[4], na.rm=TRUE)))*data2$raisingFactor
 
 data2$TotalNumber <- data2$number*data2$raisingFactor
 data2$Length_cm <- data2$length/10
@@ -109,54 +196,122 @@ data2$Length_cm[index==TRUE] <- NA; data2$TotalWeight_kg[index==TRUE] <- NA; dat
 ```{r OES , echo=FALSE, warning=FALSE,message=FALSE}
 
 
-
-data3 <- data2 
-
 if (species=="OES") {
 
-data3$fastst <- apply(data3[,c("stationName","year","remark")], 1, function(x) 
+data2$fastst <- apply(data2[,c("stationName","year","remark")], 1, function(x) 
                    if (is.na(x[1]) & x[2]!= 2006 & grepl("KM", x[3])==FALSE) { gsub("[^0-9]","",x[3])}
               else if (is.na(x[1]) & x[2]== 2006 & grepl("A", x[3])==FALSE) { gsub("[^0-9]","",x[3])}
               else if (is.na(x[1])) {substr(x[3],8,12) }
               else {NA})
+data2[is.na(data2$stationName),"stationName"] <- data2[is.na(data2$stationName),"fastst"] 
 
-data4 <- data3[!(grepl("KM", data3$remark)==TRUE),]
+data3 <- data2[!(grepl("KM", data2$remark)==TRUE),]
 
-data4[is.na(data4$stationName),]$stationName <- data4[is.na(data4$stationName),]$fastst
-data4$Area <- ifelse(data4$cruise=="Lim 1",data4$trip,as.character(data4$stationName))
+} else {data3 <- data2}
 
-}
 
 ```
 
-```{r, echo=FALSE, warning=FALSE,message=FALSE}
+```{r, include=FALSE}
 
+mus_omr <- st_read(areaString,stringsAsFactors = F) %>% 
+  st_transform(crs=4326) 
+# st_crs(mus_omr2) <- 4326
 
-if (species=="BMS") {
-      data_table <- sqldf('select    sampleId, stationType, year, cruise, trip, station, stationName, latPosStartText,lonPosStartText, 
-                                     latPosStartDec, lonPosStartDec, fishingtime, Befisket_Areal_m2, speciesCode,  
-                                  	 TotalWeight_kg, Length_cm, sum(TotalNumber) as Number
-                          from       data2
-                          group by   sampleId, stationType, year, cruise, trip, station, stationName, latPosStartText,lonPosStartText, 
-                                     latPosStartDec, lonPosStartDec, fishingtime, Befisket_Areal_m2, speciesCode,  
-                                     TotalWeight_kg, Length_cm')
-} else if (species=="OES") {
-   data_table <- sqldf('select    sampleId, stationType, year, cruise, trip, station, stationName, Area, latPosStartText,lonPosStartText, 
-                                     latPosStartDec, lonPosStartDec, fishingtime, depthAveGear, Befisket_Areal_m2, speciesCode,  
-                                     TotalWeight_kg, Length_cm, sum(TotalNumber) as Number
-                          from       data4
-                          group by   sampleId, stationType, year, cruise, trip, station, stationName, Area, latPosStartText,lonPosStartText, 
-                                     latPosStartDec, lonPosStartDec, fishingtime, depthAveGear, Befisket_Areal_m2, speciesCode,  
-                                     TotalWeight_kg, Length_cm')
+colnames(mus_omr)[1]<-"Area"
+colnames(mus_omr)[2]<-"AreaName"
+
+# st_write(mus_omr, dsn = "mus_omr_made_valid.shp")
+
+if (mean(st_is_valid(mus_omr),na.rm=T) < 1){
+  mus_omr2 <- st_make_valid(mus_omr)
+} else {
+  mus_omr2 <- mus_omr
 }
+
+# st_write(mus_omr, dsn = "Alle muslingeområder 2011_region.shp")
+# st_write(mus_omr2, dsn = "Alle muslingeområder 2011_region_made_valid.shp")
+
+table(st_geometry_type(mus_omr2))
+# Encoding(mus_omr2$AreaName)[Encoding(mus_omr2$AreaName)=="unknown"]<-"UTF-8"
+
+# mus_omr2$AreaName <- gsub(pattern = "\xf8",replacement = "ø",x = mus_omr2$AreaName,
+#                           perl = F)
 
 ```
 
+```{r, include=FALSE}
+# Convert pointsDF to a SpatialPoints object 
+
+data3$x <- as.numeric(data3$lonPosStartDec)
+data3$y <- as.numeric(data3$latPosStartDec)
+
+data4 <- data3 %>% 
+  filter(!is.na(x) | !is.na(y))
+
+pointsSP <- st_as_sf(data4, coords = c("x","y"), crs = 4326)
+
+data_omr <- st_intersection(pointsSP,mus_omr2)
+
+st_geometry(data_omr) <- NULL
+
+data_omr2 <- full_join(data3,data_omr)
+
+```
+
+
+
 ```{r, echo=FALSE, warning=FALSE,message=FALSE}
+
+data_table <- data_omr2 %>%  
+  group_by(sampleId, stationType, year, cruise, trip, station, stationName,
+           latPosStartText,lonPosStartText, latPosStartDec, lonPosStartDec, Area,
+           AreaName,fishingtime, depthAveGear, Befisket_Areal_m2, areal_metode,
+           speciesCode,TotalWeight_kg, Length_cm) %>% 
+  summarise(Number = sum(TotalNumber,na.rm=T))
+
+# st_geometry(data_table)<-NULL  
+
+```
+
+\section{Data - Længdefordeling}
+
+\begin{tcolorbox}[colback=white!5,colframe=blue!40!black,title=Information om udtrækket]
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{15cm}{@{}lXr@{}}
+\textbf{År} & `r year` &\\ 
+\textbf{Togt} & `r cruise`&\\
+\textbf{Art} & `r species`&\\
+\textbf{Redskabsdimension} & `r species` &
+\end{tabularx}
+\end{tcolorbox}
+
+```{r, echo=FALSE, warning=FALSE,message=FALSE,results='asis'}
 
 #Write csv
-write.csv(data_table, file=paste("X:/Line/Data/Skaldyr/Results/Længdefordeling_",year,"_",cruise,"_",
-                                 species,"_Længde_",format(Sys.time(), "%d%b%Y"),".csv",sep=""),row.names=FALSE)
+cruise <- gsub(" ","_",cruise)
+write.csv(data_table, 
+          file=sprintf("Længdefordeling_%s_%s_%s_Længde_%s.csv",
+                       year,cruise,species,format(Sys.time(), "%d%b%Y",)),
+          row.names=FALSE)
 
+# cat("\\subsection{Info om shapefil} ")
+# cat("I længdefordelingen bruges en shapefil til at tildele de enkelte stationer et områdenavn. 
+# Tabellen nedenfor viser de fejl, som shapefilen indeholder i kolonnen 'val' og hvordan validiteten 
+# er efter at have kørt en automatiseret validering af samme område i kolonnen 'val_made_lvaid'.")
+# mus_omr$val <- as.character(st_is_valid(mus_omr,reason = T))
+# mus_omr2$val_made_valid <- as.character(st_is_valid(mus_omr2,reason = T))
+# 
+# st_geometry(mus_omr)<-NULL
+# st_geometry(mus_omr2)<-NULL
+# 
+# mus_omr %>%
+#   select(Area,val) %>%
+#   full_join(mus_omr2 %>% select(Area,val_made_valid)) %>%
+#   mutate(Area = as.numeric(Area)) %>%
+#   arrange(Area) %>%
+#   filter(val != "Valid Geometry" | is.na(val)) %>%
+#   kable()
 ```
 
+<!-- Biomasse-længdefordeling -->

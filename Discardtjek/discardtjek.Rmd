@@ -43,6 +43,12 @@ output:
 
 ```{r define_input, echo=FALSE}
 
+# year<- @paramYear
+# cruise <- @paramCruise
+# trip <- @paramTrip
+# coast_string <- "europe_simple_wgs84"
+# ices_areas_string <- "ICES_areas"
+
 ## Parameters
 year<- 2019
 cruise <- "MON"
@@ -50,11 +56,6 @@ trip <- "2714"
 coast_string <- "kort/europe_simple_wgs84"
 ices_areas_string <- "kort/ICES_areas"
 
-# year<- @paramYear
-# cruise <- @paramCruise
-# trip <- @paramTrip
-# coast_string <- "europe_simple_wgs84"
-# ices_areas_string <- "ICES_areas"
 
 ```
 
@@ -65,6 +66,10 @@ ices_areas_string <- "kort/ICES_areas"
 if (!require(sqldf)) {
   install.packages("sqldf", repos="http://ftp.ussg.iu.edu/CRAN/")
   library(sqldf)
+}
+if (!require(sf)) {
+  install.packages("sf", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(sf)
 }
 if (!require(RODBC)) {
   install.packages("RODBC", repos="http://ftp.ussg.iu.edu/CRAN/")
@@ -361,9 +366,9 @@ if (nrow(position)>0){
     maxlon <- max_lon+2
     maxlat <- max_lat+4
   } else {
-    minlon <- min_lon-1
+    minlon <- min_lon-.5
     minlat <- min_lat-1
-    maxlon <- max_lon+1
+    maxlon <- max_lon+.5
     maxlat <- max_lat+1
   }
   
@@ -387,42 +392,91 @@ if (max_lat-min_lat >2) {
   ylim <- c(min_lat-4,max_lat+4)
 } else {
   xlim <- c(min_lon-1,max_lon+1)
-  ylim <- c(min_lat-1,max_lat+1)
+  ylim <- c(min_lat-.5,max_lat+.5)
   
 }
 
+  position$latMid <- (position$lat+position$latEnd)/2
+  position$lonMid <- (position$lon+position$lonEnd)/2
 
-########
-col <- terrain.colors(13)
-
-
-basemap(xlim=xlim, ylim=ylim, main = "",
-        xlab=expression("Grader nordlig bredde"),
-        ylab=expression("Grader østlig længde"),bg = "cornsilk" ) #, bg="white")
-
-draw.shape(ices_areas, col="lightblue",border="grey", xlim=xlim, ylim=ylim)
-draw.shape(coast, col="cornsilk", border="transparent", xlim=xlim, ylim=ylim)
-
-# draw.shape(dk_eez, col="transparent", border = "red", xlim=xlim, ylim=ylim)
-draw.rect(col="grey")
-
-par(cex = 1)
-
-
-segments(x0=position$lon, y0=position$lat, x1=position$lonEnd, y1=position$latEnd,
-         cex=0.8, length = .05,col="darkblue")
-points(x = position$lon, y = position$lat, pch=16, col="red", cex=.8)
-points(x = position$lonEnd, y = position$latEnd, pch=24, col="black",bg="green", 
-       cex=.8)
-text(x=position$lon, y=position$lat,labels=position$station,adj = c(1.2,0),
-     cex=0.8)
-legend( x="bottomright",
-        legend=c("ICES-område","ICES-kvadrat","Station start","Station slut"),
-        lty=c(1,2,0,0),pch=c(NA,NA,16,24), col = c("grey","grey","red","black"),
-        cex = 0.9, pt.bg=c("white","white","white","green") ,bg=c("white"))
+# ########
+# col <- terrain.colors(13)
+# 
+# 
+# basemap(xlim=xlim, ylim=ylim, main = "",
+#         xlab=expression("Grader nordlig bredde"),
+#         ylab=expression("Grader østlig længde"),bg = "cornsilk" ) #, bg="white")
+# 
+# draw.shape(ices_areas, col="lightblue",border="grey", xlim=xlim, ylim=ylim)
+# draw.shape(coast, col="cornsilk", border="transparent", xlim=xlim, ylim=ylim)
+# 
+# # draw.shape(dk_eez, col="transparent", border = "red", xlim=xlim, ylim=ylim)
+# draw.rect(col="grey")
+# 
+# par(cex = 1)
+# 
+# 
+# segments(x0=position$lon, y0=position$lat, x1=position$lonEnd, y1=position$latEnd,
+#          cex=0.8, length = .05,col="darkblue")
+# points(x = position$lon, y = position$lat, pch=16, col="red", cex=.8)
+# points(x = position$lonEnd, y = position$latEnd, pch=24, col="black",bg="green", 
+#        cex=.8)
+# text(x=position$lon, y=position$lat,labels=position$station,adj = c(1.2,0),
+#      cex=0.8)
+# legend( x="bottomright",
+#         legend=c("ICES-område","ICES-kvadrat","Station start","Station slut"),
+#         lty=c(1,2,0,0),pch=c(NA,NA,16,24), col = c("grey","grey","red","black"),
+#         cex = 0.9, pt.bg=c("white","white","white","green") ,bg=c("white"))
 }
+
+# bathy <- getNOAA.bathy(xlim[1],xlim[2],ylim[1],ylim[2],resolution = 1,keep = T)
+# 
+# bathy[bathy>0]<-0
+# autoplot.bathy(bathy, geom=c("tile", "contour"), colour=NA, size=0.1)+
+#   scale_fill_gradient2(low="dodgerblue4", mid="gainsboro", high="darkgreen") 
+# bathy <- as.matrix(bathy)
+# class(bathy) <- "matrix"
+# 
+# bathy2 <- bathy %>% 
+#   as.data.frame() %>%
+#   rownames_to_column(var = "lon") %>%
+#   gather(lat, value, -1) %>%
+#   mutate_all(funs(as.numeric)) 
+
+ia <- st_read(dsn = paste0(ices_areas_string,".shp"))
+co <- st_read(dsn= paste0(coast_string,".shp"))
+
+# ia2 <- st_crop(ia, xmin=min(xlim),xmax=max(xlim),
+#                ymin=min(ylim),ymax=max(ylim))
+# ia2 <- st_intersection(ia,st_set_cr)
+
+set.seed(42)
+# autoplot(bathy, geom=c("raster", "contour"), colour="white", size=0.1) + scale_fill_gradient2(low="dodgerblue4", mid="gainsboro", high="darkgreen")
+
+
+
+ggplot()+
+  geom_sf(data=ia,fill="lightblue",col="grey")+
+  geom_sf_text(data=ia,aes(label=KODE))+
+  geom_sf(data=co,fill="cornsilk")+
+  coord_sf(xlim=xlim, ylim=ylim)+
+  geom_segment(data=position, col="black",
+            aes(x=lon,y=lat,xend=lonEnd,yend=latEnd,group=station))+
+  geom_point(data=position, aes(x=lon,y=lat,fill="start",shape="start"),size=3)+
+  geom_point(data=position, aes(x=lonEnd,y=latEnd,fill="end",shape="end"),
+             size=3)+
+  geom_label_repel(data=position, aes(x=lonMid,y=latMid,label=station),force = 50)+
+  scale_fill_manual(values=c("red","green"),
+                     name="",
+                     labels=c("Station start","Station slut"))+
+  scale_shape_manual(values=c(21,24),
+                     name="",
+                     labels=c("Station start","Station slut"))+
+  theme_bw()
+
 dev.off()
 }
+
 ```
 
 
@@ -1881,3 +1935,5 @@ if (nrow(dbErrors)>0){
 
 
 ```
+
+<!-- discardtjek -->
