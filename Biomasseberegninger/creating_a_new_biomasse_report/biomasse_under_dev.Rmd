@@ -14,7 +14,19 @@ output: pdf_document
 \renewcommand{\familydefault}{\sfdefault}
 \sffamily
 
+# Remember before upload to FishLine
+
+1.    Delete new output in save_output and open up for the old way
+2.    Delete version_name in define_input chuck
+3.    Delete getdata_test chunck
+4.    Change eval to T in getdata chunck
+5.    Delete output_dir in define_input
+
 ```{r define_input, echo=FALSE}
+
+version_name <- "orginal"
+output_dir <- "Q:/mynd/kibi/fishLine/FishLineRapporter/Biomasseberegninger/creating_a_new_biomasse_report/output/"
+
 #Parameters
 
 # year <- 2002; cruise <- "BV VH HMS april"; species <- "HMS"
@@ -23,7 +35,7 @@ output: pdf_document
 # year <- 2017; cruise <- "BV VH HMS okt sug +R"; species <- "HMS"
 # year <- 2018; cruise <- "BV LF HMS april"; species <- "HMS"
 # year <- 2018; cruise <- "BV VH BMS OST april"; species <- "BMS"
-year <- 2017; cruise <- "BV HF BMS sept"; species <- "BMS"
+# year <- 2017; cruise <- "BV HF BMS sept"; species <- "BMS"
 # year <- 2018; cruise <- "BV VH HMS apr ekstra"; species <- "HMS"
 
 
@@ -79,9 +91,7 @@ if (!require(Hmisc)) {
 detach("package:Hmisc", unload=TRUE)
 ```
 
-
-
-```{r getdata, echo=FALSE, message=FALSE, warning=FALSE}
+```{r getdata, echo=FALSE, message=FALSE, warning=FALSE, eval = F}
 
 
 channel <- odbcConnect("FishLineDW")
@@ -110,6 +120,37 @@ close(channel)
 
 
 ```
+
+
+```{r getdata_test, echo=FALSE, message=FALSE, warning=FALSE, eval = T}
+
+
+channel <- odbcConnect("FishLineDW")
+data <- sqlQuery(channel, paste("SELECT    Sample.sampleId, Sample.year, Sample.cruise, Sample.trip, Sample.station, Sample.stationName,
+                                           Sample.haulType, Sample.latPosStartText, Sample.lonPosStartText, Sample.latPosEndText, 
+                                           Sample.lonPosEndText, Sample.latPosStartDec, Sample.lonPosStartDec, Sample.latPosEndDec, 
+                                           Sample.lonPosEndDec, Sample.fishingtime, Sample.distancePositions, Sample.coursetrack,
+                                           Sample.distanceBottom,Sample.haulSpeedBot * 0.514 as haulSpeedBotMS,Sample.gearQuality, SpeciesList.speciesCode, SpeciesList.dfuBase_Category, 
+                                           SpeciesList.weightStep0, SpeciesList.weightStep1, SpeciesList.weightStep2, 
+                                           SpeciesList.weightStep3, SpeciesList.raisingFactor, Animal.representative, Animal.individNum,
+                                           Animal.length, Animal.number, Animal.weight, Animal.sizeSortingDFU, SpeciesList.speciesListId, Animal.animalId, Sample.gearType
+                                FROM       Animal RIGHT OUTER JOIN
+                                           SpeciesList ON Animal.speciesListId = SpeciesList.speciesListId LEFT JOIN
+                                           Sample ON SpeciesList.sampleId = Sample.sampleId
+                                 WHERE     Sample.cruise like 'BV%'", sep = ""), stringsAsFactors = FALSE) 
+
+db_message <- sqlQuery(channel, 
+                       sprintf("SELECT * FROM ErrorLog where origin like '%s->%s%s'",
+                               year,cruise,"%"),
+                       stringsAsFactors = F)
+close(channel)
+
+
+#If want to selcet by trip: Sample.trip = ('",trip,"') AND
+
+
+```
+
 
 ```{r year_corrections, echo=FALSE, warning=FALSE,message=FALSE}
 
@@ -777,9 +818,16 @@ if (!is.null(nrow("errors")) && nrow(errors)>0){
 
 #Write csv
 cruise <- gsub(" ","_",cruise)
-write.csv(final_data, 
-          file=paste("Biomasse_",year,"_",cruise,"_",species,"_",
-                     format(Sys.time(), "%d%b%Y"),".csv",sep=""),
+# write.csv(final_data, 
+#           file=paste("Biomasse_",year,"_",cruise,"_",species,"_",
+#                      format(Sys.time(), "%d%b%Y"),".csv",sep=""),
+#           row.names=FALSE,fileEncoding = "UTF-8")
+
+# Output folder for testing - delete this part before uploade to FishLine
+
+write.csv(final_data,
+          file = paste(output_dir, "Biomasse_all_",version_name,"_",
+                     format(Sys.time(), "%d%b%Y"),".csv",sep = ""),
           row.names=FALSE,fileEncoding = "UTF-8")
 
 
