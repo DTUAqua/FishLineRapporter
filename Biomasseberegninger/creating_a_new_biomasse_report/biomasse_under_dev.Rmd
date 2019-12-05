@@ -14,6 +14,8 @@ output: pdf_document
 \renewcommand{\familydefault}{\sfdefault}
 \sffamily
 
+# Test needs to run species by species
+
 # Remember before upload to FishLine
 
 1.    Delete new output in save_output and open up for the old way
@@ -21,11 +23,14 @@ output: pdf_document
 3.    Delete getdata_test chunck
 4.    Change eval to T in getdata chunck
 5.    Delete output_dir in define_input
+6.    Change eval to T in db_messages chunck
 
 ```{r define_input, echo=FALSE}
 
 version_name <- "orginal"
 output_dir <- "Q:/mynd/kibi/fishLine/FishLineRapporter/Biomasseberegninger/creating_a_new_biomasse_report/output/"
+
+species <- "BMS"
 
 #Parameters
 
@@ -37,7 +42,6 @@ output_dir <- "Q:/mynd/kibi/fishLine/FishLineRapporter/Biomasseberegninger/creat
 # year <- 2018; cruise <- "BV VH BMS OST april"; species <- "BMS"
 # year <- 2017; cruise <- "BV HF BMS sept"; species <- "BMS"
 # year <- 2018; cruise <- "BV VH HMS apr ekstra"; species <- "HMS"
-
 
 # #Parameters
  # year<- @paramYear ; cruise <- @paramCruise;  species <- @paramSpecies
@@ -139,11 +143,11 @@ data <- sqlQuery(channel, paste("SELECT    Sample.sampleId, Sample.year, Sample.
                                            Sample ON SpeciesList.sampleId = Sample.sampleId
                                  WHERE     Sample.cruise like 'BV%'", sep = ""), stringsAsFactors = FALSE) 
 
-db_message <- sqlQuery(channel, 
-                       sprintf("SELECT * FROM ErrorLog where origin like '%s->%s%s'",
-                               year,cruise,"%"),
-                       stringsAsFactors = F)
-close(channel)
+# db_message <- sqlQuery(channel, 
+#                        sprintf("SELECT * FROM ErrorLog where origin like '%s->%s%s'",
+#                                year,cruise,"%"),
+#                        stringsAsFactors = F)
+# close(channel)
 
 
 #If want to selcet by trip: Sample.trip = ('",trip,"') AND
@@ -324,6 +328,7 @@ data$SOP_Length <- data$Length_cm*data$number*data$raisingFactor
 #                 group by  sampleId, haulType,stationType, year, cruise, trip, station, stationName, latPosStartText,
 #                           lonPosStartText,latPosStartDec, lonPosStartDec, latPosEndText,lonPosEndText, latPosEndDec, 
 #                           lonPosEndDec, Befisket_Areal_m2, speciescode')
+
 if (length(unique(data$sizeSortingDFU[data$speciesCode=="BMS"]))>1 & 
     species == "BMS"){
 
@@ -744,7 +749,7 @@ final_data$Min_Length_cm_STO[is.infinite(final_data$Min_Length_cm_STO)]<-0
 \end{tcolorbox}
 
 
-```{r db_messages, results='asis',echo=FALSE,message=FALSE,warning=FALSE,fig.pos='H'}
+```{r db_messages, results='asis',echo=FALSE,message=FALSE,warning=FALSE,fig.pos='H', eval = F}
 
 
 makeTable <- function(data){
@@ -817,7 +822,7 @@ if (!is.null(nrow("errors")) && nrow(errors)>0){
 ```{r save_output, echo=FALSE, warning=FALSE,message=FALSE}
 
 #Write csv
-cruise <- gsub(" ","_",cruise)
+# cruise <- gsub(" ","_",cruise)
 # write.csv(final_data, 
 #           file=paste("Biomasse_",year,"_",cruise,"_",species,"_",
 #                      format(Sys.time(), "%d%b%Y"),".csv",sep=""),
@@ -826,9 +831,13 @@ cruise <- gsub(" ","_",cruise)
 # Output folder for testing - delete this part before uploade to FishLine
 
 write.csv(final_data,
-          file = paste(output_dir, "Biomasse_all_",version_name,"_",
+          file = paste(output_dir, "Biomasse_",species,"_",version_name,"_",
                      format(Sys.time(), "%d%b%Y"),".csv",sep = ""),
           row.names=FALSE,fileEncoding = "UTF-8")
+
+saveRDS(final_data,
+          file = paste(output_dir, "Biomasse",species,"_",version_name,"_",
+                     format(Sys.time(), "%d%b%Y"),".rds",sep = ""))
 
 
 ```
