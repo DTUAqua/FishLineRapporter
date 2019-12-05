@@ -9,14 +9,17 @@ header-includes:
 - \usepackage{multirow}
 - \usepackage{xcolor}
 output: pdf_document
+params:
+  species: BMS
 ---
 
 \renewcommand{\familydefault}{\sfdefault}
 \sffamily
 
-# Test needs to run species by species
+# Test
+## Tests needs to run species by species
 
-# Remember before upload to FishLine
+## Remember before upload to FishLine
 
 1.    Delete new output in save_output and open up for the old way
 2.    Delete version_name in define_input chuck
@@ -24,13 +27,20 @@ output: pdf_document
 4.    Change eval to T in getdata chunck
 5.    Delete output_dir in define_input
 6.    Change eval to T in db_messages chunck
+7.    Delete params from YAML
+8.    Delete test paragraph
+
+## Tests
+original: Nothing changed - except preparing script for testing
+
+
 
 ```{r define_input, echo=FALSE}
 
 version_name <- "orginal"
 output_dir <- "Q:/mynd/kibi/fishLine/FishLineRapporter/Biomasseberegninger/creating_a_new_biomasse_report/output/"
 
-species <- "BMS"
+species <- params$species
 
 #Parameters
 
