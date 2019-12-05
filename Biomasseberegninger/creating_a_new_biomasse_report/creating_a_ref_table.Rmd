@@ -1,0 +1,145 @@
+---
+title: "creating_a_ref_table"
+author: "Kirsten Birch Håkansson, DTU Aqua"
+date: \today
+output: pdf_document
+---
+
+This scripts create the start of a reference table for gear, gear dimensions and selectivity based on the old biomasse.rmd (version 23/9 - 2019).
+
+The idea being these are specified outside the script in an excel sheet - to make it easier
+
+gearType:
+
+gearVal: This may not be needed in the future, since it is only used for specifying the gear dimensions - *TODO - check*
+
+stationType: This may not be needed in the future - *TODO - check*
+
+redsk_dim:
+
+speciesCode: the relevant species - at this moment BMS, OES, SST, SKL, HMS, TRU and OST
+
+correction_fun: the function for correcting Fangst_kg_m2 (x) for gear effectiveness e.g. f(x) = x*2.47
+
+
+```{r setup, include = F}
+
+library(RODBC)
+library(dplyr)
+library(data.table)
+library(knitr)
+
+knitr::opts_chunk$set( echo = F,
+  warning = F,
+  message = F,
+  error = F,
+  comment = F, results = 'asis')
+
+output_dir <- "Q:/mynd/kibi/fishLine/FishLineRapporter/Biomasseberegninger/creating_a_new_biomasse_report/output/"
+
+```
+
+```{r data, include = F}
+
+# Import data from all cruises with BV - same call as in biomasse.rmd line 87 and on
+
+
+channel <- odbcConnect("FishLineDW")
+data_org <- sqlQuery(channel, paste("SELECT    Sample.sampleId, Sample.year, Sample.cruise, Sample.trip, Sample.station, Sample.stationName,
+                                           Sample.haulType, Sample.latPosStartText, Sample.lonPosStartText, Sample.latPosEndText, 
+                                           Sample.lonPosEndText, Sample.latPosStartDec, Sample.lonPosStartDec, Sample.latPosEndDec, 
+                                           Sample.lonPosEndDec, Sample.fishingtime, Sample.distancePositions, Sample.coursetrack,
+                                           Sample.distanceBottom,Sample.haulSpeedBot * 0.514 as haulSpeedBotMS,Sample.gearQuality, SpeciesList.speciesCode, SpeciesList.dfuBase_Category, 
+                                           SpeciesList.weightStep0, SpeciesList.weightStep1, SpeciesList.weightStep2, 
+                                           SpeciesList.weightStep3, SpeciesList.raisingFactor, Animal.representative, Animal.individNum,
+                                           Animal.length, Animal.number, Animal.weight, Animal.sizeSortingDFU, SpeciesList.speciesListId, Animal.animalId, Sample.gearType
+                                FROM       Animal RIGHT OUTER JOIN
+                                           SpeciesList ON Animal.speciesListId = SpeciesList.speciesListId LEFT JOIN
+                                           Sample ON SpeciesList.sampleId = Sample.sampleId
+                                 WHERE     Sample.cruise like 'BV%'", sep=""), stringsAsFactors=FALSE) 
+                                 
+close(channel)
+
+```
+
+
+# gear dimemsion (redsk_dim) - gearVal not corrected - original version
+
+line 114-159 from old biomasse.rmd
+
+Comment in script - *some dimensions not implemented?*
+
+skal være 1,435 for bmsok
+BOS = 0,965 m
+stationtype=MSK18 = 
+
+
+```{r redsk_dim_new, include = F}
+
+data <- data_org
+
+data$stationType <- ifelse(data$gearType == "MSKOES" & !is.na(data$gearType),"BOS",
+                      ifelse(data$gearType %like% "^OSK" & !is.na(data$gearType),"OES",
+                      ifelse(data$gearType=="MSK-OKYST15" & !is.na(data$gearType),"BMSOK",
+                      ifelse(data$gearType == "MSK" & !is.na(data$gearType),"BMS",
+                      ifelse(data$gearType == "MSK18" & !is.na(data$gearType),"BMS18", 
+                      ifelse(data$gearType %like% "^RAM" & !is.na(data$gearType),"RAM",
+                      ifelse(data$gearType %like% "^SUG" & !is.na(data$gearType),"SUG",
+                      ifelse(data$gearType %like% "^VV" & !is.na(data$gearType),"VV","SST"))))))))
+
+
+
+data[grepl("\\d",(data$gearType)) & data$stationType!="RAM","gearVal"] <-  
+      as.numeric(gsub("[^\\d]+", "", data[grepl("\\d",(data$gearType)) & data$stationType!="RAM",]$gearType, perl=TRUE) )
+
+data[grepl("\\d",(data$gearType)) & data$stationType=="RAM","gearVal"] <-  
+  as.numeric(paste0("0.",gsub("[^\\d]+", "", data[grepl("\\d",(data$gearType)) & data$stationType=="RAM",]$gearType, perl=TRUE) ))
+
+data[data$stationType=="SST","redsk_dim"] <- 2.4
+data[is.na(data$gearval) & 
+       data$stationType %in% c("BMS","OES","BMSOK"),"redsk_dim"] <- 1 # skal være 1,435 for bmsok
+          # BOS = 0,965 m
+          # stationtype=MSK18 =
+data[is.na(data$gearval) &
+       data$stationType %in% c("BOS"),"redsk_dim"] <- 0.965
+data[is.na(data$gearval) &
+      data$stationType %in% c("MSK18"),"redsk_dim"] <- 1.8
+data[!is.na(data$gearVal) & data$stationType=="SUG","redsk_dim"] <-
+  data[!is.na(data$gearVal) & data$stationType=="SUG","gearVal"]/100
+data[!is.na(data$gearVal) & data$stationType %in% c("BMS","BMSOK"),"redsk_dim"] <-
+  data[!is.na(data$gearVal) & data$stationType %in% c("BMS","BMSOK"),"gearVal"]/10
+data[!is.na(data$gearVal) & data$stationType=="RAM","redsk_dim"] <-
+  data[!is.na(data$gearVal) & data$stationType=="RAM","gearVal"]
+data[is.na(data$redsk_dim),"redsk_dim"] <- 1
+
+
+```
+
+# speciesCode
+
+```{r, include = F}
+
+speciesCode <- c("BMS", "OES", "SST", "SKL", "HMS", "TRU", "OST")
+speciesCode <- data.frame(speciesCode)
+
+ref <- merge(distinct(data, gearType, gearVal, stationType, redsk_dim), speciesCode, all = T)
+
+
+```
+
+# correction_fun
+
+To be filled in manually based on biomasse.rmd (version 23/9 - 2019) - line 383-521
+
+```{r, include = F}
+
+ref_1 <- mutate(ref, correction_fun = "")
+
+```
+
+```{r, include = F}
+
+write.csv(ref_1, paste0(output_dir, "ref_table.csv"), row.names = F)
+
+```
+
