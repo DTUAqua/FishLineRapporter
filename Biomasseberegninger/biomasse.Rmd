@@ -23,7 +23,7 @@ output: pdf_document
 # year <- 2017; cruise <- "BV VH HMS okt sug +R"; species <- "HMS"
 # year <- 2018; cruise <- "BV LF HMS april"; species <- "HMS"
 # year <- 2018; cruise <- "BV VH BMS OST april"; species <- "BMS"
-year <- 2018; cruise <- "BV LB BMS aug"; species <- "BMS"
+year <- 2017; cruise <- "BV HF BMS sept"; species <- "BMS"
 # year <- 2018; cruise <- "BV VH HMS apr ekstra"; species <- "HMS"
 
 
@@ -460,15 +460,26 @@ data2[species==species &
     # data2[data2$stationType=="BMSOK", "Korrigeret_bms_kg_m2_SMÅ"] <-
     #   0.073 * ((data2[data2$stationType=="BMSOK",]$Fangst_kg_m2_SMÅ)^1.696) + 
     #   data2[data2$stationType=="BMSOK",]$Fangst_kg_m2_SMÅ
-    data2[data2$stationType=="BMSOK", "Korrigeret_bms_kg_m2_STO"] <-
-      0.073 * ((data2[data2$stationType=="BMSOK",]$Fangst_kg_m2_STO)^1.696) + 
-      data2[data2$stationType=="BMSOK",]$Fangst_kg_m2_STO
-    data2[data2$stationType=="BMSOK", "Korrigeret_bms_kg_m2"] <-
-      0.073 * ((data2[data2$stationType=="BMSOK",]$Fangst_kg_m2)^1.696) + 
-      data2[data2$stationType=="BMSOK",]$Fangst_kg_m2
-    data2[data2$stationType=="BMSOK", "Korrigeret_bms_kg_m2_SMÅ"] <-
-      data2[data2$stationType=="BMSOK","Korrigeret_bms_kg_m2"] - 
-      data2[data2$stationType=="BMSOK","Korrigeret_bms_kg_m2_STO"]
+    data2[data2$stationType=="BMSOK" & 
+            data2$speciesCode=="BMS", "Korrigeret_bms_kg_m2_STO"] <-
+      0.073 * ((data2[data2$stationType=="BMSOK" & 
+            data2$speciesCode=="BMS",]$Fangst_kg_m2_STO)^1.696) + 
+      data2[data2$stationType=="BMSOK" & 
+            data2$speciesCode=="BMS",]$Fangst_kg_m2_STO
+    
+    data2[data2$stationType=="BMSOK" & 
+            data2$speciesCode=="BMS", "Korrigeret_bms_kg_m2"] <-
+      0.073 * ((data2[data2$stationType=="BMSOK" & 
+            data2$speciesCode=="BMS",]$Fangst_kg_m2)^1.696) + 
+      data2[data2$stationType=="BMSOK" & 
+            data2$speciesCode=="BMS",]$Fangst_kg_m2
+    
+    data2[data2$stationType=="BMSOK" & 
+            data2$speciesCode=="BMS", "Korrigeret_bms_kg_m2_SMÅ"] <-
+      data2[data2$stationType=="BMSOK" & 
+            data2$speciesCode=="BMS","Korrigeret_bms_kg_m2"] - 
+      data2[data2$stationType=="BMSOK" & 
+            data2$speciesCode=="BMS","Korrigeret_bms_kg_m2_STO"]
     
     
     data2[data2$stationType=="BMSOK", "Korrigeret_sst_kg_m2"] <- 
