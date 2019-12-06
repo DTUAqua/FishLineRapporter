@@ -29,10 +29,25 @@ params:
 6.    Change eval to T in db_messages chunck
 7.    Delete params from YAML
 8.    Delete test paragraph
+9.    Move text out of intro chunck
 
 ## Tests
 original: Nothing changed - except preparing script for testing
 
+```{r intro, eval = F}
+# \section{Data - Biomasseberegninger}
+# 
+# \begin{tcolorbox}[colback=white!5,colframe=blue!40!black,title=Information om udtrækket]
+# \renewcommand{\arraystretch}{1.2}
+# \begin{tabularx}{20cm}{@{}lXr@{}}
+# \textbf{År} & `r year` & \\ 
+# \textbf{Togt} & `r cruise` & \\
+# \textbf{Art} & `r species` & \\
+# \textbf{Redskabstype} & `r unique(data$gearType)` &
+# \end{tabularx}
+# \end{tcolorbox}
+
+```
 
 
 ```{r define_input, echo=FALSE}
@@ -746,17 +761,6 @@ final_data$Min_Length_cm_STO[is.infinite(final_data$Min_Length_cm_STO)]<-0
 
 
 
-\section{Data - Biomasseberegninger}
-
-\begin{tcolorbox}[colback=white!5,colframe=blue!40!black,title=Information om udtrækket]
-\renewcommand{\arraystretch}{1.2}
-\begin{tabularx}{20cm}{@{}lXr@{}}
-\textbf{År} & `r year` & \\ 
-\textbf{Togt} & `r cruise` & \\
-\textbf{Art} & `r species` & \\
-\textbf{Redskabstype} & `r unique(data$gearType)` &
-\end{tabularx}
-\end{tcolorbox}
 
 
 ```{r db_messages, results='asis',echo=FALSE,message=FALSE,warning=FALSE,fig.pos='H', eval = F}
@@ -846,7 +850,7 @@ write.csv(final_data,
           row.names=FALSE,fileEncoding = "UTF-8")
 
 saveRDS(final_data,
-          file = paste(output_dir, "Biomasse",species,"_",version_name,"_",
+          file = paste(output_dir, "Biomasse_",species,"_",version_name,"_",
                      format(Sys.time(), "%d%b%Y"),".rds",sep = ""))
 
 
