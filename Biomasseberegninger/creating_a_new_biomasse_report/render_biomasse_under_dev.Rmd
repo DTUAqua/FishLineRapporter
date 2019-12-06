@@ -1,0 +1,29 @@
+---
+title: "render_biomasse_under_dev"
+author: "Kirsten Birch Håkansson, DTU Aqua"
+date: \today
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+
+dir <- "Q:/mynd/kibi/fishLine/FishLineRapporter/Biomasseberegninger/creating_a_new_biomasse_report/"
+
+render_report <- function(species = "BMS") {
+  rmarkdown::render(
+    paste(dir, "biomasse_under_dev.Rmd", sep = ""), params = list(
+      species = species),
+    output_file = paste0("biomasse_under_dev_", species, ".pdf", sep = ""), encoding = 'UTF-8'
+  )
+}
+
+render_report(species = "BMS")
+render_report(species = "OES")
+render_report(species = "SST")
+render_report(species = "SKL")
+render_report(species = "HMS")
+render_report(species = "TRU")
+render_report(species = "OST")
+
+
+```
