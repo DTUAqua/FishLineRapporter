@@ -5,25 +5,120 @@ date: \today
 output: pdf_document
 ---
 
-```{r setup, include=FALSE}
+```{r, include=FALSE, eval = F}
 
 dir <- "Q:/mynd/kibi/fishLine/FishLineRapporter/Biomasseberegninger/creating_a_new_biomasse_report/"
 
-render_report <- function(species = "BMS") {
+# Version v0 is extremely slow, so be careful, when running
+
+# render_report_v0 <- function(species = "BMS") {
+#   rmarkdown::render(
+#     paste(dir, "biomasse_under_dev_v0.Rmd", sep = ""), params = list(
+#       species = species),
+#     output_file = paste0("biomasse_under_dev_v0.pdf", sep = ""), encoding = 'UTF-8'
+#   )
+# }
+# 
+# render_report_v0(species = "BMS")
+# render_report_v0(species = "OES")
+# render_report_v0(species = "SST")
+# render_report_v0(species = "SKL")
+# render_report_v0(species = "HMS")
+# render_report_v0(species = "TRU")
+# render_report_v0(species = "OST")
+
+
+# render_report_v1 <- function(species = "BMS") {
+#   rmarkdown::render(
+#     paste(dir, "biomasse_under_dev_v1.Rmd", sep = ""), params = list(
+#       species = species),
+#     output_file = paste0("biomasse_under_dev_v1.pdf", sep = ""), encoding = 'UTF-8'
+#   )
+# }
+# 
+# render_report_v1(species = "BMS")
+# render_report_v1(species = "OES")
+# render_report_v1(species = "SST")
+# render_report_v1(species = "SKL")
+# render_report_v1(species = "HMS")
+# render_report_v1(species = "TRU")
+# render_report_v1(species = "OST")
+
+
+# render_report_v2 <- function(species = "BMS") {
+#   rmarkdown::render(
+#     paste(dir, "biomasse_under_dev_v2.Rmd", sep = ""), params = list(
+#       species = species),
+#     output_file = paste0("biomasse_under_dev_v2.pdf", sep = ""), encoding = 'UTF-8'
+#   )
+# }
+# 
+# render_report_v2(species = "BMS")
+# render_report_v2(species = "OES")
+# render_report_v2(species = "SST")
+# render_report_v2(species = "SKL")
+# render_report_v2(species = "HMS")
+# render_report_v2(species = "TRU")
+# render_report_v2(species = "OST")
+
+render_report_v3 <- function(species = "BMS") {
   rmarkdown::render(
-    paste(dir, "biomasse_under_dev.Rmd", sep = ""), params = list(
+    paste(dir, "biomasse_under_dev_v3.Rmd", sep = ""), params = list(
       species = species),
-    output_file = paste0("biomasse_under_dev_", species, ".pdf", sep = ""), encoding = 'UTF-8'
+    output_file = paste0("biomasse_under_dev_v3.pdf", sep = ""), encoding = 'UTF-8'
   )
 }
 
-render_report(species = "BMS")
-render_report(species = "OES")
-render_report(species = "SST")
-render_report(species = "SKL")
-render_report(species = "HMS")
-render_report(species = "TRU")
-render_report(species = "OST")
-
+render_report_v3(species = "BMS")
+render_report_v3(species = "OES")
+render_report_v3(species = "SST")
+render_report_v3(species = "SKL")
+render_report_v3(species = "HMS")
+render_report_v3(species = "TRU")
+render_report_v3(species = "OST")
 
 ```
+
+```{r, include = F}
+
+dir_test <- "Q:/mynd/kibi/fishLine/FishLineRapporter/Biomasseberegninger/creating_a_new_biomasse_report/testing/"
+
+render_test_v2 <- function(species = "BMS", old = "v1", date_old =  "23Jan2020", new = "v2", date_new = "23Jan2020") {
+  rmarkdown::render(
+    paste(dir_test, "check_original_to_new.Rmd", sep = ""), params = list(
+      species = species,
+      old = old, 
+      date_old = date_old,
+      new = new,
+      date_new = date_new
+      ),
+    output_file = paste0("test_", species, "_", new, "_vs_", old, ".pdf", sep = ""), encoding = 'UTF-8'
+  )
+}
+
+# render_test_v2(species = "BMS", old = "v1", date_old =  "23Jan2020", new = "v2", date_new = "23Jan2020")
+# render_test_v2(species = "OES", old = "v1", date_old =  "23Jan2020", new = "v2", date_new = "23Jan2020")
+# render_test_v2(species = "SST", old = "v1", date_old =  "23Jan2020", new = "v2", date_new = "23Jan2020")
+# render_test_v2(species = "SKL", old = "v1", date_old =  "23Jan2020", new = "v2", date_new = "23Jan2020")
+# render_test_v2(species = "HMS", old = "v1", date_old =  "23Jan2020", new = "v2", date_new = "23Jan2020")
+# render_test_v2(species = "TRU", old = "v1", date_old =  "23Jan2020", new = "v2", date_new = "23Jan2020")
+# render_test_v2(species = "OST", old = "v1", date_old =  "23Jan2020", new = "v2", date_new = "23Jan2020")
+# 
+# render_test_v2(species = "BMS", old = "v0", date_old =  "23Jan2020", new = "v1", date_new = "23Jan2020")
+# render_test_v2(species = "OES", old = "v0", date_old =  "23Jan2020", new = "v1", date_new = "23Jan2020")
+# render_test_v2(species = "SST", old = "v0", date_old =  "23Jan2020", new = "v1", date_new = "23Jan2020")
+# render_test_v2(species = "SKL", old = "v0", date_old =  "23Jan2020", new = "v1", date_new = "23Jan2020")
+# render_test_v2(species = "HMS", old = "v0", date_old =  "23Jan2020", new = "v1", date_new = "23Jan2020")
+# render_test_v2(species = "TRU", old = "v0", date_old =  "23Jan2020", new = "v1", date_new = "23Jan2020")
+# render_test_v2(species = "OST", old = "v0", date_old =  "23Jan2020", new = "v1", date_new = "23Jan2020")
+
+
+render_test_v2(species = "BMS", old = "v2", date_old =  "24Jan2020", new = "v3", date_new = "24Jan2020")
+render_test_v2(species = "OES", old = "v2", date_old =  "24Jan2020", new = "v3", date_new = "24Jan2020")
+render_test_v2(species = "SST", old = "v2", date_old =  "24Jan2020", new = "v3", date_new = "24Jan2020")
+render_test_v2(species = "SKL", old = "v2", date_old =  "24Jan2020", new = "v3", date_new = "24Jan2020")
+render_test_v2(species = "HMS", old = "v2", date_old =  "24Jan2020", new = "v3", date_new = "24Jan2020")
+render_test_v2(species = "TRU", old = "v2", date_old =  "24Jan2020", new = "v3", date_new = "24Jan2020")
+render_test_v2(species = "OST", old = "v2", date_old =  "24Jan2020", new = "v3", date_new = "24Jan2020")
+```
+
