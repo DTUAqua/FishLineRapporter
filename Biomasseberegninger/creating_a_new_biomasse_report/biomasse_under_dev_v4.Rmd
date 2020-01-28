@@ -48,7 +48,7 @@ v2: Import and display reference table. Get stationType and redsk_dim from refer
 
 v3: Distance is calculated seperatly - no changes. All station with relevant New_DISMETH == "Kan ikke udregnes" are invalid. Second version of v3 only includes valid hauls like in the old report.
 
-v4: Reference tabel is used for calculating BEFISKM2 - 
+v4: Reference tabel is used for calculating BEFISKM2 - no changes
 
 
 ```{r intro, include = F, eval = F}
@@ -334,103 +334,12 @@ makeTable(dat_tab)
 
 ```{r, include = F}
 
-#####################################################
-
-# #Calculate Befisket areal depending on species
-# 
-# data[data$coursetrack==0 & !is.na(data$coursetrack),"coursetrack"] <- NA
-# data[data$distancePositions==0 & 
-#        !is.na(data$distancePositions),"distancePositions"] <- NA
-# 
-# 
-# #Areal = udsejlet distance* redskabsbredde (Hvis udsejlet distance er kendt)
-# data[!is.na(data$coursetrack) & 
-#        !(data$stationType %in% c('RAM','VV')) ,"Befisket_Areal_m2"] <- 
-#   data[!is.na(data$coursetrack) & !(data$stationType %in% c('RAM','VV')) ,]$coursetrack*
-#   data[!is.na(data$coursetrack) & !(data$stationType %in% c('RAM','VV')) ,]$redsk_dim
-# data[!is.na(data$coursetrack) & 
-#        !(data$stationType %in% c('RAM','VV')) ,"areal_metode"] <- "Udsejlet distance"
-#   
-# #Areal = Distance*redskabsbredde (Hvis Distance ≠0 og coursetrack=NA)
-# data[!is.na(data$distancePositions) & 
-#        is.na(data$coursetrack) & 
-#        !(data$stationType %in% c('RAM','VV')) ,"Befisket_Areal_m2"] <- 
-#   data[!is.na(data$distancePositions) & 
-#          is.na(data$coursetrack) & 
-#          !(data$stationType %in% c('RAM','VV')) ,]$distancePositions*1852*
-#   data[!is.na(data$distancePositions) & 
-#          is.na(data$coursetrack) & 
-#          !(data$stationType %in% c('RAM','VV')) ,]$redsk_dim
-# data[!is.na(data$distancePositions) & 
-#        is.na(data$coursetrack) & 
-#        !(data$stationType %in% c('RAM','VV')) ,"areal_metode"] <- 
-#   "Distance start-slut"
-# 
-# #Areal = træktid*træhastighed*redskabsbredde (Distance=0 og udsejlet distance ukendt), distanceBottom= Trækhast*fisketid i sømil (haulSpeedBot*fishingtime).
-# data[is.na(data$distancePositions) & 
-#        is.na(data$coursetrack) & 
-#        !(data$stationType %in% c('RAM','VV'))  ,"Befisket_Areal_m2"] <- 
-#   data[is.na(data$distancePositions) & 
-#          is.na(data$coursetrack) & 
-#          !(data$stationType %in% c('RAM','VV')) ,]$distanceBottom*1852*
-#   data[is.na(data$distancePositions) & 
-#          is.na(data$coursetrack) & 
-#          !(data$stationType %in% c('RAM','VV')),]$redsk_dim
-# data[is.na(data$distancePositions) & 
-#        is.na(data$coursetrack) & 
-#        !(data$stationType %in% c('RAM','VV')),"areal_metode"] <- 
-#   "Træktid*trækhastighed"
-# 
-# #Areal = rammeareal (Hvis redskab=ramme)
-# data[data$gearType %like% '^RAM' & 
-#        data$gearType!="RAM" & 
-#        !is.na(data$gearType),"Befisket_Areal_m2"] <- 
-#   data[data$gearType %like% '^RAM' & 
-#          data$gearType!="RAM" & 
-#          !is.na(data$gearType),]$redsk_dim # kig på geartype, RAM0625 = 0,0625
-# 
-# data[data$gearType=="RAM" & !is.na(data$gearType),"Befisket_Areal_m2"] <- 0.01
-# data[data$gearType %like% '^RAM' & !is.na(data$gearType),"areal_metode"] <- 
-#   "Ramme-areal"
-# 
-# 
-# #Areal = GrapAreal (Hvis redskab=VV)
-# data[data$gearType %like% '^VV' &
-#       !is.na(data$gearType),"Befisket_Areal_m2"] <-
-#  data[data$gearType %like% '^VV' &
-#         !is.na(data$gearType),]$redsk_dim 
-# data[data$gearType %like% '^VV' &
-#       !is.na(data$gearType),"areal_metode"] <- "Grab-areal"
-# 
-# # Areal = sugeareal (Hvis redskab=sug)
-# data$Befisket_Areal_m2[data$gearType %like% '^SUG' & !is.na(data$gearType)] <-
-#   data$redsk_dim[data$gearType %like% '^SUG' & !is.na(data$gearType)]*
-#   data$coursetrack[data$gearType %like% '^SUG' & !is.na(data$gearType)] # skal ganges med en længde (distance position)
-# data[data$gearType %like% '^SUG' & !is.na(data$gearType),"areal_metode"] <-
-#   "Suge-areal"
-
-
 areal <- filter(data, is.na(Befisket_Areal_m2))
 ######################################################
 
 data <- data[!is.na(data$speciesCode),] 
   
 
-#Calculate total weight, total number, lengths etc. from weight, number and raisingfactor
-# data$Weight_kg_STO <-
-#   ifelse(data$sizeSortingDFU=="STO" & !is.na(data$sizeSortingDFU) & 
-#            data$speciesCode=="BMS",
-#          as.numeric(apply(data[,c("weightStep0","weightStep1",
-#                                   "weightStep2","weightStep3")],
-#                           1, function(x) min(x[1], x[2], x[3], x[4], na.rm=T)))*
-#            data$raisingFactor,
-#          NA)
-# data$Weight_kg_small <-
-#   ifelse((data$sizeSortingDFU!="STO" | is.na(data$sizeSortingDFU)) & 
-#            data$speciesCode=="BMS",
-#          as.numeric(apply(data[,c("weightStep0","weightStep1","weightStep2","weightStep3")],
-#                           1, function(x) min(x[1], x[2], x[3], x[4], na.rm=T)))*data$raisingFactor,
-#          NA)
 data$TotalWeight_kg <- as.numeric(apply(data[,c("weightStep0","weightStep1","weightStep2","weightStep3")], 
                                         1, function(x) min(x[1], x[2], x[3], x[4], na.rm=TRUE)))*data$raisingFactor
 
