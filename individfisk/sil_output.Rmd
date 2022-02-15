@@ -26,19 +26,21 @@ p_load(kableExtra, sqldf, RODBC, dplyr, lubridate, data.table)
 #special for this script
 
 ## costum functions
-'%!in%' <- function(x,y)!('%in%'(x,y)) #a "NOT in" statement
+
 
 ```
 
 
 ```{r set_parameters, include=FALSE}
 
-# year <- @paramYear
+# y1 <- @paramYear1
+# y2 <- @paramYear2
+# species <- c(@paramSpecies)
 
 # Paramters to use in R
-year <- 2021
-
-species <- c("SIL")
+y1 <- 2020
+y2 <- 2021
+species <- c("TOR", "SIL")
 
 
 ```
@@ -71,7 +73,7 @@ dat <- sqlQuery(channel,
                       Animal ON SpeciesList.speciesListId = Animal.speciesListId INNER JOIN
                       Trip ON Sample.tripId = Trip.tripId LEFT OUTER JOIN
                       Age ON Animal.animalId = Age.animalId
-            WHERE     (Sample.year = (",year,")) AND 
+            WHERE     (Sample.year between ",y1," and ",y2," ) AND 
                       (SpeciesList.speciesCode IN ('", paste(species,collapse = "','"),"')) AND 
                       (Animal.individNum > 0)
             ORDER BY  Sample.dateGearStart
@@ -86,14 +88,11 @@ dat$date <- date(dat$dateGearStart)
 
 ###
 
-ID <- unique(dat$animalId)
-
 channel <- odbcConnect("FishLineDW")
 animalReference<-sqlQuery(channel,
                   paste("SELECT  animalId, referenceId
-                        FROM     R_AnimalReference
-                       WHERE     (animalId IN ('",paste0(ID,collapse="','"), "'))
-                                 ", sep = ""))
+                         FROM     R_AnimalReference
+                                          ", sep = ""))
 close(channel)
 
 channel <- odbcConnect("FishLine")
@@ -124,11 +123,15 @@ merged2 <- merged2 %>% relocate(c(ref_1, ref_2, ref_3, ref_4, ref_6, ref_7, ref_
                         .after = date)
 
 # ##Output fish-age information
-write.csv2(merged2, file = "Q:/dfad/users/jostou/home/temp/SIL_otput.csv",
-            quote = FALSE, row.names = FALSE, na = '')
 
-# write.csv2(merged2, paste0("SIL_Data_", format(Sys.Date(), "%d%m%y"), ".csv"),
+#write.csv2(merged2, file = "Q:/dfad/users/jostou/home/temp/SIL_otput.csv",
 #            quote = FALSE, row.names = FALSE, na = '')
+
+names <- toString(species)
+names <- gsub(', ', '.', names)
+
+write.csv2(merged2, paste0(names, "_", y1, "_", y2, "_Data_", Sys.Date(), ".csv"),
+           quote = FALSE, row.names = FALSE, na = '')
 
 
 title<-c(paste0(Sys.Date(), ".csv"))
@@ -138,7 +141,7 @@ title<-c(paste0(Sys.Date(), ".csv"))
 
 \vspace*{2cm} 
 
-\textbf{\LARGE Sille data eksporteret som "SIL\_Data\_`r title`"}
+\textbf{\LARGE Data eksporteret som "`r names`\_`r y1`\_`r y1`\_Data\_`r title`"}
 
 \vspace{2cm}   
 
@@ -148,8 +151,3 @@ title<-c(paste0(Sys.Date(), ".csv"))
 \textbf{\Large Art:}
 \textbf{\Large `r species`}\
 \vspace{0.5cm}
-
-
-
-
-
