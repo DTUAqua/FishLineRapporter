@@ -1,0 +1,816 @@
+---
+fontsize: 11pt
+geometry: top=0.7in, bottom=1.1in, left=1in, right=1in
+header-includes:
+- \usepackage{booktabs}
+- \usepackage{longtable}
+- \usepackage{floatrow}
+- \usepackage{float}
+- \usepackage[T1]{fontenc}
+- \usepackage[danish]{babel}
+- \usepackage[utf8]{inputenc}
+- \usepackage{graphicx}
+- \usepackage{fancyhdr}
+- \pagestyle{fancy}
+- \fancyhf{}
+- \fancyfoot[R]{\thepage}
+- \usepackage[table]{xcolor}
+- \usepackage{rotating}
+- \usepackage{ragged2e}
+- \usepackage{array}
+- \usepackage[export]{adjustbox}
+- \usepackage{multirow}
+- \linespread{1.15}
+- \usepackage{tabularx}
+- \usepackage{catchfile}
+- \usepackage{makecell}
+- \usepackage{etoolbox}
+- \usepackage{colortbl, xcolor}
+- \usepackage{lscape}
+- \usepackage{helvet}
+- \setlength{\intextsep}{10pt plus 0.0pt minus 10.0pt}
+- \setlength{\headsep}{0.6in}
+- \usepackage{tcolorbox}
+- \usepackage{lastpage}
+output:
+    pdf_document:
+    fig_caption: yes
+    keep_tex: yes
+---
+
+
+\renewcommand{\headrulewidth}{0pt}
+
+\newcommand{\myitem}{\item[\checkmark]}
+
+\fancypagestyle{companypagestyle}{
+    \fancyhf{}
+    \fancyfoot[L]{
+    \parbox[b]{\dimexpr\linewidth\relax}{\vspace{1cm}
+    {\color{red}\rule{\dimexpr\linewidth\relax}{0.4pt}}\\
+    {\footnotesize \color{darkgray} www.rekrea-fisk.dk \hfill DTU AQUA, Jægersborg Allé 1\\[-0.15cm]
+           +45 3588 3300 \hfill 2920 Charlottenlund, Denmark}}
+    }
+    \fancyfoot[R]{
+    \parbox[b]{0cm}{}
+    }
+}
+
+\pagenumbering{arabic}
+\pagestyle{companypagestyle}
+
+\renewcommand{\familydefault}{\sfdefault}
+\def\Tiny{\fontsize{5pt}{5pt}\selectfont}
+
+\sffamily
+
+\renewcommand\floatpagefraction{0}
+\renewcommand\textfraction{0}   
+
+
+\def\figurename{Figure}
+\def\tablename{Table}
+
+```{r set_libraries, include=FALSE}
+
+#Libraries
+
+if (!require(grid)) {
+  install.packages("grid", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(grid)
+}
+if (!require(stringi)) {
+  install.packages("stringi", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(stringi)
+}
+if (!require(stringr)) {
+  install.packages("stringr", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(stringr)
+}
+if (!require(directlabels)) {
+  install.packages("directlabels", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(directlabels)
+}
+if (!require(gridExtra)) {
+  install.packages("gridExtra", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(gridExtra)
+}
+if (!require(scales)) {
+  install.packages("scales", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(scales)
+}
+if (!require(ggplot2)) {
+  install.packages("ggplot2", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(ggplot2)
+}
+if (!require(plyr)) {
+  install.packages("plyr", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(plyr)
+}
+if (!require(dplyr)) {
+  install.packages("dplyr", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(dplyr)
+}
+if (!require(knitr)) {
+  install.packages("knitr", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(knitr)
+}
+if (!require(xtable)) {
+  install.packages("xtable", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(xtable)
+}
+if (!require(data.table)) {
+  install.packages("data.table", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(data.table)
+}
+
+
+round2 = function(x) trunc(x+0.5);
+sumNA = function(x) sum(x,na.rm=T);
+
+gg_color_hue <- function(n) {
+  hues = seq(15, 375, length = n + 2)
+  h1 <-hcl(h = hues, l = 65, c = 100)[1:n]
+  #if("#C49A00" %in% h1) {h2 <- h1[h1 != "#C49A00"]}
+  #else 
+    {h1}
+}
+
+#extract legend
+g_legend<-function(a.gplot){
+  tmp <- ggplot_gtable(ggplot_build(a.gplot))
+  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
+  legend <- tmp$grobs[[leg]]
+  return(legend)}
+
+
+#Blank theme for plotting
+blank_theme <- theme_minimal()+
+  theme(
+  axis.title.x = element_blank(),
+  axis.title.y = element_blank(),
+  panel.border = element_blank(),
+  panel.grid=element_blank(),
+  axis.ticks = element_blank(),
+  plot.title=element_text(size=14, face="bold")
+  )
+
+
+
+```
+
+
+```{r echo = F}
+
+opts_chunk$set(fig.lp = '')
+```
+
+
+```{r include=FALSE, cache=FALSE} 
+
+########## Collecting data from Fishline ###########
+
+#setwd("X:/Line/RekreativtFiskeri/REKREA/rekrea_data/out_rekrea_tor23/")
+
+resp <- read.csv("REKREA_RESP_COD23_310817.csv", 
+                 na.strings=c("NA","NaN", " ","") ,
+                 stringsAsFactors = FALSE)
+
+catch <- read.csv("REKREA_CATCH_COD23_310817.csv", 
+                  na.strings=c("NA","NaN", " ","") ,
+                 stringsAsFactors = FALSE)
+
+trip <- read.csv("REKREA_TRIP_COD23_310817.csv", 
+                 na.strings=c("NA","NaN", " ","") ,
+                 stringsAsFactors = FALSE)
+```
+
+
+<!-- definere forside -->
+
+
+\thispagestyle{empty}
+
+
+\vspace*{-2cm}
+
+
+
+\begin{figure}[H]
+        \flushright
+        \includegraphics[width=8cm]{DTU_DK.jpg}\end{figure}
+\vspace*{0.5cm}
+
+
+
+\noindent\textcolor{darkgray}{\rule{0.6\textwidth}{1pt}}\par
+\vspace*{-0.6cm}
+\noindent\textcolor{darkgray}{\rule{0.8\textwidth}{1pt}}\par
+
+
+\textcolor{darkgray}{\Large DTU Aqua - REKREA}
+
+\vspace*{3.5cm}
+
+
+
+\textbf{\Huge REKREA}\
+
+\vspace*{-0.3cm}
+
+\textbf{\it{\Large Forbedring af forvaltningsgrundlaget for bestande i det rekreative fiskeri}}\
+
+\vspace*{1cm}
+
+\textbf{\Huge Dataindsamling}\
+
+\vspace*{-0.3cm}
+
+\textbf{\it{\large Case study 'Torsk i Øresund'}}\
+
+\vspace{0.4cm}
+
+\textbf{\it{\large Status pr. `r format(Sys.Date(),"%d/%m/%Y")`}}\
+
+
+
+\vspace{6.5cm}
+\begin{figure}[H]
+        \flushleft
+        \includegraphics[width=5cm]{DTUAqua.jpg}
+\end{figure}
+
+\vspace{-2.8cm}
+\begin{flushright}              
+DTU Aqua\\
+Jægersborg Allé 1\\
+2920 Charlottenlund\\
+Denmark
+\end{flushright}
+
+
+
+
+
+
+\newpage
+
+<!-- define header -->
+
+
+
+\lhead{\footnotesize \color{darkgray}  REKREA - Dataindsamling}
+\rhead{\footnotesize  \color{darkgray} SIDE \color{red} \thepage\ \color{darkgray} AF \color{darkgray} \pageref*{LastPage} }
+
+
+```{r, include=FALSE}
+
+#Trip info for report
+############
+
+#tripA <- ddply(iTurW, .(a.spm1_5,b.spm1_5), summarize, numBP=sum(!is.na(c.spm1_1)))
+#tripB <- merge(iTurW,tripA,all=TRUE)
+#tripB$yearqtr <- paste(tripB$year,tripB$quarter,sep="-")
+
+nBoat <- nrow(trip[trip$tripType == "Turbåd",])
+nRampe <- nrow(trip[trip$tripType == "Havn",])
+
+
+```
+
+
+
+\section{Ture}
+
+
+Der er foreløbigt foretaget `r nrow(trip)` indsamlinger siden projektets start i juli 2016. Indsamlingerne er fordelt over ture på turbåde (`r nBoat` ture) og på ramper (`r nRampe` ture). Oversigten viser hvor mange ture, som hver indsamler har været på, på hhv. turbåde og ramper.
+
+
+\vspace{0.3cm}
+
+\newcolumntype{s}{>{\hsize=.4\hsize}X}
+\newcolumntype{u}{>{\hsize=1\hsize}X}
+\newcolumntype{t}{>{\hsize=0.6\hsize}X}
+\newcolumntype{K}{>{\hsize=0.2\hsize}X}
+\newcolumntype{L}{>{\hsize=3\hsize}r}
+
+
+\begin{center}        
+\begin{tcolorbox}[colback=white!5,colframe=blue!40!black,width=0.75\textwidth]
+\renewcommand{\arraystretch}{1}
+\renewcommand{\tabcolsep}{12pt}\vspace{-0.35cm}
+```{r, results='asis',echo=FALSE,message=FALSE,warning=FALSE}
+
+int_type <- ddply(trip, .(interviewPerson,tripType), summarize, num=sum(!is.na(sgTRid)))
+
+
+int_type_tab <- reshape(int_type, timevar = "tripType",idvar ="interviewPerson",direction = "wide")
+int_type_tab$total <- rowSums(int_type_tab[,-1],na.rm=TRUE)
+colnames(int_type_tab) <- c("Person","Turbåd","Rampe","Total")
+
+
+int_type_tab2 <- rbind(int_type_tab, c("Alle",colSums(int_type_tab[,-1],na.rm=TRUE)))
+rownames(int_type_tab2)[nrow(int_type_tab2)] <- ""
+library(Hmisc)
+mylatex <- function (...) {o <- capture.output(latex(...));o <- grep('^%', o, inv=T, value=T);cat(o, sep='\n') }
+mylatex(int_type_tab2,file='',where='H',center='none',booktabs =T,rowlabel="", colnamesTexCmd = "bfseries",col.just = c("l","r","r","r"),
+         n.rgroup=c(length(unique(int_type$interviewPerson)),1),rgroup=c("Indsamler","Total"),rgroupTexCmd="itshape",
+         n.cgroup=c(1,3),cgroup=c("","Antal ture"))
+detach(package:Hmisc)
+
+```
+\end{tcolorbox}
+\end{center}
+
+\subsection{Antal ture og respondenter per kvartal}
+
+Tabellen nedenfor viser hvordan de `r nrow(trip)` ture er fordelt per kvartal, og hvor mange respondenter der er blevet interviewet per kvartal. I oversigten over antal af ture, er tallet efter skråstregen det planlagte mål for antal indsamlinger per kvartal.  
+I antallet af respondenter er medtaget både de lystfiskere, der ønskede at deltage i undersøgelsen, samt de som ikke ønskede at deltage. Indtil videre er `r nrow(resp[!is.na(resp$sgId),])` lystfiskere blevet spurgt, om de ville deltage.
+
+\vspace{0.3cm}
+
+\begin{center}        
+\begin{tcolorbox}[colback=white!5,colframe=blue!40!black,width=1\textwidth]
+\renewcommand{\arraystretch}{1}
+\renewcommand{\tabcolsep}{8pt}\vspace{-0.35cm}
+```{r, results='asis',echo=FALSE,message=FALSE,warning=FALSE}
+
+trip$yearqtr <- paste(trip$year,trip$quarter,sep="-")
+
+nIntQTR1 <- ddply(trip, .(tripType,yearqtr), summarize, num = sum(!is.na(sgTRid)))
+nIntQTR2 <- ddply(trip, .(tripType,yearqtr), summarize, numRes = sumNA(respTot))
+
+
+wQTR1 <- reshape(nIntQTR1, timevar = "tripType",idvar ="yearqtr",direction = "wide")
+wQTR1$num.total <- rowSums(wQTR1[,-1],na.rm=TRUE)
+wQTR2 <- reshape(nIntQTR2, timevar = "tripType",idvar ="yearqtr",direction = "wide")
+wQTR2$numRes.total <- rowSums(wQTR2[,-1],na.rm=TRUE)
+wQTR <- merge(wQTR1,wQTR2,all=TRUE)
+colnames(wQTR) <- c("Kvartal","Rampe","Turbåd","Total","Rampe","Turbåd","Total")
+
+wQTRA <- rbind(wQTR,c("Alle",colSums(wQTR[,-1],na.rm=TRUE)))
+wQTRA[is.na(wQTRA)] <- 0
+
+
+#Planned trips
+wQTRA[wQTRA$Kvartal=="2017-1","Turbåd"] <- paste0(wQTRA[wQTRA$Kvartal=="2017-1","Turbåd"],"/16")
+wQTRA[wQTRA$Kvartal=="2017-2","Turbåd"] <- paste0(wQTRA[wQTRA$Kvartal=="2017-2","Turbåd"],"/16")
+wQTRA[wQTRA$Kvartal=="2017-3","Turbåd"] <- paste0(wQTRA[wQTRA$Kvartal=="2017-3","Turbåd"],"/16")
+wQTRA[wQTRA$Kvartal=="2017-4","Turbåd"] <- paste0(wQTRA[wQTRA$Kvartal=="2017-4","Turbåd"],"/16")
+
+wQTRA[wQTRA$Kvartal=="2017-1","Rampe"] <- paste0(wQTRA[wQTRA$Kvartal=="2017-1","Rampe"],"/9")
+wQTRA[wQTRA$Kvartal=="2017-2","Rampe"] <- paste0(wQTRA[wQTRA$Kvartal=="2017-2","Rampe"],"/16")
+wQTRA[wQTRA$Kvartal=="2017-3","Rampe"] <- paste0(wQTRA[wQTRA$Kvartal=="2017-3","Rampe"],"/16")
+wQTRA[wQTRA$Kvartal=="2017-4","Rampe"] <- paste0(wQTRA[wQTRA$Kvartal=="2017-4","Rampe"],"/9")
+
+wQTRA[wQTRA$Kvartal=="2017-1","Total"] <- paste0(wQTRA[wQTRA$Kvartal=="2017-1","Total"],"/25")
+wQTRA[wQTRA$Kvartal=="2017-2","Total"] <- paste0(wQTRA[wQTRA$Kvartal=="2017-2","Total"],"/32")
+wQTRA[wQTRA$Kvartal=="2017-3","Total"] <- paste0(wQTRA[wQTRA$Kvartal=="2017-3","Total"],"/32")
+wQTRA[wQTRA$Kvartal=="2017-4","Total"] <- paste0(wQTRA[wQTRA$Kvartal=="2017-4","Total"],"/25")
+
+
+rownames(wQTRA)[nrow(wQTRA)] <- ""
+library(Hmisc)
+mylatex(wQTRA,file='',where='H',center='none',booktabs =T,rowlabel="", colnamesTexCmd = "bfseries",col.just = c("l",rep("r",6)),
+         n.rgroup=c(nrow(wQTRA)-1,1),rgroup=c("Periode  ","Total"),rgroupTexCmd="itshape",
+         n.cgroup=c(1,3,3),cgroup=c("","Antal ture","Antal respondenter"))
+detach(package:Hmisc)
+
+fH1 <- nrow(trip[trip$tripType=="Turbåd",])^0.4
+```
+\end{tcolorbox}
+\end{center}
+
+
+\subsubsection{Turbåde}
+
+
+```{r, echo=FALSE, message=FALSE,warning=FALSE,results='asis', fig.pos="ht!", fig.height=fH1, fig.width=7}
+
+# tripTime <- ddply(trip, .(tripType,yearqtr,place), summarize, num=sum(!is.na(sgTRid)))
+# tripTime2 <- ddply(trip, .(tripType,place), summarize, num=sum(!is.na(sgTRid)))
+# 
+# 
+# #tripMore1 <- length(unique(tripTime2[tripTime2$tripType=="Turbåd" & tripTime2$num>1,]$place))
+# 
+# tripTime2 <- tripTime2[order(tripTime2$yearqtr,tripTime2$b.spm1_5),]
+# 
+# tripTime2$tn <- 1:nrow(tripTime2)
+# tripTime2$tName <- ifelse(tripTime2$a.spm1_5=="harbour",paste(tripTime2$tn,tripTime2$b.spm1_5,"(harbour)"),paste(tripTime2$tn,tripTime2$b.spm1_5))
+
+```
+
+De `r nBoat` indsamlinger, der er foretaget på turbåde, er udført på `r length(unique(trip[trip$tripType=="Turbåd",]$place))` forskelige både over `r length(unique(trip[trip$tripType=="Turbåd",]$quarter))` kvartaler.
+På de flereste turbåde er der foretaget mere end én tur. 
+Af grafen nedenfor fremgår det, på hvilke både der indtil nu er lavet indsamlinger, og hvor mange ture der har været på hver båd per kvartal.  
+
+
+```{r, echo=FALSE, message=FALSE,warning=FALSE,results='asis', fig.pos="ht!", fig.height=fH1, fig.width=7}
+
+
+# bp<- ggplot(nIntQTR1, aes(x=yearqtr, y=num, fill=a.spm1_5))+ geom_bar(width = 0.4, stat = "identity")+ theme_minimal()+
+#     theme(legend.title=element_blank(),panel.grid.major.x=element_blank(),axis.title.y = element_text(margin = margin(l = 0, r = 15)),
+#           axis.text.x = element_text(angle = 30),axis.title.x = element_blank())+
+#     scale_fill_manual(values=gg_color_hue(2),labels=c("Turbåd","Rampe"))+
+#     labs(x = "År-kvartal", y="Antal ture")
+# #bp
+
+# tripTime2$tName <- factor(tripTime2$tName, levels = tripTime2$tName[order(-tripTime2$tn)])
+# PT <- ggplot(tripTime2, aes(x=factor(tName), y=num, fill=yearqtr)) +
+#       geom_bar(stat="identity") +coord_flip()+
+#       labs(y = "Antal respondenter", x="")+theme_minimal()
+# 
+# #PT
+
+# PT <- ggplot(tripTime2[tripTime2$a.spm1_5=="harbour",], aes(x=factor(tName), y=num, fill=yearqtr)) +
+#       geom_bar(stat="identity") +coord_flip()+
+#       labs(y = "Antal respondenter", x="")+theme_minimal()
+# 
+# #PT
+
+
+tripC <- trip[order(trip$place,trip$date),]
+tripC$nt <- 1:nrow(trip)
+tripC$place <- factor(tripC$place, levels = tripC$place[order(-tripC$nt)])
+tripC$count <- 1
+
+PT <- ggplot(tripC[tripC$tripType=="Turbåd",], aes(x=factor(place), y=count, fill=yearqtr),fill="Kvartal") +
+      geom_bar(stat="identity") +coord_flip()+
+      labs(y = "Antal ture", x="")+theme_minimal()+scale_fill_brewer(palette="RdBu") +guides(fill=guide_legend(title="År-kvartal"))
+      #+scale_y_continuous(breaks=c(1:max(tripC$numBP)))
+     
+
+PT
+
+
+text1  <- paste("Der er ",sum(tripC[tripC$tripType=="Havn",]$count), "indsamlinger i havne. Grafen viser, som ovenfor, antallet af ture per havn per kvartal.")
+
+  
+fH2 <- nrow(trip[trip$tripType=="Havn",])^0.6
+
+```
+
+
+\subsubsection{Ramper}
+
+`r text1`
+
+
+
+```{r, echo=FALSE, message=FALSE,warning=FALSE,results='asis', fig.pos="ht!", fig.height=fH2, fig.width=7}
+
+PT <- ggplot(tripC[tripC$tripType=="Havn",], aes(x=factor(place), y=count, fill=yearqtr),fill="Kvartal") +
+      geom_bar(stat="identity") +coord_flip()+
+      labs(y = "Antal ture", x="")+theme_minimal()+scale_fill_brewer(palette="RdBu")+guides(fill=guide_legend(title="År-kvartal"))
+     # scale_y_continuous(breaks=c(1:max(tripC$numBP)))
+    
+
+PT
+
+```
+
+
+
+\newpage
+
+\section{Respondenter}
+
+
+```{r, include=FALSE}
+
+resp_co <- resp[!is.na(resp$sgId),] 
+
+num_resp <- paste(nrow(subset(resp_co,participateSurvey=="Ja")),nrow(resp_co),sep="/")
+perc_resp <- paste0(round2(nrow(subset(resp_co,participateSurvey=="Ja"))/nrow(resp_co)*100),"\\%")
+res_m <- paste0("Mænd ", round2(nrow(subset(resp_co,contactSex=="Mand"))/nrow(subset(resp_co,!is.na(contactSex)))*100),"\\%")
+res_f <- paste0("Kvinder ", round2(nrow(subset(resp_co,contactSex=="Kvinde"))/nrow(subset(resp_co,!is.na(contactSex)))*100),"\\%")
+
+```
+
+
+
+På de `r nrow(trip)` ture, der er foretaget siden projektets start, er `r nrow(resp_co)` lystfiskere blevet spurgt om de havde lyst til at deltage i undersøgelse. Denne del giver et overblik over respondenterne.
+
+\vspace{0.2cm}
+
+
+\begin{center}        
+\begin{tcolorbox}[colback=white!5,colframe=blue!40!black,width=0.8\textwidth]
+\renewcommand{\arraystretch}{1.3}
+\renewcommand{\tabcolsep}{9pt}
+  \begin{tabularx}{0.90\textwidth}{p{4cm}lll}
+        \textbf{Deltagelse:} &  `r num_resp`& & \\  
+        \textbf{Deltagelsesprocent:} & `r perc_resp` & & \\
+        \textbf{Køn:} & `r res_m` \quad `r res_f` &   & 
+  \end{tabularx}
+\end{tcolorbox}
+\end{center}
+
+
+\subsection{Antal respondenter per tur og kvartal}
+
+Oversigten her viser, hvor mange respondenter, der på hver tur har ønsker at deltage i undersøgelsen.
+
+\vspace{0.2cm}
+
+```{r, echo=FALSE, message=FALSE,warning=FALSE,results='asis', fig.pos="ht!", fig.height=8, fig.width=10}
+
+# Arrasøe arresoe
+# Juventus/Hjalmer
+# Kastrup 2/ Kastrup ii
+
+
+#tripTime2 <- ddply(tripC, .(place,yearqtr,tripType), summarize, num=sum(respYes))
+
+tripTime2 <- tripC[order(tripC$yearqtr,tripC$tripType),]
+
+tripTime2$tn <- 1:nrow(tripTime2)
+tripTime2$tName <- ifelse(tripTime2$tripType=="Havn",paste(tripTime2$tn,tripTime2$place,"(Havn)"),paste(tripTime2$tn,tripTime2$place))
+
+
+
+tripTime2$tName <- factor(tripTime2$tName, levels = tripTime2$tName[order(-tripTime2$tn)])
+PT <- ggplot(tripTime2, aes(x=factor(tName), y=respYes, fill=yearqtr),fill="Kvartal") +
+      geom_bar(stat="identity") +coord_flip()+
+      labs(y = "Antal deltagere", x="")+theme_minimal()+ scale_fill_brewer(palette="RdBu")+labs(fill="År-kvartal")
+
+PT
+
+
+
+#png("X:\\Line\\RekreativtFiskeri\\REKREA\\Data\\RespondentsTrip_1.png", width = 7, height = 5, units = 'in', res = 500)
+#ggplot(tripTime2, aes(x=factor(tName), y=num, fill=yearqtr),fill="Kvartal") +
+#PT <- ggplot(tripTime2, aes(x=factor(tName), y=respYes, fill=yearqtr),fill="Kvartal") +
+ #     geom_bar(stat="identity") +coord_flip()+
+#      labs(y = "Antal deltagere", x="")+theme_minimal()+ scale_fill_brewer(palette="RdBu")+labs(fill="År-kvartal")
+#dev.off()
+
+
+```
+
+
+
+
+
+```{r, include=FALSE}
+
+########################################################################################
+
+#     License data
+
+########################################################################################
+
+
+#Get license data
+license <- resp_co[resp_co$participateSurvey=="Ja", c("license","licenseType","noLicense")]
+
+#Count number of people with or without a license, or not willing to say
+licA <- ddply(license[!is.na(license$license),], .(license),summarize, value=sum(!is.na(license)))
+
+#Number of respondent with, without or not willing to respond
+nY <- paste0(round2(licA[licA$license=="Ja",]$value/sumNA(licA$value)*100),"\\%")
+nN <- paste0(round2(licA[licA$license=="Nej",]$value/sum(licA$value)*100),"\\%")
+nR <- paste0(round2(licA[licA$license=="Nægter at svare",]$value/sum(licA$value)*100),"\\%")
+
+#Counting different types of licenses (licY) and different reasons not to hold a license (licN)
+licY <- ddply(license[which(license$license=="Ja"),], .(licenseType),summarize, value=sum(!is.na(license)))
+licN <- ddply(license[which(license$license=="Nej"),], .(noLicense),summarize, value=sum(!is.na(license)))
+
+#The percentage vale of the most occuring license type
+L1 <- round2(licY[licY$value==max(licY$value),]$value/sum(licY$value)*100)
+
+# Text depending on license type
+if (licY[licY$value==max(licY$value),]$licenseType %in% c("Årskort","Ugekort","Dagskort","Fritidsfiskerlicens")) {
+    tY <-paste0(" Størstedelen (",L1,"\\%) af de adspurgte respondenter, som har et fisketegn, 
+                svarer at de har ",tolower(licY[licY$value==max(licY$value),]$licenseType),".")
+} else {
+    tY <- paste0("Størstedelen (",L1,"\\%) af de adspurgte respondenter, som har et fisketegn, nægter at svare på hvilken type licens, de har.")
+}
+
+```
+
+
+\subsection{Fisketegn}
+
+
+Af de adspurte svarer `r nY` at de har et fisketegn, `r nN` svarer at de ikke har et fisketegn, mens `r nR` nægter at svare.
+
+
+
+\vspace{0.2cm}
+
+Diagrammet nedenfor til venstre viser fordelingen af licensstyper blandt de `r nY` adspurgte, som svarer, at de har et fisketegn.`r tY`
+Til højre er vist et diagram, der viser årsager til, hvorfor nogle af respondenterne ikke har et fisketegn.
+Hovedparten af de respondenter, som ikke har et fisketegn, er pensionister.
+
+
+```{r, echo=FALSE, message=FALSE,warning=FALSE,include=FALSE}
+
+########################################################################################
+
+#     License plot
+
+########################################################################################
+licY <- licY[order(licY$value),]
+#licY$spm3_5.2 <- as.factor(licY$spm3_5.2)
+#licY$licenseType <- factor(licY$licenseType, levels=c("Dagskort","Fritidsfiskerlicens","Nægter at svare","Ugekort","Årskort"))
+#Pie chart of license types
+
+licY$percent <- round2(licY$value/sum(licY$value)*100)
+
+bp <- ggplot(licY, aes(x = "", y = percent, fill = licenseType)) + 
+    geom_bar(width = 1,stat="identity") 
+
+pie1 <- bp + coord_polar(theta = "y") + blank_theme +
+        scale_fill_brewer(palette="RdBu") +
+        theme(axis.text.x=element_blank(),
+              legend.title=element_blank(),
+              legend.text=element_text(size=8)) +
+        geom_text(aes(x=1.6, label = percent(percent/100)), size=3, position = position_stack(vjust = 0.5), fontface = "bold")  + 
+        theme(plot.margin = unit(c(-1,0,-1,0), "cm"))+guides(fill=guide_legend(keywidth=0.2,keyheight=0.2,default.unit="inch"))+
+        theme(legend.position = c(0.25, 0.0))+labs(title="Licenstyper")+theme(plot.title = element_text(hjust = 0.5))
+    
+
+
+#licN$spm3_5.3 <- factor(licN$noLicense, levels=c("Pensionist","Under 18 år","Nægter at svare","Andet"))
+#licN$spm3_5.3 <- as.factor(licN$spm3_5.3)
+licN <- licN[order(licN$value),]
+#Pie chart of reasons not to hold a licens
+licN$percent <- round2(licN$value/sum(licN$value)*100)
+
+bp <- ggplot(licN, aes(x = "", y = percent, fill = noLicense)) + 
+    geom_bar(width = 1,stat="identity") 
+
+pie2 <- bp + coord_polar(theta = "y") + blank_theme +
+        scale_fill_brewer(palette="RdBu") +
+        theme(axis.text.x=element_blank(),
+              legend.title=element_blank(),
+              legend.text=element_text(size=8)) +
+        geom_text(aes(x=1.6, label = percent(percent/100)), size=3, position = position_stack(vjust = 0.5), fontface = "bold")  + 
+        theme(plot.margin = unit(c(-1,0,-1,0), "cm"))+guides(fill=guide_legend(keywidth=0.2,keyheight=0.2,default.unit="inch"))+
+        theme(legend.position = c(0.25, 0.0))+labs(title="Årsager til ikke at have licens")+theme(plot.title = element_text(hjust = 0.5))
+
+    
+
+```
+
+```{r, echo=FALSE, message=FALSE,warning=FALSE,results='asis', fig.pos="ht",fig.height=4}
+
+grid.arrange( pie1, pie2, ncol=2)
+
+```
+
+
+
+\newpage
+
+
+\section{Fangst}
+
+
+
+På turene er der registreret `r length(unique(catch$species))` forskellige arter. Nogle arter er kun registeret i antal og andre kun i vægt. Fangsterne tildeles en kode; 1. Til mad/konsum, 2. Til madding, 3. De skal smides væk, 4. Genudsat i live, 5. Genudsat død eller 9. Til andre formål.
+Kode 3 anvendes kun ved den tilgængelige fangst, mens kodernerne 4 og 5 kun anvendes til den del af fangsten, som ikke er tilgængelig for registrering. \
+
+\vspace{-0.7cm}
+
+\subsection{Tilgængelig fangst}
+
+
+For den del af fangsten, som det var muligt at måle, er følgende arter blevet registretet (obs: der er ikke nødvendigvis sammenhæng mellem antal og vægt, da nogle fangster kun er opgjort i antal og andre kun i vægt):
+
+\vspace{0.4cm}
+
+```{r, echo=FALSE, message=FALSE,warning=FALSE,results='asis', fig.pos="ht!",fig.height=3}
+
+
+catchP1 <- ddply(catch[catch$catchCategory=="C",], .(species,catchCategory,code), summarize, number=sumNA(number),weight=sumNA(weight))
+catchP1[is.na(catchP1$code),"code"] <- "Ikke angivet"
+catchP1 <- rbind(catchP1, cbind(expand.grid(species=levels(factor(catchP1$species)), catchCategory=levels(factor(catchP1$catchCategory)),code=levels(factor(catchP1$code)), number=NA,weight=NA)))
+
+PT1 <- ggplot(catchP1[catchP1$catchCategory=="C",], aes(x=factor(species),y=number,fill=code)) +
+      geom_bar(stat="identity",position="dodge",aes(fill=factor(code))) +#coord_flip()+
+      labs(y = "Antal", x="")+theme_minimal() +
+        scale_fill_brewer(palette="RdBu") + labs(fill="Kode")+ theme(legend.position="bottom")
+        #+guides(fill=guide_legend(keywidth=0.2,keyheight=0.2,default.unit="inch"))
+PT2 <- ggplot(catchP1[catchP1$catchCategory=="C",], aes(x=factor(species),y=weight,fill=code)) +
+      geom_bar(stat="identity",position="dodge",aes(fill=factor(code))) +#coord_flip()+
+      labs(y = "Vægt (kg)", x="")+theme_minimal() +
+        scale_fill_brewer(palette="RdBu") +labs(fill="Kode")#+scale_fill_manual(values=c("#D6604D","#4393C3"))+
+  #scale_fill_manual(values=wes_palette(name="Darjeeling"))+
+      
+
+mylegend <- g_legend(PT1)
+
+grid.arrange(arrangeGrob(PT1 + theme(legend.position="none"),
+                         PT2 + theme(legend.position="none"),
+                         nrow=1),
+             mylegend, nrow=2,heights=c(10, 1))
+```
+
+\vspace{-0.5cm}
+
+\subsubsection{Torsk}
+
+
+Oversigten her viser, hvor mange torsk der er blevet registreret under turene. Kun den tilgængelige del af fangsten er medtaget. Der er desuden blevet registreret `r sumNA(catch[catch$species=="TOR" & catch$catchCategory=="R",]$number)` torsk som utilgængelig fangst.
+
+
+```{r, include=FALSE}
+
+catchQ <- merge(catch,tripC[,c("tripId","yearqtr")],all.x=TRUE)
+catchTOR <- subset(catchQ, catchQ$species=="TOR" & catchQ$number==1 & catchQ$catchCategory=="C")
+#catchTOR <- catchQ[catchQ$species=="TOR" & catchQ$number==1 & catchQ$catchCategory=="C" ,]
+
+
+cod_info <- data.frame(sample=c("Total","Lengths","Weights","Otoliths",
+                                "Lengths+weights", "Lengths+weights+otoliths"),
+                       number=c(sumNA(catch[catch$species=="TOR" & catch$catchCategory=="C",]$number),
+                                 nrow(catch[!is.na(catch$length) & catch$species=="TOR" & catch$catchCategory=="C",]),
+                         nrow(catchTOR[!is.na(catchTOR$weight),]),nrow(catchTOR[catchTOR$otolith=="Y" & !is.na(catchTOR$otolith),]),
+                         nrow(catchTOR[!is.na(catchTOR$weight) & !is.na(catchTOR$length),]), 
+                         nrow(catchTOR[!is.na(catchTOR$weight) & !is.na(catchTOR$length) & catchTOR$otolith=="Y" & !is.na(catchTOR$otolith),])))
+
+#write.csv(cod_info, "X:\\Line\\RekreativtFiskeri\\REKREA\\Data\\CodSampleInfo.csv",quote=FALSE, row.names = FALSE)
+```
+
+
+\begin{center}        
+\begin{tcolorbox}[colback=white!5,colframe=blue!40!black,width=0.6\textwidth]
+\renewcommand{\arraystretch}{1.2}
+\renewcommand{\tabcolsep}{9pt}
+  \begin{tabularx}{0.90\textwidth}{p{6cm}lll}
+       \textbf{Antal total:} &  `r c(sumNA(catch[catch$species=="TOR" & catch$catchCategory=="C",]$number))`& & \\  
+       \textbf{Antal længder:} & `r nrow(catch[!is.na(catch$length) & catch$species=="TOR" & catch$catchCategory=="C",])` & & \\
+       \textbf{Antal vægte:} & `r nrow(catchTOR[!is.na(catchTOR$weight),])` & & \\
+       \textbf{Antal øresten:} & `r nrow(catchTOR[catchTOR$otolith=="Y" & !is.na(catchTOR$otolith),])` & & \\
+       \textbf{Antal længder+vægte:} & `r nrow(catchTOR[!is.na(catchTOR$weight) & !is.na(catchTOR$length),])` & & \\
+       \textbf{Antal længder+vægte+øresten:} & `r nrow(catchTOR[!is.na(catchTOR$weight) & !is.na(catchTOR$length) & catchTOR$otolith=="Y" & !is.na(catchTOR$otolith),])` & &
+  \end{tabularx}
+\end{tcolorbox}
+\end{center}
+
+\subsubsection{Længde/vægt-forhold for torsk}
+
+```{r, echo=FALSE, message=FALSE,warning=FALSE,results='asis', fig.pos="ht!",fig.height=5}
+
+library(RColorBrewer)
+
+
+rdbu_col <- c("#B2182B","#4393C3", "#F4A582","#2166AC", "#67001F",
+              "#D1E5F0", "#D6604D","#D6604D", "#FDDBC7","#053061")   
+
+# "#67001F" mmr 5
+# "#B2182B" mr 1
+# "#D6604D" r 7
+# "#F4A582" lr 9
+# "#FDDBC7" llr 3
+# "#F7F7F7" hvid!
+# "#D1E5F0" llb 6
+# "#92C5DE" lb 8
+# "#4393C3" b 2
+# "#2166AC" mb 4
+# "#053061" mmb 10
+
+
+
+TOR1 <- ggplot(catchTOR, aes(x=as.numeric(length),y=weight,color=factor(yearqtr))) +
+      geom_point(aes(color=factor(yearqtr)),size=1.5) +
+      labs(x = "Længde (cm)", y="Vægt (kg)")+theme_minimal()  +#scale_color_brewer(palette="Set3")+
+      labs(color="Kvartal")+ theme(legend.position="bottom")+scale_x_continuous(limits = c(25, NA))+
+      theme(panel.border = element_rect(colour = "black", fill=NA),
+            panel.grid.major = element_line(colour="darkgrey", size=0.5)) +scale_color_manual(values = rdbu_col[c(1:length(unique(catchTOR$yearqtr)))])
+TOR1
+
+#brewer.pal(length(unique(yearqtr)), "RdBu")[c(1:5,7:11)]
+
+
+
+TOR2 <- ggplot(catchTOR, aes(x=factor(age),y=weight)) +
+      geom_boxplot(aes(fill=factor(yearqtr))) +
+      labs(x = "Alder", y="Vægt (kg)")+theme_minimal() + scale_color_brewer(palette="RdBu")+
+      labs(color="Kvartal")+ theme(legend.position="bottom")
+
+#TOR2
+
+```
+
+
+
+```{r, include=FALSE}
+
+
+#V_today <- format(Sys.Date(),"%d%m%y")
+
+#colnames(iTurW) <- c("tripNum","person","date","icesSquare","postCode","placeCode","type","typeName","numberInCharter",
+                 #    "tripId","numberYes","numberNo","numberTotal","month","quarter","year")
+
+#iTurO <- iTurW[,c("tripId","tripNum","date","year","quarter","month","person","icesSquare",
+                   #     "postCode","placeCode","type","typeName","numberInCharter","numberYes","numberNo","numberTotal")]
+
+#write.csv(catchW,paste0("X:\\Line\\RekreativtFiskeri\\REKREA\\Data_out\\REKREA_species_",V_today,".csv"),quote=FALSE,row.names = FALSE)
+#write.csv(iTurO,paste0("X:\\Line\\RekreativtFiskeri\\REKREA\\Data_out\\REKREA_trips_",V_today,".csv"),quote=FALSE,row.names = FALSE)
+
+
+```
+
