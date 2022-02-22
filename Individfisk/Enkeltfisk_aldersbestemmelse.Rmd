@@ -1,0 +1,157 @@
+---
+fontsize: 11pt
+geometry: top=1in, bottom=1in, left=1in, right=1in
+header-includes:
+- \usepackage{tabularx}
+- \usepackage{tcolorbox}
+output: pdf_document
+df_print: kable
+---
+
+<!-- 
+Extract data on single fish. 
+Raw data and total number of fish per year/cruise/area/species 
+-->
+
+<!-- change font type -->
+\renewcommand{\familydefault}{\sfdefault}
+\sffamily
+
+
+```{r set_libraries, include=FALSE}
+
+#Libraries
+if (!require(sqldf)) {
+  install.packages("sqldf", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(sqldf)
+}
+if (!require(RODBC)) {
+  install.packages("RODBC", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(RODBC)
+}
+if (!require(plyr)) {
+  install.packages("plyr", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(plyr)
+}
+
+```
+
+```{r set_parameters, include=FALSE}
+
+y1 <- @paramYear1
+y2 <- @paramYear2
+cruise_val <- c(@paramCruise)
+area_val <- c(@paramArea)
+species_val <- c(@paramSpecies)
+
+# Paramters to use in R
+#y1 <- 2016
+#y2 <- 2016
+#cruise_val <- c('MON', 'SEAS')
+#area_val <- c(21, 22, 23)
+#species_val <- c('TNG')
+
+```
+
+
+```{r get_data, include=FALSE}
+
+channel <- odbcConnect("FishLineDW")
+ind_fish <- sqlQuery(channel, paste("SELECT   a.animalId, a.year, a.cruise, a.trip, a.tripType, 
+                                              a.station, a.dateGearStart, a.quarterGearStart, 
+                                              a.dfuArea, a.statisticalRectangle, a.gearQuality, 
+                                              a.gearType, a.meshSize, a.speciesCode, a.sizeSortingEU, 
+                                              a.treatment, a.sexCode, a.representative, a.individNum, 
+                                              a.number, a.speciesList_number, a.length AS length_mm,
+                                              a.weight AS weight_g, a.weight * a.treatmentFactor AS weightUR_g, 
+                                              b.age, a.maturityIndex, a.maturityIndexMethod, a.weightGutted, 
+                                              a.weightLiver, a.weightGonads, a.numVertebra, 
+                                              c.referenceName AS reference
+                                     FROM     Animal AS a LEFT OUTER JOIN
+                                                 Age AS b ON a.animalId = b.animalId LEFT OUTER JOIN
+                                                     R_AnimalReference AS c ON a.animalId = c.animalId
+                                     WHERE    (a.individNum > 0) AND 
+                                  			  (a.speciesCode IN ('", paste(species_val,collapse = "','"),"')) AND 
+                                  			  (a.dfuArea IN ('", paste(area_val,collapse = "','"),"')) AND 
+                                              (a.year between ",y1," and ",y2," ) AND
+                                              (a.cruise IN ('", paste(cruise_val,collapse = "','"),"')) 
+                                  	ORDER BY   a.dateGearStart
+                                			        ", sep = ""))
+
+close(channel)
+
+
+```
+
+```{r summarize, include=FALSE}
+
+# Calculate number of fish per year, cruise, area and species
+# Show total number of fish and number of aged/not aged fish 
+tot_fish <- ddply(ind_fish, .(year, cruise, dfuArea, speciesCode),
+					        summarize, antal = sum(number), 
+					        antalAldret = sum(!is.na(age)),
+					        antalIkkeAldret = sum(is.na(age)))
+
+
+```
+
+
+```{r , include=FALSE}
+
+#Nedskaler dato-tid til kun at være ren dato på dag og måned
+#ind_fish$Maaned <- substr(ind_fish$dateGearStart, 6,10) # formatere forkert når det åbnes "direkte" i excel
+ind_fish$Maaned <- format(ind_fish$dateGearStart, "%d/%m") #alternativ til ovenstående
+
+# Reduce the number of columns to be written from ind_fish
+ind_fish_red <- ind_fish[,c("cruise","Maaned","dfuArea","statisticalRectangle","station","speciesCode",
+                            "sizeSortingEU","individNum","length_mm","weightUR_g","sexCode","maturityIndex")]
+#ind_fish_red <- ind_fish[,c("cruise","dateGearStart","dfuArea","statisticalRectangle","station","speciesCode",
+ #                           "sizeSortingEU","individNum","length_mm","weightUR_g","sexCode","maturityIndex")]
+
+
+#Change order to increasing based on individNum (Fisk nr.) ( 10. september 2020)
+#ind_fish_red[ order(ind_fish_red$cruise), ] 
+
+#rename to what Frank wanted (3. september 2020)
+names(ind_fish_red) <- c("Togt","Dato","Omr.","Sq.","Stat.","Art","Sort.","Fisk nr.","mm","kg UR","sex","modenh.")
+
+ind_fish_red$Alder <- ""
+ind_fish_red$Læsb. <- "" #Læsbarhed
+ind_fish_red$Kantstr. <- "" #Kantstruktur
+
+```
+
+
+\section{Data - Enkeltfiskoplysninger}
+
+\vspace{1cm}
+
+\begin{tcolorbox}[colback=white!5,colframe=blue!40!black,title=Information om udtrækket,width=0.7\textwidth]
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{10cm}{@{}lXr@{}}
+\textbf{År (fra)}        & `r y1` & \\ 
+\textbf{År (til og med)} & `r y2` & \\ 
+\textbf{Togter}          & `r cruise_val` & \\
+\textbf{Arter}           & `r species_val` & \\
+\textbf{Områder}         & `r area_val` &
+\end{tabularx}
+\end{tcolorbox}
+
+
+
+```{r save_output, echo=FALSE, warning=FALSE,message=FALSE}
+
+
+#If one wants to get output as csv (eg for Excel) then this section has to be made 
+#readable to R again (10. september 2020 - Kristian Plet-Hansen)
+
+#Output single fish information
+write.csv(ind_fish_red, paste0("EnkeltfiskAlder_", format(Sys.Date(), "%d%m%y"), ".csv"),
+          quote = FALSE, row.names = FALSE, na = '')
+
+#Output aggregated number of fish per year, cruise, species and area
+write.csv(tot_fish, paste0("EnkeltfiskAntal_",format(Sys.Date(),"%d%m%y"),".csv"),
+		      quote = FALSE, row.names = FALSE, na = '')
+
+```
+

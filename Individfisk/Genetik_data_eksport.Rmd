@@ -1,0 +1,217 @@
+---
+fontsize: 11pt
+geometry: top=2cm, bottom=2cm, left=1.5cm, right=1.5cm,headsep=1cm
+header-includes:
+- \usepackage[utf8]{inputenc}
+- \usepackage{fancyhdr}
+- \pagestyle{fancy}
+- \fancyfoot{}
+- \usepackage{ragged2e}
+- \linespread{1.15}
+- \usepackage{float}
+output: pdf_document
+fig_caption: yes
+keep_tex: yes
+---
+
+```{r set_libraries, include=FALSE, warning=FALSE}
+
+#Libraries used in the r code
+if (!require(kableExtra)) {
+  install.packages("kableExtra", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(kableExtra)
+}
+if (!require(sqldf)) {
+  install.packages("sqldf", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(sqldf)
+}
+if (!require(RODBC)) {
+  install.packages("RODBC", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(RODBC)
+}
+if (!require(dplyr)) {
+  install.packages("dplyr", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(dplyr)
+}
+
+#special for this script
+
+## costum functions
+'%!in%' <- function(x,y)!('%in%'(x,y)) #a "NOT in" statement
+
+# account for "number" in FishlineDW, lines with more than one fish pr line
+convert_number <- function(data) {
+  
+  if ("weight_g" %in% names(data)){
+    dat <- data[data$treatment %!in% c("RU", "VV", "VK"), ]
+    #set fish individual weight
+    dat$weight_g <- dat$weight_g*1000
+    dat$weightUR <- (dat$weight_g/dat$number) * dat$treatmentFactor
+    #reorder rows
+    dat <- dat %>% relocate(weightUR, .after = weight_g)
+    #expand the data so each row represents one fish
+    dat <- dat[rep(seq(nrow(dat)), dat$number), ]
+    dat$number <- rep(1, nrow(dat))
+    
+    dat
+  } else if ("age" %in% names(data)){
+    dat <- data[rep(seq(nrow(data)), data$number), ]
+    dat$number <- rep(1, nrow(dat))
+    dat
+  } else stop()
+  
+}
+```
+
+```{r set_parameters, include=FALSE}
+
+y1 <- @paramYear1
+y2 <- @paramYear2
+species <- c(@paramSpecies)
+cruise <- c(@paramCruise)
+areas <- c(@paramArea)
+
+# Paramters to use in R
+#y1 <- 2020
+#y2 <- 2021
+#species <- c("SIL", "TOR")
+#cruise <- c("IBTS-1", "IBTS-2")
+#areas <- c(20, "4A", "4B", "4C")
+
+```
+
+```{r get_data, include=FALSE}
+
+channel <- odbcConnect("FishLineDW")
+
+gen <- sqlQuery(channel, 
+                paste("SELECT   animalId, year, cruise, trip, tripType, station, 
+                                dateGearStart AS date, quarterGearStart AS quarter,
+                                dfuArea AS area, statisticalRectangle, 
+                                speciesCode, sexCode,
+                                representative, individNum, number,
+                                age, genetics, 
+                                hatchMonth, hatchMonthRemark,
+                                hatchMonthReaderId, hatchMonthReaderName,
+                                visualStock, geneticStock, remark AS remark_age 
+                         FROM   Age
+                         WHERE  (speciesCode IN ('", paste(species,collapse = "','"),"')) AND 
+                                (year between ",y1," and ",y2," ) AND
+                                (cruise IN ('",paste0(cruise,collapse="','"), "')) AND
+                                (dfuArea IN ('",paste0(areas,collapse="','"), "')) AND
+                                (individNum != 0)
+                       ORDER BY animalId
+                                    ", sep = ""))
+
+close(channel)
+
+gen <- convert_number(gen)
+
+gen[is.na(gen$genetics), "genetics"] <- 0
+gen$genetics <- ifelse(gen$genetics == 1, "ja", "nej")
+
+cruise <- unique(gen$cruise)
+areas <- unique(gen$area)
+ID <- unique(gen$animalId)
+
+channel <- odbcConnect("FishLineDW")
+
+animal <- sqlQuery(channel,
+                   paste("SELECT    animalId, year, cruise, trip, station, speciesCode,  
+                                    treatment, treatmentFactor, speciesList_number, 
+                                    length AS length_mm, weight AS weight_g, number, 
+                                    maturityIndex, maturityIndexMethod, 
+                                    sizeSortingEU, remark AS remark_animal, 
+                                    speciesListId
+                          FROM      Animal
+                          WHERE     (speciesCode IN ('", paste(species,collapse = "','"),"')) AND 
+                                  	(year between ",y1," and ",y2," ) AND
+                                  	(cruise IN ('",paste0(cruise,collapse="','"), "')) AND
+                                    (dfuArea IN ('",paste0(areas,collapse="','"), "')) AND
+                                    (individNum != 0) 
+                          ORDER BY  animalId
+                                		    ", sep = ""))
+
+samples<-sqlQuery(channel,
+                  paste("SELECT  year, cruise, trip, station, 
+                                 labJournalNum
+                       FROM      Sample
+                       WHERE     (year between ",y1," and ",y2," ) AND
+                                 (cruise IN ('",paste0(cruise,collapse="','"), "')) AND
+                                 (dfuArea IN ('",paste0(areas,collapse="','"), "'))   
+                                 ", sep = ""))
+
+animalReference<-sqlQuery(channel,
+                  paste("SELECT  animalId, referenceName AS reference
+                        FROM     R_AnimalReference
+                       WHERE     (animalId IN ('",paste0(ID,collapse="','"), "'))
+                                 ", sep = ""))
+
+speciesList <- sqlQuery(channel, paste("SELECT    year, 
+                                              cruise, trip, station, speciesCode, speciesListId,
+                                              remark AS remark_speciesList
+                                     FROM     SpeciesList
+                                     WHERE    (speciesCode IN ('", paste(species,collapse = "','"),"')) AND
+                                              (dfuArea IN ('", paste(areas,collapse = "','"),"')) AND 
+                                              (year between ",y1," and ",y2," ) AND
+                                              (cruise IN ('", paste(cruise,collapse = "','"),"'))
+                                     ORDER BY dateGearStart
+                                			        ", sep = ""))
+close(channel)
+
+animal <- convert_number(animal)
+
+merged1 <- merge(animal, animalReference, by = c("animalId"), all.x = TRUE)
+
+merged2 <- merge(merged1, speciesList, by = c("year", "cruise","trip", "station", "speciesCode", "speciesListId"))
+merged2$speciesListId <- NULL
+
+merged3<-merge(gen, merged2, by = c("animalId" ,"year", "cruise","trip", "station", "speciesCode", "number"))
+
+dat <- merge(merged3, samples, by = c("year", "cruise","trip", "station")) 
+
+```
+
+```{r export table, include=FALSE}
+#reorder data frame
+dat <- dat %>% relocate(c(animalId, year, cruise, trip, tripType,
+                          station, date, quarter, area, statisticalRectangle, speciesCode,
+                          sizeSortingEU, treatment, sexCode, representative, individNum, speciesList_number, 
+                          number, number, treatment, treatmentFactor, length_mm, weight_g, weightUR,
+                          maturityIndex, maturityIndexMethod, age, hatchMonth, hatchMonthRemark,
+                          hatchMonthReaderId, hatchMonthReaderName, genetics, visualStock, geneticStock,
+                          reference, labJournalNum, remark_age, remark_animal), 
+                        .before = remark_speciesList)
+
+
+# ##Output fish-age information
+# write.csv(dat, file = "Q:/dfad/users/jostou/home/22_01_19_fiskeline_gen_report/genetics_otput.csv",
+#             quote = FALSE, row.names = FALSE, na = '')
+
+write.csv2(dat, paste0("genetics_fish_", format(Sys.Date(), "%d%m%y"), ".csv"),
+           quote = FALSE, row.names = FALSE, na = '')
+
+title<-c(paste0(format(Sys.Date(), "%d%m%y"), ".csv"))
+```
+
+\thispagestyle{empty}
+
+\vspace*{2cm} 
+
+\textbf{\LARGE Genetik data eksporteret som "genetics\_fish\_`r title`"}
+
+\vspace{2cm}   
+
+\textbf{\LARGE Data for år `r y1` til `r y2`}\
+\vspace{0.5cm}
+
+\textbf{\Large Art:}
+\textbf{\Large `r species`}\
+\vspace{0.5cm}
+
+\textbf{\Large Togt:}
+\textbf{\Large `r cruise`}\
+\vspace{0.5cm}
+
+\textbf{\Large Område:}
+\textbf{\Large `r areas`}\

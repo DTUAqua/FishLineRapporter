@@ -1,0 +1,437 @@
+
+---
+fontsize: 11pt
+geometry: top=2cm, bottom=2cm, left=1.5cm, right=1.5cm,headsep=1cm
+header-includes:
+- \usepackage[utf8]{inputenc}
+- \usepackage{fancyhdr}
+- \pagestyle{fancy}
+- \fancyfoot{}
+- \usepackage{ragged2e}
+- \linespread{1.15}
+- \usepackage{float}
+output: pdf_document
+fig_caption: yes
+keep_tex: yes
+---
+
+```{r set_libraries, include=FALSE, warning=FALSE}
+
+#Libraries used in the r code
+if (!require(kableExtra)) {
+  install.packages("kableExtra", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(kableExtra)
+}
+if (!require(sqldf)) {
+  install.packages("sqldf", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(sqldf)
+}
+if (!require(RODBC)) {
+  install.packages("RODBC", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(RODBC)
+}
+if (!require(dplyr)) {
+  install.packages("dplyr", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(dplyr)
+}
+
+#special for this script
+if (!require(sm)) {
+  install.packages("sm", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(sm)
+}
+if (!require(ggplot2)) {
+  install.packages("ggplot2", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(ggplot2)
+}
+if (!require(ggrepel)) {
+  install.packages("ggrepel", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(ggrepel)
+}
+if (!require(dbscan)) {
+  install.packages("dbscan", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(dbscan)
+}
+
+'%!in%' <- function(x,y)!('%in%'(x,y)) #a "NOT in" statement
+
+```
+
+```{r set_parameters, include=FALSE}
+
+# y1 <- @paramYear1
+# y2 <- @paramYear2
+# cruise <- c(@paramCruise)
+# areas <- c(@paramArea)
+# species <- c(@paramSpecies)
+
+# Paramters to use in R
+y1 <- 2020
+y2 <- 2021
+cruise <- c("HERAS", "Torsk")
+areas <- c(20, 21,  "4A", "4B")
+species <- c("SIL", "TOR")
+```
+
+```{r get_data, include=FALSE}
+
+channel <- odbcConnect("FishLineDW")
+age <- sqlQuery(channel, paste("SELECT   animalId, individNum, year, 
+                                              dateGearStart AS date, quarterGearStart AS quarter,
+                                              cruise, trip, tripType, station, 
+                                              dfuArea AS area, statisticalRectangle, 
+                                              speciesCode, treatment, sexCode,
+                                              length AS length_mm, age, agePlusGroup, 
+                                              otolithWeight, edgeStructure, otolithReadingRemark,
+                                              hatchMonth, hatchMonthRemark,
+                                              ageReadId, ageReadName, 
+                                              hatchMonthReaderId, hatchMonthReaderName,
+                                              genetics, geneticStock, remark AS reamrk_age
+                                     FROM     Age
+                                     WHERE    (speciesCode IN ('", paste(species,collapse = "','"),"')) AND 
+                                  	  	      (dfuArea IN ('", paste(areas,collapse = "','"),"')) AND 
+                                              (year between ",y1," and ",y2," ) AND
+                                              (cruise IN ('", paste(cruise,collapse = "','"),"')) AND
+                                              (individNum != 0) AND
+                                              (age != 0)
+                                  	 ORDER BY dateGearStart
+                                			        ", sep = ""))
+
+animal <- sqlQuery(channel, paste("SELECT     animalId, year, 
+                                              cruise, trip, station, speciesCode, speciesListId,
+                                              remark AS remark_animal
+                                     FROM     animal
+                                     WHERE    (speciesCode IN ('", paste(species,collapse = "','"),"')) AND 
+                                  	  	      (dfuArea IN ('", paste(areas,collapse = "','"),"')) AND 
+                                              (year between ",y1," and ",y2," ) AND
+                                              (cruise IN ('", paste(cruise,collapse = "','"),"')) AND
+                                              (individNum != 0)
+                                        ORDER BY dateGearStart
+                                			        ", sep = ""))
+
+speciesList <- sqlQuery(channel, paste("SELECT    year, 
+                                              cruise, trip, station, speciesCode, speciesListId,
+                                              remark AS remark_speciesList
+                                     FROM     SpeciesList
+                                     WHERE    (speciesCode IN ('", paste(species,collapse = "','"),"')) AND
+                                              (dfuArea IN ('", paste(areas,collapse = "','"),"')) AND 
+                                              (year between ",y1," and ",y2," ) AND
+                                              (cruise IN ('", paste(cruise,collapse = "','"),"'))
+                                     ORDER BY dateGearStart
+                                			        ", sep = ""))
+close(channel)
+
+merged <- merge(animal, speciesList, by = c("year", "cruise","trip", "station", "speciesCode", "speciesListId"))
+merged$speciesListId <- NULL
+
+age_fish <- merge(age, merged, by = c("animalId" ,"year", "cruise","trip", "station", "speciesCode"))
+
+```
+
+```{r export table, include=FALSE}
+
+# ##Output fish-age information
+# write.csv2(age_fish, file = "Q:/dfad/users/jostou/home/21_11_11_Julie_reports/results/table.csv",
+#            quote = FALSE, row.names = FALSE, na = '')
+
+write.csv(age_fish, paste0("age_fish_", format(Sys.Date(), "%d%m%y"), ".csv"),
+            quote = FALSE, row.names = FALSE, na = '')
+
+```
+
+\thispagestyle{empty}
+
+\vspace*{1cm} 
+
+\textbf{\huge Data Output and Quality Check of Age}
+
+\vspace{1cm}   
+
+\textbf{\LARGE  Period: `r y1` - `r y2` }\
+
+\textbf{\LARGE  cruise: `r cruise`}\
+
+\textbf{\LARGE  Area: `r areas`. }\
+
+\textbf{\LARGE  Species: `r species`. }\
+\vspace{0.5cm}
+
+
+\newpage
+
+\tableofcontents
+
+\newpage
+
+
+\section{Introduction}
+This report has two parts to it, 1) Overall trends and outliers by species, where all data is pooled together 2) a closer look at the trends and outliers for data further subdivided by area.  
+
+\section{Overview by Speceies}
+
+The figures here, are plotted by species, with all the age data from all the chosen period and areas. These plots can be used to generate an overall picture, and spot obvious outliers/mistakes
+
+The first figure is a scatter plot of the age at length relationship, colored and shaped by area. Assuming that each age at length follows it own normal distribution, Outliers are defined as points greater or smaller than mean ± 4·sd. These points are marked in the plot with the animalID, and listed in a table after the plots     
+
+The second plot here, is the length frequency of the sex. For most species the trends between females and males should look similar. If the difference between male and female is substantial, this should be considered when looking at outliers. 
+\vspace{1cm} 
+
+\small
+\renewcommand{\arraystretch}{1.1}
+\renewcommand{\tabcolsep}{8pt}
+
+
+```{r ,echo=FALSE, results='asis', cache=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=7}
+age_fish$date <- as.Date(age_fish$date, "%y/%m/%d")
+
+##subset the by species, with the following function
+fun <- function(i) {
+  
+  ##subset the data, exclude individuals without age, and set area as factor
+  fish <- age_fish[age_fish$speciesCode == species[i], ] 
+  fish <- fish[!is.na(fish$age), ]
+  
+  fish$area <- as.factor(fish$area)
+  
+  ##function to subset the data by age, to look for outliers, assuming each age is its own normal distribution
+  ID <- unique(fish$age)
+  fun <- function(ii) {
+    a <- fish[fish$age == ID[ii], c("animalId", "speciesCode", "cruise", "date", "station", "area", "sexCode",
+                                    "length_mm", "age")]
+    
+    ## Calculate the mean and sd
+    smean <- mean(a$length_mm, na.rm = TRUE)
+    sds <-  sd(a$length_mm, na.rm = TRUE)
+    ## Identify the cells with value greater than cutoff * sd (column wise)
+    points <- rbind(a[which(a$length_mm >  smean + (4 * sds)), ], 
+                    a[which(a$length_mm <  smean - (4 * sds)), ])
+  }
+  temp<-lapply(1:length(ID), fun) #function to get data and run the loop/function
+  points<-data.frame(do.call("rbind", temp)) #make data frame from the temp file 
+
+  ## make scatter plot of the data, with any outliers labeled 
+  p1 <- ggplot(fish, aes(x=length_mm, y=age, group=area))+
+        geom_point(aes(shape=area, color=area, size = area))+
+        theme_bw() +
+        labs(x = "Length [mm]", y = "Age")+
+        ggtitle(paste0(species[i], " - Length at Age by Area"))+
+        theme(plot.title = element_text(hjust = 0.5))+
+        geom_text_repel(data = points, aes(label = animalId), segment.size = 0, 
+                               box.padding = unit(0.20, "lines"), color='black')+
+        theme(legend.key = element_blank(),
+                       axis.title = element_text(size = 14),
+                       axis.text = element_text(size=14),
+                       legend.text = element_text(size=14),
+                       legend.title = element_text(size=14),
+                       plot.title=element_text(face="bold", size=18))
+  
+  ## plot the created plot (needed when ggplot in markdown while in loop/ function)
+  plot(p1)
+  
+  #Make a frequency plot of the length, by sex. where NA, is converted so as to be displayed in the plot
+  sex_plot <- fish
+  if (TRUE %in% unique(is.na(sex_plot$sexCode))){
+  sex_plot[is.na(sex_plot$sexCode), ]$sexCode <- "Not Sexed"
+  }
+  sex_plot$sexCode <- as.factor(sex_plot$sexCode)
+  
+  ##make the frequency plot with sm::sm.density.compare (using "with" for easy data extraction)
+  with(sex_plot, {
+    # Length frequency plot, pr sex.
+    sm.density.compare(length_mm, sexCode, xlab="lengt [mm]", lwd=2)
+      title(main=paste0(species[i], " - Length Distribution by sex"))
+      legend("topright", levels(sexCode), fill = c(2:4))
+  })
+  
+  points #state the variable that should be collected by the function
+}
+temp<-lapply(1:length(species), fun) #run the function and collect
+points<-data.frame(do.call("rbind", temp)) #make to data.frame
+
+## make a table of outliers found above, if any.
+if (nrow(data.frame(points)) > 0){
+
+  points %>%
+         kbl(escape = F, longtable = T, booktabs = T, linesep = "", row.names = F,    
+             col.names = c("AnimalId", "Species", "Cruise", "Date", "Station", "Area", "Sex",
+                            "Length", "Age"), align = "l") %>%
+         row_spec(0, bold = TRUE) %>%
+         kable_styling(latex_options = c("striped", "hold_position")) %>%
+         column_spec(1, width = "2cm") %>%
+         column_spec(2:3, width = "1.2cm") %>%
+         column_spec(4, width = "2cm") %>%
+         column_spec(5:9, width = "1.2cm")
+    
+} else {
+  
+  text<-c("No Detected Outliers")
+  #Make table
+  text %>% 
+      cell_spec(color = "green", font_size = 15, bold = T) %>%
+      kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+      kable_styling(latex_options = c("hold_position")) 
+}
+```
+\newpage
+\section{Frequency Plot for Speceies by area}
+Here the length distributions by age is shown, for each area separately. Ages with only one measurement in an area is omitted here.
+\vspace{1cm}
+
+```{r ,echo=FALSE, results='asis', cache=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=7}
+
+## subsection data again to plot frequency by species by area, 
+#subset again in new loop due to report structure (markdown does not allow break of chunks inside loops or if() statements.
+
+##This time subset with for() loop, since no data needs to be collected, only plot outputs.
+for (j in species[1:length(species)]) {
+  
+  #subset by species
+  fish <- age_fish[age_fish$speciesCode == j, ]
+  fish <- fish[!is.na(fish$age), ]
+
+  fish$area <- as.factor(fish$area)
+  
+  #further subset by area
+  areas <- unique(fish$area)
+  for (jj in areas[1:length(areas)]) {
+    area <- fish[fish$area == jj, ]
+    
+    # get the frequency of age by length
+    freq <- data.frame(table(area$length_mm, area$age))
+    names(freq) <- c("length_mm", "age", "frequency")
+    
+    # Stacked barplot with multiple groups
+    p2 <- ggplot(freq, aes(x=length_mm, y=frequency, fill=age)) +
+            geom_bar(stat="identity")+
+            theme_bw() +
+            labs(x = "Length [mm]", y = "Frequency in Nr")+
+            ggtitle(paste0(j, " - Area ", jj, " - Histogram of Length by Age"))+
+            theme(plot.title = element_text(hjust = 0.5))+
+            theme(axis.text.x = element_text(angle = 45, hjust=1))
+    
+   plot(p2) 
+  }
+}  
+```
+
+\newpage
+\section{Length at Age for Speceies by area}
+Here the length at age by area is looked at in more detail. For each area, the Length at age is plotted, together with the general trend, derived from a nls (non linear least square) model. Outliers are defined with the same assumptions as above, however with greater resolution: smaller than mean ± 3·sd. These points are marked in the plot with red, and listed in a table after the plots. 
+\vspace{1cm}
+
+```{r ,echo=FALSE, results='asis', cache=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=7}  
+## subsection data again to plot frequency by species by area, (same subset over again due to report structure)
+##this time with fuction, as to collect outlier data
+
+fun <- function(k) {
+  
+  ##subset by species
+  fish <- age_fish[age_fish$speciesCode == species[k], ] 
+  fish <- fish[!is.na(fish$age), ]
+  
+  fish$area <- as.factor(fish$area)
+  
+  ##subset by area
+  areas <- unique(fish$area)
+  fun <- function(kk) {
+  
+    data <- fish[fish$area == areas[kk], ]
+    
+    ##subset by age
+    ID <- unique(data$age)
+    fun <- function(kkk) {
+        a <- data[data$age == ID[kkk], ]
+        
+        if (nrow(a) >= 2){
+        
+        a$ids <- c(1:nrow(a))
+        
+        #Local Outlier Factor Score    
+        a$lofs <- lof(a[, c("length_mm", "age")], minPts = 2)
+        
+        lofs <- a[a$lofs > 1 & a$lofs != Inf, ]
+        
+        ## Calculate the mean and sd
+        smean <- mean(a$length_mm, na.rm = TRUE)
+        sds <-  sd(a$length_mm, na.rm = TRUE)
+        ## Identify the cells with value greater than cutoff * sd (column wise)
+        points <- a[a$length_mm <  smean + (2 * sds) & a$length_mm >  smean - (2 * sds), ]
+        
+        ## exclude points from lof, which are too close to the mean to be outliers
+        lofs <- lofs[lofs$ids %!in% points$ids, ]
+        
+        ## outliers that is far from the mean, but have more than one occurence, so does not get picked up by lof
+        points2 <- a[a$length_mm  >  smean + (3.5 * sds) | a$length_mm <  smean - (3.5 * sds), ]
+        
+        #bind the outliers, but exclude rows that has already been found, as to avoid duplicates
+        outliers <- rbind(lofs, points2[points2$ids %!in% lofs$ids, ])
+        } else outliers <- c()
+    }
+    temp<-lapply(1:length(ID), fun) #funktion to get data and run the loop/function
+    outliers<-data.frame(do.call("rbind", temp)) #make data frame from the temp file
+    
+    ##make a fitted line, by fitting data with non linear least square model
+    try(lm_fit <- nls(length_mm ~ SSlogis(age, Asym, xmid, scal), data = data), silent = TRUE)
+    if (exists("lm_fit")) {
+    ## Plot the data, by species by area, with outliers in red, and trend line in red
+    plot(data$age, data$length_mm, col = "white",
+         main = paste(paste0(species[k], " - Area ", areas[kk], " - Age at Length")),
+         xlab = "Age",
+         ylab = "Length [mm]")+
+      grid()+
+      lines(sort(data$age), fitted(lm_fit)[order(data$age)], col='red', lwd=1.5)+
+      points(data$age, data$length_mm, pch = 16, cex = 1, col = "blue")+
+      points(outliers$age, outliers$length_mm, pch = 16, cex = 1, col = "red")
+
+    } else{
+    plot(data$age, data$length_mm, col = "white",
+         main = paste(paste0(species[k], " - Area ", areas[kk], " - Age at Length")),
+         xlab = "Age",
+         ylab = "Length [mm]")+
+      grid()+
+      points(data$age, data$length_mm, pch = 16, cex = 1, col = "blue")+
+      points(outliers$age, outliers$length_mm, pch = 16, cex = 1, col = "red")  
+    }
+
+
+    outliers #state the variable that should be collected by the function
+  }
+  temp<-lapply(1:length(areas), fun) #function to get data and run the loop/function
+  outliers<-data.frame(do.call("rbind", temp))
+  
+  outliers[, c("animalId", "speciesCode", "cruise", "date", "station", "area",
+                                         "sexCode", "length_mm", "age")] #state the variable that should be collected by the function
+}
+temp<-lapply(1:length(species), fun) #function to get data and run the loop/function
+outliers<-data.frame(do.call("rbind", temp))
+
+## make a table of outliers found above, if any.
+if (nrow(data.frame(outliers)) > 0){
+
+  outliers %>%
+         kbl(escape = F, longtable = T, booktabs = T, linesep = "", row.names = F,    
+             col.names = c("AnimalId", "Species", "Cruise", "Date", "Station", "Area", "Sex",
+                            "Length", "Age"), align = "l") %>%
+         row_spec(0, bold = TRUE) %>%
+         kable_styling(latex_options = c("striped", "hold_position")) %>%
+         column_spec(1, width = "2cm") %>%
+         column_spec(2:3, width = "1.2cm") %>%
+         column_spec(4, width = "2cm") %>%
+         column_spec(5:9, width = "1.2cm")
+  
+} else {
+  
+  text<-c("No Detected Outliers")
+  #Make table
+  text %>% 
+      cell_spec(color = "green", font_size = 15, bold = T) %>%
+      kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+      kable_styling(latex_options = c("hold_position")) 
+}  
+  
+```
+
+
+
+
+
