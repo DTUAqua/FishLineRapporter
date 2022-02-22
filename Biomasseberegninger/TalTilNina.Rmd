@@ -1,0 +1,104 @@
+
+---
+geometry: top=2cm, bottom=2cm, left=1.5cm, right=1.5cm
+output: pdf_document
+header-includes:
+- \usepackage{booktabs}
+- \usepackage{longtable}
+- \usepackage{floatrow}
+- \usepackage[T1]{fontenc}
+- \usepackage[danish]{babel}
+- \usepackage{graphicx}
+- \floatsetup[table]{capposition=top}
+- \usepackage{fancyhdr}
+- \pagestyle{fancy}
+- \fancyhf{}
+- \usepackage[table]{}
+- \usepackage{ragged2e}
+- \usepackage{catchfile}
+- \usepackage{array}
+- \usepackage[export]{adjustbox}
+- \usepackage{multirow}
+- \linespread{1.15}
+- \usepackage{tabularx}
+- \usepackage{tcolorbox}
+- \usepackage{lipsum}
+---
+
+\renewcommand{\familydefault}{\sfdefault}
+\sffamily
+
+
+```{r define_input, echo=FALSE, include=FALSE, cache=FALSE}
+
+#Parameters
+# year<- @paramYear 
+# cruise <- @paramCruise
+
+year<- 2019
+cruise <- 'BV LF BMS april'
+```
+
+
+```{r set_libraries, echo=FALSE, include=FALSE, cache=FALSE}
+
+#Libraries
+library(sqldf)
+library(RODBC)
+library(stringi)
+
+```
+
+
+
+```{r getdata, echo=FALSE, message=FALSE, warning=FALSE}
+
+
+channel <- odbcConnect("FishLineDW")
+
+bms <- sqlQuery(channel, paste("SELECT    SpeciesList.year, SpeciesList.cruise, SpeciesList.trip, SpeciesList.station, 
+                                          Sample.gearQuality, Sample.stationName, SpeciesList.speciesCode, 
+                                          SpeciesList.landingCategory, SpeciesList.weightStep0, SpeciesList.weightStep1, 
+                                          SpeciesList.weightStep2, SpeciesList.weightStep3, SpeciesList.raisingFactor, 
+                                          Animal.length, Animal.lengthMeasureUnit, Animal.number, Animal.representative, 
+                                          Sample.fishingtime, Sample.latPosStartText, Sample.lonPosStartText, 
+                                          Sample.latPosEndText, Sample.lonPosEndText, Sample.distancePositions, Sample.depthAvg
+                                FROM      SpeciesList INNER JOIN
+                                          Sample ON SpeciesList.sampleId = Sample.sampleId LEFT OUTER JOIN
+                                          Animal ON SpeciesList.speciesListId = Animal.speciesListId
+                                WHERE     SpeciesList.year = (",year, ") AND
+                                          SpeciesList.cruise = ('",cruise, "')  
+                                ORDER BY  SpeciesList.station  ", sep=""),stringsAsFactors=FALSE)
+                              
+
+close(channel)
+
+
+```
+
+
+
+```{r, echo=FALSE, include=FALSE, cache=FALSE}
+
+bms$SubSampleWeight <- as.numeric(apply(bms, 1, function(x) min(x[9], x[10], x[11], x[12], na.rm=TRUE)))
+bms$SampleWeight <- bms$SubSampleWeight*bms$raisingFactor
+bms$SubSampleNumber <- bms$number
+bms$SampleNumber <- bms$SubSampleNumber*bms$raisingFactor
+
+bms2 <- bms[c(1:8,13:28)]
+
+```
+
+
+
+```{r writeData, warning=FALSE,message=FALSE,input=FALSE,echo=FALSE}
+
+
+#Write csv
+write.csv(bms2, file=paste(cruise,"_træk_",format(Sys.time(), "%d%b%Y"),".csv",sep=""),row.names=FALSE)
+
+
+```
+
+\section{Udtræk: `r cruise` `r year`}
+Foretaget den \today.

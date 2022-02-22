@@ -1,0 +1,81 @@
+
+---
+geometry: top=1.5cm, bottom=1.5cm, left=1cm, right=1cm
+output: pdf_document
+---
+
+
+
+```{r define_input, echo=FALSE, include=FALSE, cache=FALSE, warning=FALSE,message=FALSE}
+
+#Parameters
+# year<- @paramYear 
+# cruise <- @paramCruise
+
+year<- 2019
+cruise <- 'BV LF BMS april'
+
+
+```
+
+```{r set_libraries, echo=FALSE, include=FALSE, cache=FALSE}
+
+
+#Libraries
+if (!require(sqldf)) {
+  install.packages("sqldf", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(sqldf)
+}
+if (!require(RODBC)) {
+  install.packages("RODBC", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(RODBC)
+}
+if (!require(stringi)) {
+  install.packages("stringi", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(stringi)
+}
+
+```
+
+```{r getdata, echo=FALSE, message=FALSE, warning=FALSE}
+
+
+channel <- odbcConnect("FishLineDW")
+
+bms <- sqlQuery(channel, paste("SELECT    year, cruise, trip, station, gearQuality, stationName, fishingtime, 
+                                          latPosStartText, lonPosStartText, latPosEndText, 
+                                          lonPosEndText, distancePositions, depthAvg, courseTrack
+                                FROM      Sample
+                                WHERE     year = (",year, ") AND
+                                          cruise = ('",cruise, "')  
+                                ORDER BY  station  ", sep=""),stringsAsFactors=FALSE)
+                              
+
+close(channel)
+
+
+```
+
+
+
+```{r, echo=FALSE, include=FALSE, cache=FALSE, warning=FALSE,message=FALSE}
+
+bms$distance_m <- bms$distancePositions*1852;
+
+```
+
+
+
+```{r writeData, warning=FALSE,message=FALSE,inlclude=FALSE,echo=FALSE}
+
+
+#Write csv
+write.csv(bms, file=paste(cruise,"_træk_",format(Sys.time(), "%d%b%Y"),".csv",sep=""),row.names=FALSE)
+
+
+```
+
+\section{Udtræk: `r cruise` `r year`}
+Foretaget den \today.
+
+
