@@ -1,0 +1,32 @@
+
+Examples of how the selection in Fishline can be costom setup with sql querys
+
+For a lecetion of; Years -> Species -> Cruise -> Area
+
+Year = string
+
+### Species
+SELECT 	slr.speciesCode + ' - ' + ISNULL(s.dkName, ''),slr.speciesCode
+FROM 	FishLineDW.dbo.age slr
+		LEFT OUTER JOIN FishLineDW.dbo.L_Species s ON s.speciesCode = slr.speciesCode
+WHERE year BETWEEN @paramYear1 and @paramYear2 and
+(slr.individNum != 0)
+GROUP BY  s.dkName, slr.speciesCode
+ORDER BY slr.speciesCode
+
+### Cruise
+SELECT DISTINCT A.cruise, A.cruise
+FROM FishLineDW.dbo.age A
+WHERE A.year BETWEEN @paramYear1 AND @paramYear2 AND
+	  A.speciesCode IN (@paramSpecies) AND
+	  (A.individNum != 0)
+    
+### Area
+SELECT t.dfuArea, t.dfuArea
+FROM FishLineDW.dbo.age t
+WHERE t.year BETWEEN @paramYear1 AND @paramYear2 AND
+	  t.speciesCode IN (@paramSpecies) AND
+	  t.cruise IN (@paramCruise) AND
+	  (t.individNum != 0) 
+GROUP BY t.dfuArea, t.dfuArea
+ORDER BY t.dfuArea
