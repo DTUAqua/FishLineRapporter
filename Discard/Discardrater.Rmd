@@ -1,0 +1,452 @@
+---
+fontsize: 12pt
+geometry: margin=1in
+header-includes:
+- \usepackage{booktabs}
+- \usepackage{longtable}
+- \usepackage{floatrow}
+- \usepackage[T1]{fontenc}
+- \usepackage[danish]{babel}
+- \usepackage[utf8]{inputenc}
+- \usepackage{graphicx}
+- \floatsetup[table]{capposition=top}
+- \usepackage{fancyhdr}
+- \pagestyle{fancy}
+- \fancyhf{}
+- \usepackage[table]{}
+- \usepackage{ragged2e}
+- \usepackage{catchfile}
+- \usepackage{array}
+- \usepackage[export]{adjustbox}
+- \usepackage{multirow}
+- \linespread{1.15}
+- \usepackage{tabularx}
+- \usepackage{tcolorbox}
+- \usepackage{lipsum}
+output:
+  pdf_document: default
+  word_document: default
+---
+
+
+
+\renewcommand{\familydefault}{\sfdefault}
+\sffamily
+
+```{r define_input, echo=FALSE,cache=FALSE,message=FALSE,include=FALSE}
+
+#Parameters
+year<- @paramYear
+cruise <- @paramCruise
+trip <- @paramTrip
+input_art_multiplot <- c(@paramMultiSpecies) #Art (multiplot)
+#input_art <- c(@paramSpecies)  #Art (længdefordeling)
+#hilsen <- c(@paramHilsen)  #hilsen
+#species_individ <- c(@paramSpecLW)
+```
+
+
+```{r set_libraries,cache=FALSE,include=FALSE}
+
+#Libraries
+if (!require(sqldf)) {
+  install.packages("sqldf", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(sqldf)
+}
+if (!require(RODBC)) {
+  install.packages("RODBC", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(RODBC)
+}
+if (!require(plyr)) {
+  install.packages("plyr", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(plyr)
+}
+if (!require(xtable)) {
+  install.packages("xtable", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(xtable)
+}
+if (!require(ggmap)) {
+  install.packages("ggmap", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(ggmap)
+}
+if (!require(gplots)) {
+  install.packages("gplots", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(gplots)
+}
+if (!require(directlabels)) {
+  install.packages("directlabels", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(directlabels)
+}
+if (!require(reshape2)) {
+  install.packages("reshape2", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(reshape2)
+}
+if (!require(ggrepel)) {
+  install.packages("ggrepel", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(ggrepel)
+}
+  
+ 
+  
+
+```
+
+
+```{r include=FALSE, cache=FALSE}
+
+########## Collecting data from Fishline ###########
+
+query1<-paste("SELECT Trip.year,Trip.contactPersonName,Trip.contactPersonId , Trip.trip, Trip.cruise, tripLeaderName, dateStart, dateEnd
+              FROM Trip
+              WHERE     (Trip.year = ",year," and Trip.trip = '",trip,"' and Trip.cruise='",cruise,"')"
+             ,sep = "")
+query1
+
+query2<-paste("SELECT AnimalRaised.trip, AnimalRaised.year, AnimalRaised.speciesCode, AnimalRaised.landingCategory, 
+              AnimalRaised.numberTotalPerLength, AnimalRaised.length, AnimalRaised.station
+              FROM AnimalRaised
+              WHERE     (AnimalRaised.year=",year," and AnimalRaised.trip = '",trip,"'and AnimalRaised.cruise='",cruise,"')"
+              ,sep = "")
+query2
+
+
+query3<-paste("SELECT SpeciesListRaised.trip, SpeciesListRaised.year, SpeciesListRaised.speciesCode, SpeciesListRaised.landingCategory, SpeciesListRaised.numberTotal, SpeciesListRaised.weightTotal, SpeciesListRaised.station, SpeciesListRaised.numberSubSample AS speciesList_numberSubSample
+   FROM         SpeciesListRaised INNER JOIN
+                      Sample ON SpeciesListRaised.sampleId = Sample.sampleId
+              WHERE     (SpeciesListRaised.year=",year," and SpeciesListRaised.trip = '",trip,"'and SpeciesListRaised.cruise='",cruise,"')"
+              ,sep = "")
+query3
+
+
+query4<-paste("SELECT Sample.station, Sample.fishingtime, Sample.latPosStartDec AS lat, Sample.lonPosStartDec AS lon, Sample.catchRegistration, Sample.speciesRegistration,Sample.gearType,
+  				  Sample.selectionDevice,Sample.meshSize, Sample.dfuArea, Sample.statisticalRectangle, Sample.quarterGearStart
+              FROM Sample
+              WHERE     (Sample.year=",year," and Sample.trip = '",trip,"' and Sample.cruise='",cruise,"')"
+              ,sep = "")
+query4
+
+
+#Importing data
+#data1: Metadata; observator, skipper, dato mm.
+#data2: arter,  landingskategori, antaltotal, langder
+#data3: arter, landingskategori, antaltotal, vagttotal
+#data3: alle stationer pa turen
+channel <- odbcConnect("FishLineDW")
+data1 <- sqlQuery(channel, paste(query1),stringsAsFactors=FALSE)
+data2 <- sqlQuery(channel, paste(query2),stringsAsFactors=FALSE)
+data3 <- sqlQuery(channel, paste(query3),stringsAsFactors=FALSE)
+data4 <- sqlQuery(channel, paste(query4),stringsAsFactors=FALSE)
+close(channel)
+
+
+query5<-paste("SELECT Person.name, Person.Address, Person.zipTown, Person.personId
+              FROM Person
+              WHERE     (Person.personId='",data1$contactPersonId,"')"
+              ,sep = "")
+query5
+query6<-paste("SELECT L_Species.speciesCode, L_Species.dkName
+              FROM L_Species"
+              ,sep = "")
+query6
+query7<-paste("SELECT L_GearType.gearType, L_GearType.catchOperation
+              FROM L_GearType"
+              ,sep = "")
+query7
+
+#data5: Metadata; skipper, skipper adresses, skipper postnummer+by.
+#data6: artskoder, dk_arter
+channel <- odbcConnect("FishLine")
+data5 <- sqlQuery(channel, paste(query5))
+data6 <- sqlQuery(channel, paste(query6))
+data7 <- sqlQuery(channel, paste(query7))
+close(channel)
+
+
+
+```
+
+
+
+```{r adjust_letters, echo=FALSE,cache=FALSE}
+
+#Function to adjust letters 
+
+capwords <- function(s, strict = FALSE) {
+    cap <- function(s) paste(toupper(substring(s, 1, 1)),
+                  {s <- substring(s, 2); if(strict) tolower(s) else s},
+                             sep = "", collapse = " " )
+    sapply(strsplit(s, split = " "), cap, USE.NAMES = !is.null(names(s)))  }
+
+#nice date formats
+start_date <- gsub(" 0", "", paste("",format(as.Date(data1$dateStart), "%d. %B %Y")))
+end_date <- gsub(" 0", "", paste("",format(as.Date(data1$dateEnd), "%d. %B %Y")))
+if (start_date==end_date) {end_date <- ""} else {end_date <- paste("- ",end_date,sep="")}
+
+#Skipper
+skipper <- 'Fiskeskipper'
+if(is.na(data1$contactPersonName)==F) { skipper <- capwords(toString(data1$contactPersonName), strict=TRUE) }
+#Observatør
+if(is.na(data1$tripLeaderName)==F) { obs <- capwords(toString(data1$tripLeaderName), strict=TRUE) ;
+                           observator <- paste("Observatør: ", obs, sep="")
+} else {observator=" "} 
+
+
+test <- merge(data4,data7)
+mesh <- ifelse(!is.na(data4$meshSize[1]),paste0(data4$meshSize[1]," mm"), "-")
+selection <- ifelse(!is.na(data4$selectionDevice[1]),data4$selectionDevice[1], "-")
+CatchType <- merge(data4,data7)
+catchOperation <- ifelse(unique(CatchType$catchOperation) %in% c("A","G","C","E"),"træk","stationer")
+catchOperation <- ifelse(unique(CatchType$catchOperation) %in% c("D"),"kast",catchOperation)
+
+catchOperation2 <- ifelse(catchOperation=="stationer","station",catchOperation)
+catchOperation3 <- paste(toupper(substr(catchOperation2, 1, 1)), substr(catchOperation2, 2, nchar(catchOperation2)), sep="")
+if (catchOperation3=="Træk") {catchOperation3 <- "Nummer"}
+
+```
+
+
+
+<!-- define header -->
+ 
+\lhead{\footnotesize Tur nummer: `r trip`, `r start_date`  `r end_date`}
+\rhead{\footnotesize `r observator`}
+\lfoot{\footnotesize Udskrevet: \today }
+
+
+
+```{r, echo=FALSE, include=FALSE,cache=FALSE}
+
+#------------Frontpage figure----------------------------
+
+position <- data.frame(data4[,c(3:4,1)])
+min_lat <- min(position$lat); max_lat <- max(position$lat)
+min_lon <- min(position$lon); max_lon <- max(position$lon)
+
+
+map <- get_map(c(min_lon-0.7,min_lat-0.6,max_lon+0.5,max_lat+0.4),source="google",maptype="terrain")
+
+pdf("tripmap3.pdf")
+p <- ggmap(map)+ geom_point(data=position, aes(x=lon,y=lat), color="red",size=4)+labs(x ='Grader østlig længde', y ='Grader nordlig bredde') + geom_text_repel(data = position,aes(label = station), segment.color = "#FF0000", segment.size = 0, box.padding = unit(0.15, "lines"))
+p +theme_bw()+theme(axis.title.y=element_text(vjust=1.4), axis.title.x=element_text(vjust=-0.6))
+dev.off()  
+
+```
+
+
+
+
+\thispagestyle{empty}
+
+<!-- Fisker Adressefelt -->
+
+
+`r if(!is.na(data5[1,1])==TRUE) {capwords(toString(data5[1,1]), strict=TRUE)}` \
+`r if(!is.na(data5[1,2])==TRUE) {capwords(toString(data5[1,2]), strict=TRUE)}` \
+`r if(!is.na(data5[1,3])==TRUE) {capwords(toString(data5[1,3]), strict=TRUE)}` \
+
+
+\vfill
+
+
+\begin{tcolorbox}[colback=white!5,colframe=blue!40!black,title=Information om turen]
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\textwidth}{@{}lXr@{}}
+\textbf{Dato og Tid} & `r start_date`  `r end_date` &\\ 
+\textbf{Område} & `r data4$dfuArea[1]`&\\
+\textbf{Antal `r catchOperation`} & `r nrow(data4)`&\\
+\textbf{Redskab} & `r data4$gearType[1]` &\\
+\textbf{Maskevidde} & `r mesh` &\\ 
+\textbf{Selektionsredskab} & `r selection` & 
+\end{tabularx}
+\end{tcolorbox}
+
+\pagebreak
+
+
+
+<!-- definere forside -->
+
+\begin{titlepage}
+
+        
+        \vspace{-1cm}
+
+        \textbf{\Huge Fangstrapport}
+        
+        \vspace{0.5cm}
+        \textbf{Tur nummer: `r trip`}
+        
+        \vspace{1.5cm}
+        Foretaget den: `r start_date`  `r end_date`
+        
+        \vspace{0.2cm}
+        `r observator`
+
+\vspace{0.7cm}   
+
+\begin{figure}[H]
+        \centering
+        \includegraphics[width=0.8\textwidth]{tripmap3.pdf}
+\end{figure}
+
+\vspace{-1cm}       
+\vfill
+              
+        DTU Aqua\\
+        Sektion for Monitering\\
+        Charlottenlund Slot\\
+        2920 Charlottenlund
+        
+
+\end{titlepage}
+
+
+\pagebreak
+
+\vspace{2cm}
+
+
+
+
+\pagebreak
+
+
+```{r echo=FALSE,cache=FALSE,include=FALSE}
+
+#####Data for table 1 and plots of collected catch #####
+
+
+#List of stations to ensure using only those where all landings have been evaluated
+SL <- as.matrix(apply(as.matrix(data4[,c(1,5,6)]), 1, function(x) if (is.na(x[2])==FALSE & x[2] =="ALL" & x[3] =="ALL") { x[1] }))
+station_list <- as.numeric(data.frame(SL)[data.frame(SL)[1]!='NULL'])
+
+#Subsets of data for evaluated stations only
+data3_summed_stat <- subset(data3, data3$station %in% station_list, drop=TRUE)
+data3_summed_stat$numberTotal <- ifelse(data3_summed_stat$numberTotal==0,data3_summed_stat$speciesList_numberSubSample,data3_summed_stat$numberTotal)
+
+#summere data3 mht landinskategori og art
+
+data3_summed1 <- aggregate(data3_summed_stat[,5:6], by=list(data3_summed_stat$landingCategory,
+                                                           data3_summed_stat$speciesCode), "sum")
+data3_summed1 <- rename(data3_summed1, c("Group.1"="landingCategory","Group.2"="speciesCode",
+                                         "numberTotal"="numberTotal","weightTotal"="weightTotal"))
+
+expand1 <- expand.grid(speciesCode=levels(factor(data3_summed1$speciesCode)),landingCategory=c("DIS","KON"),
+                       numberTotal=0,weightTotal=0)
+expand2 <- rbind(data3_summed1,expand1)
+data3_summed <- sqldf("select     landingCategory, speciesCode,sum(numberTotal) as numberTotal, 
+                                  sum(weightTotal) as weightTotal
+                       from       expand2
+                       group by   landingCategory, speciesCode")
+          
+#Splitter data3 mht landingskategori og angiver navne
+data3_split <- split(data3_summed, data3_summed$landingCategory)
+
+#Rename til indeksering af landingskategorier i samlet matrix
+data3_split$DIS <- rename(data3_split$DIS, c("numberTotal"="NumTotDIS","weightTotal"="WeightTotDIS"))
+data3_split$KON <- rename(data3_split$KON, c("numberTotal"="NumTotKON","weightTotal"="WeightTotKON"))
+
+#Alfabetisk datamatrix,hvor discard og konsum gengives i hver sin variabel
+if (length(data3_split)==2) {
+  data3_full <- merge(data3_split[[1]][,c(2:4)],data3_split[[2]][,c(2:4)],by="speciesCode", all=TRUE)
+} else { data3_full <- data3_split[[1]][,c(2:4)] }
+
+data3_full[is.na(data3_full)] <- 0
+data6 <- data.frame(lapply(data6, as.character), stringsAsFactors=FALSE)
+data3_art <- merge(data3_full,data6,by="speciesCode", all.x=TRUE)
+data3_sort <- with(data3_art, data3_art[order(data3_art$dkName) ,])
+
+#Subsetting af data i hovedarter (data3_summed_sub) og ovrige arter (data3_summed_otherspec)
+data3_summed_sub <- subset(data3_sort , data3_sort$speciesCode %in% input_art_multiplot, drop=TRUE)
+data3_summed_otherspec <- subset(data3_sort, !(data3_sort$speciesCode %in% input_art_multiplot), drop=TRUE)
+
+```
+
+
+```{r, echo=FALSE, include=FALSE}
+
+######Forberede tabel 1: art, antal_landet, antal_genudsat, vagt_landet, vagt_genudsat, proc_antal, proc_vagt.
+
+#sorting the two subsets and add row with sum of "Øvrige arter" 
+finalData3 <- data.frame(data3_summed_sub[c("dkName","NumTotKON","NumTotDIS","WeightTotKON","WeightTotDIS")], stringsAsFactors=FALSE)
+finalData3_OS <- data.frame(data3_summed_otherspec[c("dkName","NumTotKON","NumTotDIS","WeightTotKON","WeightTotDIS")], stringsAsFactors=FALSE)
+lenFD <- nrow(finalData3)
+finalData3[lenFD+1,1] <- "Øvrige arter"
+
+finalData3[lenFD+1,4:5]  <- colSums(as.matrix(finalData3_OS[,4:5]), na.rm=TRUE)
+
+#Row that sums each coloumn+empty row above it
+Sum_rows <- data.frame(matrix(NA, nrow = 2, ncol = 5))
+Sum_rows[2,1] <- "Alle arter"
+Sum_rows[2,4:5] <- colSums(as.matrix(finalData3[,4:5]), na.rm=TRUE)
+Sum_rows<- rename(Sum_rows, c("X1"="dkName","X2"="NumTotKON","X3"="NumTotDIS","X4"="WeightTotKON","X5"="WeightTotDIS"))
+
+#Combine summed data with individual data, and add relative variables in col 6 (number) and 7 (weight)
+finalData <- rbind(finalData3,Sum_rows) 
+finalData[,6] <- as.numeric(finalData[,3])/(as.numeric(finalData[,2])+as.numeric(finalData[,3]))*100
+finalData[,7] <- as.numeric(finalData[,5])/(as.numeric(finalData[,4])+as.numeric(finalData[,5]))*100
+
+#Round all digits and set second last row=" "
+for (i in 2:ncol(finalData)) { finalData[,i] <-round(as.numeric(finalData[,i]), digits=0) }
+finalData[lenFD+2,] <- " "
+
+finalData[,6:7][finalData[,6:7] == NaN] <- " "
+
+
+```
+
+
+
+
+```{r, echo=FALSE, include=FALSE}
+
+##make tex-table 1
+
+tbl <- xtable(finalData)
+print(tbl,
+    only.contents=TRUE,
+    include.rownames=FALSE,
+    include.colnames=FALSE,
+    type="latex",
+    file="tblout.tex",comments=FALSE)
+    
+```
+
+
+
+<!-- Tabel1: samlet fangst -->
+
+#Samlet fangst
+
+\inputencoding{latin5}
+
+\CatchFileDef{\tabmacro}{tblout}{}
+
+
+\definecolor{lightgray}{gray}{0.9}
+\setlength{\LTleft}{-20cm plus -1fill}
+\setlength{\LTright}{\LTleft}
+\setlength{\tabcolsep}{0.8em}
+\def\arraystretch{1.3}
+\begin{longtable}{l|r|r|r|r|r|r}
+\centering
+\textbf{Arter} & \multicolumn{2}{c|}{\textbf{Antal}}  & \multicolumn{2}{c|}{\textbf{V\ae gt i hele kg}}  & \multicolumn{2}{c}{\textbf{Procent genudsat}}\\
+                      &  \multicolumn{1}{r}{Landet} &  \multicolumn{1}{r|}{Genudsat} &       
+                         \multicolumn{1}{r}{Landet} &  \multicolumn{1}{r|}{Genudsat} &    
+                          \multicolumn{1}{r}{Antal} &  \multicolumn{1}{r}{V\ae gt} \\
+\hline
+\endhead
+
+\tabmacro
+
+\end{longtable}
+
+
+
+\inputencoding{utf8}
+
+
+
+Tabellen udgøres af `r catchOperation` hvor både landinger og discard er opgjort for alle arter.
+\newline
+Ovenstående tal udgøres af `r length(station_list)` ud af `r nrow(data4)` `r catchOperation`.

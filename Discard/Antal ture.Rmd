@@ -1,0 +1,141 @@
+
+---
+fontsize: 12pt
+geometry: margin=0.6in
+header-includes:
+- \usepackage{tabularx}
+- \usepackage{longtable}
+- \usepackage[table]{}
+- \usepackage[danish]{babel}
+output: pdf_document
+classoption: x11names
+---
+
+\renewcommand{\familydefault}{\sfdefault}
+\sffamily
+
+
+```{r set_libraries, include=FALSE}
+
+#Libraries
+if (!require(sqldf)) {
+  install.packages("sqldf", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(sqldf)
+}
+if (!require(RODBC)) {
+  install.packages("RODBC", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(RODBC)
+}
+if (!require(plyr)) {
+  install.packages("plyr", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(plyr)
+}
+
+```
+
+
+
+```{r selcectData, echo=FALSE,include=FALSE}
+
+year_in <- @paramYear
+cruise_in <- @paramCruise
+
+channel <- odbcConnect("FishLineDW")
+trips <- sqlQuery(channel, paste("SELECT     year as Aar, cruise as Togt, trip, platform1 as Kutter, { fn QUARTER(dateStart) } AS Kvartal, 1 as t
+                                  FROM       Trip
+                                  WHERE     (cruise = '",cruise_in,"')  AND
+                                            (year = ",year_in,") " 
+                                , sep = ""))
+close(channel)
+
+```
+
+```{r countTrips, include=FALSE}
+
+tripSumQuarter <- ddply(trips, .(Aar,Togt,Kutter,Kvartal), summarize, AntalTure=sum(t))
+tripSumYear <- ddply(trips, .(Aar,Togt,Kutter), summarize, AntalTure=sum(t))
+
+tripQuarter <- ddply(trips, .(Aar,Togt,Kvartal), summarize, AntalTure=sum(t))
+tripQuarter <- rbind(tripQuarter,c(year_in,cruise_in,"Total",sum(tripQuarter$AntalTure)))
+
+write.csv(tripSumYear,file=paste0("turePerKutter_",cruise_in,year_in,".csv"),row.names=FALSE)
+write.csv(tripSumQuarter,file=paste0("turePerKutterKvartal_",cruise_in,year_in,".csv"),row.names=FALSE)
+write.csv(tripQuarter,file=paste0("AntalTure_",cruise_in,year_in,".csv"),row.names=FALSE)
+
+```
+
+\section{Antal discardture pr. år, kvartal og kutter}
+\vspace{-0.5cm}
+
+Udskrevet `r format(Sys.Date(), "%d-%m-%Y")`
+\vspace{0.5cm}
+
+\definecolor{lightgray}{gray}{0.9}
+\def\arraystretch{1.3}
+
+
+
+
+```{r numberTrips, results='asis',echo=FALSE,message=FALSE,warning=FALSE}
+
+cat(paste0("\\subsubsection*{Antal ",cruise_in,"-ture i ",year_in,"}")) 
+cat("\\vspace{0.3cm}")
+#########################################################################
+
+#latex table function
+if (!require(Hmisc)) {
+  install.packages("Hmisc", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(Hmisc)
+}
+
+ mylatex <- function (...) {
+          o <- capture.output(latex(...))
+          o <- grep('^%', o, inv=T, value=T)
+          cat(o, sep='\n')
+ }
+ 
+ mylatex(tripQuarter,file='',longtable=TRUE,rowlabel="Nummer",col.just = c("l","l","r","r"))
+ 
+#########################################################################
+ 
+ 
+```
+
+\newpage
+
+```{r tripsYear, results='asis',echo=FALSE,message=FALSE,warning=FALSE,position='left'}
+
+tripSumYear$Aar <- as.character(tripSumYear$Aar)
+tripSumYear$AntalTure <- as.character(tripSumYear$AntalTure)
+
+cat(paste0("\\subsubsection*{Antal ",cruise_in,"-ture pr. fartøj i ",year_in,"}")) 
+cat("\\vspace{0.3cm}")
+
+mylatex(tripSumYear,file='',longtable=TRUE,rowlabel="Nummer",col.just = c("l","l","l","r"))
+      
+```
+
+
+```{r tripsQuarter, results='asis',echo=FALSE,message=FALSE,warning=FALSE,position='left'}
+
+tripSumQuarter$Aar <- as.character(tripSumQuarter$Aar)
+tripSumQuarter$AntalTure <- as.character(tripSumQuarter$AntalTure)
+tripSumQuarter$Kvartal <- as.character(tripSumQuarter$Kvartal)
+
+for (i in sort(unique(tripSumQuarter$Kvartal))) {
+    
+    cat("\\newpage")
+    cat(paste0("\\subsubsection*{Antal ",cruise_in,"-ture pr. fartøj i ",i,". kvartal ",year_in,"}"))
+    cat("\\vspace{0.3cm}")
+  
+    data <- tripSumQuarter[tripSumQuarter$Kvartal==i,c(1,2,4,3,5)]
+    row.names(data) <- 1:nrow(data)
+    
+    mylatex(data,file='',longtable=TRUE,rowlabel="Nummer",col.just = c("l","l","l","l","r"))
+      
+}
+
+detach(package:Hmisc)
+
+```
+
