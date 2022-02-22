@@ -1,0 +1,145 @@
+
+---
+fontsize: 12pt
+geometry: top=2cm, bottom=2cm, left=2cm, right=2cm,headsep=1cm
+header-includes:
+- \usepackage{booktabs}
+- \usepackage{longtable}
+- \usepackage[T1]{fontenc}
+- \usepackage[danish]{babel}
+- \usepackage[utf8]{inputenc}
+- \usepackage{lastpage}
+- \usepackage{fancyhdr}
+- \pagestyle{fancy}
+- \fancyhf{}
+- \fancyfoot{}
+output:
+  pdf_document: default
+  word_document: default
+  fig_caption: false
+---
+
+
+```{r, include=F}
+if (!require("pacman")){
+    install.packages("pacman")
+    library(pacman)
+}
+p_load(stringr,rvest,knitr,kableExtra,dplyr,stringi)
+```
+
+
+```{r,include=F}
+#turns into a character vector
+# trips <- c(paste0(c(as.character(130:142)),"_1"))
+
+trips <- c(@paramTrips)
+```
+
+
+
+```{r downloadData,include=F}
+
+downloadSurvey <- function(key,pwd){
+    
+    url <- paste0("https://data.surveygizmo.com/reportsview/?key=",key)
+    pgsession <- html_session(url)
+    pgform <- html_form(pgsession)[[1]]
+    
+    filled_form <- set_values(pgform,
+                              `password`=pwd)
+    a <- submit_form(pgsession,filled_form)
+    b <- a$response$content
+    C <- rawToChar(b)
+    Encoding(C) <- "UTF-8"
+    if (C != "\n"){
+        d <- read.table(text = C,header = T,sep = ",",stringsAsFactors = F,
+                        encoding = "UTF-8")
+    } else{
+        d <- NULL
+    }
+    
+    
+    return(d)
+}
+
+# links and passwords for data exports - because this does not belong on github
+exports <- read.csv("data_for_downloader.csv",sep = "\t",stringsAsFactors = F)
+
+# download the latest exports from SG
+offline <- downloadSurvey(exports$uuid[2],exports$pw[2])
+
+```
+
+
+```{r,include=F}
+offline$a.spm1_1 <- ifelse(is.na(offline$a.spm1_1) | offline$a.spm1_1=="",1,offline$a.spm1_1)
+offline$f.spm1_1 <- paste0(offline$f.spm1_1,"_",offline$a.spm1_1)
+
+
+#Get data
+CE_data <- offline[,c("Response.ID","f.spm1_1","c.spm1_1",
+                                         "a.spm8_2","e.spm8_2","spm10_1",
+                                         "spm10_1.2")]
+CE_data$Response.ID <- paste0("OF",CE_data$Response.ID)
+
+#CE_data <- read.csv("./data_in/Online.csv", stringsAsFactors=FALSE, 
+#                    encoding="UTF-8")[,c("Response.ID","f.spm1_1","c.spm1_1","a.spm8_2","e.spm8_2","spm10_1","spm10_1.2")]
+#CE_data$Response.ID <- paste0("ON",CE_data$Response.ID)
+
+
+#rename cols
+colnames(CE_data) <- c("sgId","trip_num","trip_id","anglerName","anglerEmail",
+                       "ceParticipate","ceEmail")
+
+
+
+
+#subset data w. participate status O (=OK)
+CE_data2 <- CE_data[CE_data$ceParticipate %in% c("O","Udfyldes online") & 
+                        CE_data$trip_num %in% trips,]
+
+#If CE mail empty or "Samme" then overwrite w. first email adress
+CE_data2[is.na(CE_data2$ceEmail) | CE_data2$ceEmail == "Samme" | 
+             CE_data2$ceEmail == "","ceEmail"] <- 
+  CE_data2[is.na(CE_data2$ceEmail)  | CE_data2$ceEmail == "Samme" | 
+               CE_data2$ceEmail == "","anglerEmail"]
+
+CE_out <- unique(CE_data2[CE_data2$ceEmail!="",c("ceEmail","anglerName","sgId")])
+# CE_out$ceEmail <- trimws(CE_out$ceEmail)
+# CE_out$ceEmail <- tolower(trimws(CE_out$ceEmail))
+
+colnames(CE_out) <- c("email","firstName","group")
+
+CE_out2 <- "email,firstName,group"
+CE_out3 <- c(CE_out2,paste(CE_out$email,CE_out$firstName,CE_out$group,sep=","))
+
+writeLines(CE_out3,
+                 paste0("email_list_",format(Sys.Date(),"%d%m%Y"),".csv"))
+# writeLines(CE_out2,con = paste0("email_list_",format(Sys.Date(),"%d%m%Y"),".csv"))
+
+# write.csv(CE_out,
+#           paste0("email_list_",format(Sys.Date(),"%d%m%Y"),".csv"),
+#           row.names = FALSE, quote = FALSE, fileEncoding = "UTF-8" )
+```
+
+\section{Generering af CSV-fil til CE-invitationer}
+
+```{r ,echo=F, results='asis'}
+cat(sprintf("%s emails udskrevet d. %s fra følgende ture: %s",
+            nrow(CE_out),Sys.time(),paste0(trips, collapse = ", ")))
+
+CE_data2 %>% 
+  # select(trip_num,ceEmail) %>% 
+  group_by(trip_num) %>% 
+  summarise(emails = n()) %>% 
+  kable(format = "latex",booktabs=T,longtable=T) %>% 
+  kable_styling(#latex_options = c("repeat_header"),
+                    repeat_header_continued = "\\textit{(fortsætter på næste side)}",
+                    repeat_header_text = sprintf("\\textit{(fortsat)}")#,
+                    #full_width = T
+                    ) 
+  
+
+```
+

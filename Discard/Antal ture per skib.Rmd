@@ -1,0 +1,98 @@
+---
+geometry: top=2cm, bottom=1.5cm, left=1.5cm, right=1.5cm
+header-includes:
+- \usepackage{tabularx}
+- \usepackage{tcolorbox}
+output: pdf_document
+---
+
+
+
+```{r set_libraries, include=FALSE}
+
+#Libraries
+if (!require(sqldf)) {
+  install.packages("sqldf", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(sqldf)
+}
+if (!require(RODBC)) {
+  install.packages("RODBC", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(RODBC)
+}
+if (!require(plyr)) {
+  install.packages("plyr", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(plyr)
+}
+```
+
+
+```{r, include=FALSE}
+
+year <- @paramYear
+cruise <- @paramCruise
+sortQTR <- @paramQTR
+sortDS <- @paramDS
+
+```
+
+
+
+```{r getdata, echo=FALSE, message=FALSE, warning=FALSE}
+
+
+channel <- odbcConnect("FishLineDW")
+data <- sqlQuery(channel, paste("SELECT     year, cruise, platform1, contactPersonName, 
+                                          DATEPART(QUARTER, dateStart) AS Kvartal,tripLeaderName, COUNT(platform1) AS AntalTure
+                                 FROM         Trip
+                                 WHERE     (cruise = ('",cruise,"')) AND (year = (",year,"))
+                                 GROUP BY year, cruise, platform1, contactPersonName, tripLeaderName, DATEPART(QUARTER, dateStart)
+                                 ORDER BY year, platform1 
+                                ", sep=""), stringsAsFactors=FALSE)                         
+close(channel)
+
+
+#If want to selcet by trip: Sample.trip = ('",trip,"') AND
+
+
+```
+
+
+```{r, include=FALSE}
+
+if (sortQTR=="N" & sortDS=="N") {
+   data2 <- ddply(data, .(year, cruise, platform1, contactPersonName), summarize, AntalTure=sum(AntalTure,na.rm = TRUE ))
+   colnames(data2) <- c("År","Togt","Skib","Skipper","AntalTure")
+} else if (sortQTR=="Y" & sortDS=="N") {
+   data2 <- ddply(data, .(year, cruise, platform1, contactPersonName, Kvartal), summarize, AntalTure=sum(AntalTure,na.rm = TRUE ))
+   colnames(data2) <- c("År","Togt","Skib","Skipper","Kvartal","AntalTure")
+ } else if (sortQTR=="N" & sortDS=="Y") {
+   data2 <- ddply(data, .(year, cruise, platform1, contactPersonName, tripLeaderName), summarize, AntalTure=sum(AntalTure,na.rm = TRUE ))
+   colnames(data2) <- c("År","Togt","Skib","Skipper","AntalTure","DiscardSejler","AntalTure")
+} else if (sortQTR=="Y" & sortDS=="Y") {
+   data2 <- data
+   colnames(data2) <- c("År","Togt","Skib","Skipper","Kvartal","DiscardSejler","AntalTure")
+}
+
+
+```
+
+
+\begin{tcolorbox}[colback=white!5,colframe=blue!40!black,title=Information om udtrækket,width=10cm]
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{20cm}{@{}lXr@{}}
+\textbf{År} & `r year` & \\ 
+\textbf{Togt} & `r cruise` & \\
+\textbf{Per kvartal} & `r ifelse(sortQTR=="Y","Ja","Nej")` & \\
+\textbf{Per discardsejler} & `r ifelse(sortDS=="Y","Ja","Nej")` &
+\end{tabularx}
+\end{tcolorbox}
+
+
+```{r, include = FALSE}
+
+V_today <- format(Sys.Date(),"%d%m%y")
+
+write.csv(data2, paste0("DiscardTurePerSkib_",V_today,".csv"), row.names = FALSE, quote = FALSE)
+
+```
+

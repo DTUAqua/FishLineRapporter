@@ -1,0 +1,254 @@
+---
+title: "Ad hoc search_logbogsnummer"
+author: "Jeppe Olsen & Laura Diernæs, DTU Aqua"
+date: "`r Sys.Date()`"
+output:pdf_document: default
+html_document:df_print: paged
+---
+  
+\renewcommand{\familydefault}{\sfdefault}
+\sffamily
+
+
+
+```{r set_libraries, include=FALSE}
+
+knitr::opts_chunk$set(echo = F, message = F, warning = F)
+options(scipen = 999, digits = 2)
+
+# Libraries
+if (!require(pacman)){
+  install.packages("pacman", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(pacman)
+}
+p_load(sqldf,RODBC,xtable,maptools,date,lubridate,data.table,tidyr,ggplot2,
+       scales,grid,dplyr, knitr, rmarkdown, tinytex, stringr)
+
+
+```
+
+
+
+```{r define_input, echo=FALSE}
+
+v_ldato <- c(@paramldato)
+#v_year <- 2021
+v_fid <- c(@paramfid)
+#art_out <- c(@paramSpecies) 
+FirstDate <-c(@paramFirstDate)
+LastDate <-c(@paramLastDate)
+v_match <- c(@parammmatch)
+param_filter <- c(@paramFilter) # Fartøj, Fartøj_og_Landingsdato, Logbogs_nr
+art_out <- unlist(strsplit(gsub(" ","",@paramSpecies, ",",fixed=TRUE), ","))
+
+
+v_fid <- str_replace_all(v_fid, fixed(" "), "")
+
+#param_filter <- c("Fartøj_og_Landingsdato") # Fartøj, Fartøj_og_Landingsdato, Logbogs_nr
+#v_ldato <- c("2020-08-26")
+#v_year <- c("2020")
+#v_fid <- c("KE321")
+#art_out <- c("NAN")
+#FirstDate <-c("2020-07-25")
+#LastDate <-c("2020-07-27")
+#v_match <- c("0002906716")
+
+
+```
+
+```{r import_data, echo=FALSE, cache = FALSE}
+
+dfad <- readRDS("<dfad-path>/dfad.rds")
+#dfad <- readRDS("//fishline.dtuaqua.dk/dfad-share/dfad.rds")
+# testfile <- read.csv("<dfad-path>/test.csv",sep=";",header=TRUE)
+# head(testfile)
+
+```
+
+```{r collect_data, echo=FALSE, include=FALSE, cache=FALSE}
+
+#dfad <- filter(readRDS("dfad_2020q1.rds"), year == v_year, fid == v_fid)
+
+#setwd("Q:/dfad/users/fiskeline/")
+#source("hent_dfad.R")
+
+
+if (param_filter == "Fartøj") {
+  
+  dfad <- filter(dfad, fid == v_fid)
+  
+} else if (param_filter == "Fartøj_og_Landingsdato") {
+  
+  dfad <- filter(dfad, fid == v_fid, ldato == v_ldato) 
+  
+} else if (param_filter == "Logbogs_nr") {
+  
+  dfad <- filter(dfad, match == v_match) 
+  
+}
+
+
+```
+
+
+```{r ud fra Fartøj og indsamlilngsdato, echo=FALSE, warning=FALSE, message=FALSE}
+
+if (param_filter == "Fartøj" & art_out != "NAN")  {
+  
+  indsam_between <- subset(dfad, ldato <= LastDate & ldato >= FirstDate)
+  indsam_between$Time_diff_hours <- ceiling(difftime(indsam_between$slut_fngtid, indsam_between$start_fngtid, units = "hours") )
+  unique(indsam_between$art)
+  unique(indsam_between$ldato)
+  
+  df <- unique(indsam_between[c("fid", "ldato", "maske", "redskb", "match", "art")]) 
+  unique(df$art)
+  
+  df <- df %>% filter(art == art_out)
+  
+  
+  l1 <- indsam_between %>% 
+    filter(art == art_out) %>%
+    group_by(match, fid, ldato, square_ret, dfadfvd_ret, art) %>% 
+    summarise(fangst_art_square = sum(hel),
+              timediff = sum(as.numeric(Time_diff_hours))) %>% 
+    select(match, fid, ldato, square_ret, dfadfvd_ret, fangst_art_square, timediff, art)
+  
+  #l1$Fangst_total <- sum(indsam_between$hel) # ikke per område 
+  
+  
+} else if (param_filter == "Fartøj" & art_out == 'NAN') {
+  
+  indsam_between <- subset(dfad, ldato <= LastDate & ldato >= FirstDate)
+  indsam_between$Time_diff_hours <- ceiling(difftime(indsam_between$slut_fngtid, indsam_between$start_fngtid, units = "hours") )
+  
+  
+  df <- unique(indsam_between[c("fid", "ldato", "maske", "redskb", "match")])
+  
+  df$art <- "NAN"
+  
+  l1 <- indsam_between %>%
+    group_by(match, fid, ldato, square_ret, dfadfvd_ret) %>% 
+    summarise(fangst_art_square = sum(hel),
+              timediff = sum(as.numeric(Time_diff_hours)))
+  
+  
+  l1$art <- "NAN"
+  #l1$Fangst_total <- sum(indsam_between$hel) # ikke per område 
+  
+} 
+
+
+```
+
+
+
+
+```{r ud fra landingsdato og fartøj, echo=FALSE, warning=FALSE, message=FALSE}
+
+if (param_filter == "Fartøj_og_Landingsdato" & art_out != "NAN")  {
+  
+  dfad$Time_diff_hours <- ceiling(difftime(dfad$slut_fngtid, dfad$start_fngtid, units = "hours") )
+  unique(dfad$art)
+  
+  df <- unique(dfad[c("fid", "ldato", "maske", "redskb", "match", "art")])
+  df <- df %>% filter(art == art_out)
+  
+  l1 <- dfad %>% 
+    filter(art == art_out) %>%
+    group_by(match, fid, ldato, square_ret, dfadfvd_ret, art) %>% 
+    summarise(fangst_art_square = sum(hel),
+              timediff = sum(as.numeric(Time_diff_hours))) %>%
+    select(match, fid, ldato, square_ret, dfadfvd_ret, fangst_art_square, timediff, art)
+  
+  
+  #l1$Fangst_total <- sum(dfad$hel) # ikke per område 
+  
+  
+} else if (param_filter == "Fartøj_og_Landingsdato" & art_out == 'NAN') {
+  
+  dfad$Time_diff_hours <- ceiling(difftime(dfad$slut_fngtid, dfad$start_fngtid, units = "hours") )
+  
+  
+  df <- unique(dfad[c("fid", "ldato", "maske", "redskb", "match")])
+  df$art <- "NAN"
+  
+  
+  l1 <- dfad %>%
+    group_by(match, fid, ldato, square_ret, dfadfvd_ret) %>% 
+    summarise(fangst_art_square = sum(hel),
+              timediff = sum(as.numeric(Time_diff_hours)))
+  
+  
+  l1$art <- "NAN"
+  #l1$Fangst_total <- sum(dfad$hel) # ikke per område 
+  
+  
+}
+
+
+```
+
+
+```{r ud fra Logbogsbladenummer (E-log), echo=FALSE, warning=FALSE, message=FALSE}
+
+
+if (param_filter == "Logbogs_nr" & art_out != "NAN")  {
+  
+  dfad$Time_diff_hours <- ceiling(difftime(dfad$slut_fngtid, dfad$start_fngtid, units = "hours") )
+  unique(dfad$art)
+  
+  df <- unique(dfad[c("fid", "ldato", "maske", "redskb", "match", "art")])
+  df <- df %>% filter(art == art_out)
+  
+  l1 <- dfad %>% 
+    filter(art == art_out) %>%
+    group_by(match, fid, ldato, square_ret, dfadfvd_ret, art) %>% 
+    summarise(fangst_art_square = sum(hel),
+              timediff = sum(as.numeric(Time_diff_hours))) %>% 
+    select(match, fid, ldato, square_ret, dfadfvd_ret, fangst_art_square, timediff, art)
+  
+  
+  #l1$Fangst_total <- sum(dfad$hel) # ikke per område 
+  
+  
+  
+} else if (param_filter == "Logbogs_nr" & art_out == 'NAN') {
+  
+  dfad$Time_diff_hours <- ceiling(difftime(dfad$slut_fngtid, dfad$start_fngtid, units = "hours") )
+  
+  
+  df <- unique(dfad[c("fid", "ldato", "maske", "redskb", "match")])
+  df$art <- "NAN"
+  
+  
+  l1 <- dfad %>%
+    group_by(match, fid, ldato, square_ret, dfadfvd_ret) %>% 
+    summarise(fangst_art_square = sum(hel),
+              timediff = sum(as.numeric(Time_diff_hours)))
+  
+  
+  l1$art <- "NAN"
+  #l1$Fangst_total <- sum(dfad$hel) # ikke per område 
+  
+  
+}
+
+
+```
+
+
+## Ud fra indsamlingsdato, landingsdato eller Logbogsnummer
+
+*Det er muligt data ikke er i systemet endnu, da der kan gå et par dage imellem indsendt logbogsdata til dette er opdateret i DFAD. Prøv igen senere hvis dette er tilfældet* \
+
+```{r output, echo=FALSE}
+
+
+# "fartøjsId", "landingsdato", "maskestørrelse", "Redskab", "makkerID", "Logbogsbladebummer" 
+knitr::kable(df, col.names = c("FartøjsId", "landingsdato", "Maske", "Redskab", "Logbogsbld.nr", "Art"), caption = "Fartøj/Landingsdato/Gear/Logbogs.nr")
+
+
+# "square", "Område_kode", "farvand", "fangsten af art pr område", "Fisketid brugt", "fangsten af alle fisk pr tur"
+kable(l1, col.names = c("Logbogsbld.nr", "FartøjsId", "landingsdato", "Square", "farvand", "Fangsten_art", "Fisketid_brugt_hours", "Art"), caption = "Square & Område bestemmes ud fra fangst og/eller Fisketid")
+
+```
