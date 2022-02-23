@@ -1,0 +1,351 @@
+---
+fontsize: 11pt
+geometry: top=1in, bottom=1in, left=0.8in, right=0.8in
+header-includes:
+- \usepackage{booktabs}
+- \usepackage{longtable}
+- \usepackage{floatrow}
+- \usepackage[T1]{fontenc}
+- \usepackage[danish]{babel}
+- \usepackage[utf8]{inputenc}
+- \usepackage{graphicx}
+- \floatsetup[table]{capposition=bottom}
+- \usepackage{fancyhdr}
+- \pagestyle{fancy}
+- \fancyhf{}
+- \fancyfoot[R]{\thepage}
+- \usepackage[table]{}
+- \usepackage{rotating}
+- \usepackage{ragged2e}
+- \usepackage{catchfile}
+- \usepackage{array}
+- \usepackage[export]{adjustbox}
+- \usepackage{multirow}
+- \linespread{1.15}
+- \usepackage{tabularx}
+- \usepackage{tcolorbox}
+- \usepackage{lipsum}
+- \usepackage{makecell}
+- \usepackage{etoolbox}
+- \usepackage{colortbl}
+- \usepackage{lscape}
+- \usepackage{caption}
+output:
+  pdf_document: 
+    number_sections: yes
+---
+
+\pagenumbering{arabic}
+
+\renewcommand{\familydefault}{\sfdefault}
+\def\Tiny{\fontsize{5pt}{5pt}\selectfont}
+
+\sffamily
+\def\figurename{Figure}
+\def\tablename{Table}
+
+
+```{r libraries, include=FALSE}
+
+library(xtable)
+library(sqldf)
+library(plyr)
+library(RODBC)
+library(ggplot2)
+library(grid)
+library(gridExtra)
+library(plyr)
+library(lubridate)
+library(reshape2)
+
+```
+
+
+```{r table_setup, echo=FALSE, results='asis',message=FALSE,warning=FALSE}
+
+######### Setup to use in xtable prints ###################### 
+
+bold <- function(x) {paste('{\\textbf{',x,'}}', sep ='')}
+gray <- function(x) {paste('{\\textcolor{gray}{',x,'}}', sep ='')}
+
+addtorow          <- list()
+addtorow$pos      <- list()
+addtorow$pos[[1]] <- c(0)
+addtorow$command  <- c(paste("\\hline \n",
+                             "\\endhead \n",
+                             "\\hline \n",
+                             #"{\\footnotesize Continued on next page} \n",
+                             "\\endfoot \n",
+                             "\\endlastfoot \n",sep=""))
+
+```
+
+
+```{r setup, include=FALSE}
+
+cruise <- @paramCruise
+year <- @paramYear
+
+
+cruiseNo <- 10
+plannedHauls <- 50
+quarter <- 3
+  
+```
+
+
+
+```{r info_cruise, echo=FALSE, message=FALSE, warning=FALSE,include=FALSE}
+
+query1<-paste("SELECT Trip.year,Trip.contactPersonName,Trip.contactPersonId , Trip.trip, Trip.cruise, tripLeaderName, dateStart, dateEnd, platform1
+              FROM Trip
+              WHERE     (Trip.year = ",year," and Trip.cruise='",cruise,"')"
+             ,sep = "")
+query1
+
+
+query2 <-paste("SELECT     Animal.year, Animal.cruise, Animal.speciesCode, Animal.representative, Animal.individNum, 
+                           Animal.number, Animal.length, Animal.weight,Animal.statisticalRectangle as ICESsquare
+                FROM       Animal
+                WHERE     (Animal.year=",year," and Animal.cruise='",cruise,"')"
+                            ,sep = "")
+query2
+
+query4<-paste("SELECT Sample.station, Sample.fishingtime, Sample.latPosStartDec AS lat, Sample.lonPosStartDec AS lon, 
+                      Sample.gearType,Sample.gearQuality,Sample.haulType, Sample.selectionDevice,Sample.meshSize, Sample.dfuArea,
+                      Sample.statisticalRectangle,Sample.quarterGearStart,
+                      Sample.netOpening,Sample.wireLength as warpLength, Sample.otterBoardDist as DoorSpread,
+                      Sample.depthAvg,Sample.windDirection,Sample.windSpeed, Sample.dateGearStart
+              FROM Sample
+              WHERE     (Sample.year=",year," and Sample.cruise='",cruise,"')"
+              ,sep = "")
+query4
+
+
+channel <- odbcConnect("FishLineDW")
+data1 <- sqlQuery(channel, paste(query1),stringsAsFactors=FALSE)
+data_animal <- sqlQuery(channel, paste(query2),stringsAsFactors=FALSE)
+data_sample <- sqlQuery(channel, paste(query4),stringsAsFactors=FALSE)
+close(channel)
+
+data1 <- with(data1, data1[order(data1$dateStart),])
+
+
+cruise2 <- ifelse(cruise %in% c('Torsk','2262-Torsk'),"Torsk",ifelse(tolower(cruise)=='tunger',"Tunger",substr(cruise,1,4)))
+Quarter <- unique(quarter(data1$dateStart),quarter(data1$dateEnd) )
+StartDate <- ifelse(nrow(data1)==1,format(data1$dateStart,"%d-%m-%Y"),format(data1$dateStart[1],"%d-%m-%Y"))
+EndDate <- ifelse(nrow(data1)==1,format(data1$dateEnd,"%d-%m-%Y"),format(data1$dateEnd[nrow(data1)],"%d-%m-%Y"))
+
+
+StartTime <- paste0(format(data1$dateStart,"%H"),":00")
+EndTime <- paste0(format(data1$dateEnd,"%H"),":00")
+
+
+
+cruiseName <- ifelse(substr(cruise,1,4) %in% c("IBTS","BITS","KASU"),substr(cruise,1,4),cruise)
+ship <- ifelse(substr(cruise,1,4) %in% c("IBTS","BITS"),"R/V DANA",ifelse(substr(cruise,1,4)=="KASU","Havfisken",paste(unique(data1$platform1), collapse=', ' )))  
+
+cruise_title2 <- ifelse(substr(cruise,1,4)=="IBTS","International Bottom Trawl Survey",ifelse(substr(cruise,1,4)=="BITS",
+                                                                                              "Baltic International Trawl Survey",""))
+#cruise_title <- ifelse(substr(cruise,1,4) %in% c("IBTS","BITS","KASU"),paste0(cruiseName," ",Quarter[1],"Q"," ",year),cruiseName)
+cruise_title <- ifelse(length(unique(Quarter))==1,paste0(cruiseName," ",Quarter,"Q"," ",year),
+                   paste(cruiseName, paste0(Quarter,"Q"," ",year, collapse = "\\& ")))
+
+TripNum <- ifelse(nrow(data1)>1,"MT","ST")
+
+```
+
+<!-- definere forside -->
+
+
+
+
+\thispagestyle{empty}
+
+<!--
+
+\vspace*{-1cm}
+
+
+\vspace{-0.9cm}
+
+
+\begin{figure}[H]
+        \flushright
+        \includegraphics[width=10cm]{X:/Line/Togtrapport/logotilkort.png}
+\end{figure}
+
+\vspace*{0.5cm}
+
+-->
+
+\noindent\textcolor{gray}{\rule{0.6\textwidth}{1pt}}\par
+
+\textcolor{gray}{\Large DTU Aqua - Cruise report}
+
+\vspace*{3cm}
+
+
+
+\textbf{\Huge `r cruise_title`}\
+
+\vspace*{-0.3cm}
+
+\textbf{\it{\Large `r cruise_title2`}}\
+
+\vspace*{1cm}
+
+\textbf{\Huge `r ship`}
+
+\vspace*{0.3cm}
+
+\textbf{\Huge Denmark}
+
+\vspace*{0.5cm}
+
+\textbf{\large Cruise no. `r cruiseNo`}\
+
+\textbf{\large From `r StartDate` to `r EndDate`}
+
+
+
+\vfill
+              
+DTU Aqua\
+Charlottenlund Slot\
+2920 Charlottenlund\
+Denmark
+
+
+
+
+\newpage
+
+
+<!-- define header -->
+
+
+\chead{\footnotesize `r cruise_title`}
+\lhead{\footnotesize Cruise report }
+\rhead{\footnotesize `r StartDate` - `r EndDate`}
+
+
+
+\vspace*{0.01cm}
+
+\renewcommand{\contentsname}{Contents}
+\tableofcontents
+
+\newpage
+
+
+
+#Cruise summary
+\vspace{0.3cm}
+
+\newcolumntype{s}{>{\hsize=.4\hsize}X}
+\newcolumntype{u}{>{\hsize=1\hsize}X}
+\newcolumntype{t}{>{\hsize=0.6\hsize}X}
+
+
+\subsubsection*{General information}
+\vspace{-0.5cm}
+
+
+
+\renewcommand{\arraystretch}{1}
+\renewcommand{\tabcolsep}{5pt}
+\begin{tabularx}{0.93\textwidth}{utst}
+        &\textbf{}   & \textbf{} &  \textbf{} \\
+\it{Cruise} & `r cruiseName`  &  &  \\
+\it{Cruise number} & ??  & &  \\
+\it{Reseach vessel(s)}   & `r ship` &   &  \\
+\it{Year and quarter}   & `r paste0(Quarter[1],"Q")` `r year`&   &  \\
+\it{Country}    & Denmark & & 
+\end{tabularx}
+
+
+
+\vspace{0.3cm}
+
+\subsubsection*{Location and time}
+
+\vspace{-0.2cm}
+
+
+\rowcolors{1}{}{white}
+
+
+\newcommand{\abTN}{`r TripNum`}
+
+\newcommand{\aORbTN}[1]{%
+        \edef\mytemp{{#1}}%
+        \expandafter\ifstrequal\mytemp{ST}{
+
+\renewcommand{\arraystretch}{1.1}
+\renewcommand{\tabcolsep}{5pt}
+\begin{tabularx}{0.93\textwidth}{utst}
+        &\textbf{Date}   & \textbf{Time} &  \textbf{Port} \\
+\hline
+\it{Departure} & `r StartDate`  & `r StartTime` & Copenhagen \\
+\it{Arrival}   & `r EndDate`    & `r EndTime`   & Rønne \\
+\it{Staff and crew exchange}    & `r EndDate` & & Ystad
+\end{tabularx}
+
+
+  }{} %
+    \expandafter\ifstrequal\mytemp{MT}{
+        
+        
+        
+        
+        
+        }{}%
+}
+
+
+
+\aORbTN{\abTN}
+
+
+
+```{r tripInfo, results='asis',echo=FALSE,message=FALSE,warning=FALSE}
+
+
+if (TripNum=="MT") {
+
+    tripInfo <- data1[,c("trip","dateStart","dateEnd","platform1")]
+
+    tripInfo$dateStart <- paste0(format(data1$dateStart,"%d-%m-%Y %H"),":00")
+    tripInfo$dateEnd <- paste0(format(data1$dateEnd,"%d-%m-%Y %H"),":00")
+    
+ 
+    trip_table <- xtable(tripInfo)
+    colnames(trip_table) <- c("Trip no.","Start date and time", "End date and time","Ship")
+    align(trip_table) <- "lp{3cm}p{5cm}p{5cm}p{2.5cm}"
+    
+    print(trip_table,include.rownames=FALSE, sanitize.colnames.function=bold)
+
+}
+     
+
+```
+
+
+\vspace{0.5cm}
+
+
+
+\subsubsection*{Participants}
+
+
+\
+\renewcommand{\arraystretch}{1}
+\renewcommand{\tabcolsep}{28pt}
+
+
+
+\newpage
+
+
+

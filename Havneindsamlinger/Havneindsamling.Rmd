@@ -1,0 +1,667 @@
+---
+fontsize: 11pt
+geometry: top=2cm, bottom=2cm, left=1.5cm, right=1.5cm,headsep=1cm
+header-includes:
+- \usepackage[T1]{fontenc}
+- \usepackage[danish]{babel}
+- \usepackage[utf8]{inputenc}
+- \usepackage{fancyhdr}
+- \pagestyle{fancy}
+- \fancyhf{}
+- \fancyfoot{}
+- \usepackage{ragged2e}
+- \linespread{1.15}
+- \usepackage{lipsum}
+- \usepackage{float}
+- \usepackage{lastpage}
+output: pdf_document
+fig_caption: yes
+keep_tex: yes
+---
+  
+\renewcommand{\familydefault}{\sfdefault}
+\sffamily
+
+\setlength{\LTleft}{-20cm plus -1fill}
+\setlength{\LTright}{\LTleft}
+
+\lhead{\footnotesize \color{darkgray}  Kvalitet og Status - Havneindsamling}
+\rhead{\footnotesize  \color{darkgray} SIDE \color{red} \thepage\ \color{darkgray} AF \color{darkgray} \pageref*{LastPage} }
+
+
+```{r define_input, echo=FALSE, include=FALSE}
+
+#Parameters that goes into the report by the user, first art to be used directly in r, second part whith userinterface
+
+# year<- 2020
+# cruise <- "IN-LYNG"
+# quarter <- 1
+# tur <- c()
+# if (length(c(tur))==0) {tur = "Alle"}
+
+year <- @paramYear
+cruise <- @paramCruise
+quarter <- @paramQuarter
+tur <- c(@paramTrip)
+if (length(c(tur))==0) {tur = "Alle"}
+
+#corrects differences in nameing
+cruise0 <- cruise
+if (cruise %in% c("IN-CHAR","IN-LYNG")){
+  cruise <- c("IN-CHAR","IN-LYNG")
+}
+```
+
+```{r set_libraries, include=FALSE, warning=FALSE}
+
+#Libraries used in the r code
+if (!require(kableExtra)) {
+  install.packages("kableExtra", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(kableExtra)
+}
+if (!require(RODBC)) {
+  install.packages("RODBC", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(RODBC)
+}
+if (!require(dplyr)) {
+  install.packages("dplyr", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(dplyr)
+}
+
+# useful functions
+'%!in%' <- function(x,y)!('%in%'(x,y)) #a "NOT in" statement
+
+## account for "number" in FishlineDW, lines with more than one fish pr line
+convert_number <- function(data) {
+  
+  if ("weight" %in% names(data)){
+    dat <- data[data$treatment %!in% c("RU", "VV", "VK"), ]
+    #set fish individual weight
+    dat$weight <- (dat$weight/dat$number) * dat$treatmentFactor
+    #expand the data so each row represents one fish
+    dat <- dat[rep(seq(nrow(dat)), dat$number), ]
+    dat$number <- rep(1, nrow(dat))
+    #quick check
+    if (sum(data$weight*data$treatmentFactor, na.rm = T) != sum(dat$weight, na.rm = T))stop()
+    dat
+  } else if ("age" %in% names(data)){
+    dat <- data[rep(seq(nrow(data)), data$number), ]
+    dat$number <- rep(1, nrow(dat))
+    dat
+  } else stop()
+  
+}
+
+```
+
+
+```{r include=FALSE, cache=FALSE} 
+
+################### Collecting data from Fishline #############################
+
+channel <- odbcConnect("FishLineDW")
+
+# Animal 
+animal <- sqlQuery(channel,
+                   paste("SELECT    animalID, year, cruise, trip,station, 
+                                    speciesCode, dfuArea, number, 
+                                    treatment, treatmentFactor,
+                                    length, weight, 
+                                    landingCategory, individNum, 
+                                    representative, quarterGearStart as qtr,
+                                    sizeSortingEU
+                          FROM      Animal
+                          WHERE     (year between ",year - 4," and ",year," ) AND
+                                    quarterGearStart = (",quarter,") AND
+                                    cruise in ('",paste0(cruise,collapse="','"), "') ", sep = ""),
+                                    stringsAsFactors=FALSE)
+
+#apply function to account for number
+animal <- convert_number(animal)
+
+# age information
+age <- sqlQuery(channel,
+                   paste("SELECT    animalID, year, cruise, trip,station,
+                                    speciesCode, dfuArea, number,
+                                    length, age, sexCode,
+                                    landingCategory, individNum,
+                                    representative, quarterGearStart as qtr,
+                                    sizeSortingEU
+                          FROM      Age
+                          WHERE     (year between ",year - 4," and ",year," ) AND
+                                    quarterGearStart = (",quarter,") AND
+                                    cruise in ('",paste0(cruise,collapse="','"), "') ", sep = ""),
+                                    stringsAsFactors=FALSE)
+
+#apply function to account for number
+age <- convert_number(age)
+
+# Trip info
+trip <- sqlQuery(channel,
+                 paste("SELECT     year, trip, cruise, dateEnd as dateLand, platform1, 
+                                   logBldNr, samplingMethod,samplingType,
+                                   fisheryType,remark, DATEPART(quarter,dateEnd) as qtr, 
+                                   dateSample, harbourSample, harbourLanding
+                        FROM       Trip
+                        WHERE      year = (",year,") AND
+                                   DATEPART(quarter,dateEnd) = (",quarter,") AND
+                                   cruise in ('",paste0(cruise,collapse="','"), "') ", sep = ""), 
+                                   stringsAsFactors=FALSE)
+
+sample <- sqlQuery(channel,
+                   paste("SELECT   tripId, trip, station, fishingtime, 
+                                   latPosStartDec AS lat, lonPosStartDec AS lon,
+                                   latPosStartText AS latT, lonPosStartText AS lonT, 
+                                   catchRegistration, speciesRegistration, gearType, 
+                                   selectionDevice, meshSize, dfuArea, 
+                                   statisticalRectangle, quarterGearStart as qtr,
+                                   remark
+                          FROM     Sample
+                          WHERE    year = (",year,") AND
+                                   quarterGearStart = (",quarter,") AND
+                                   cruise in ('",paste0(cruise,collapse="','"), "') ", sep = ""), 
+                                   stringsAsFactors=FALSE)
+
+close(channel)
+
+``` 
+
+\thispagestyle{empty}
+
+\vspace*{2cm} 
+
+\textbf{\LARGE Tjek på havneindsamlingerne}
+
+\vspace{3cm}   
+
+\textbf{\LARGE `r quarter`. Kvartal `r year`}\
+\vspace{0.5cm}
+
+\textbf{\Large Togt:}
+\textbf{\Large `r cruise0`}\
+\vspace{0.5cm}
+
+\textbf{Tur(e):}
+\textbf{`r tur`}\
+
+\newpage
+
+\renewcommand{\contentsname}{Indhold}
+\tableofcontents
+
+\newpage
+
+
+
+\part{Mangler, indtastningsfejl og outliers}
+
+\section{Ture: `r tur`, `r quarter`. Kvartal `r year`}
+
+\subsection{Tid og sted}
+
+Tabellen herunder viser de ture, hvor nogle informationer om turen mangler. 
+
+
+\small
+\renewcommand{\arraystretch}{1.1}
+\renewcommand{\tabcolsep}{8pt}
+
+```{r data_out2, results='asis',echo=FALSE,message=FALSE,warning=FALSE,fig.pos='H'}
+# Account for the resolution choice, all trips, or just some
+if (tur != "Alle"){
+  trip <- trip[trip$trip %in% tur, ]
+  sample <- sample[sample$trip %in% tur, ]
+}
+## Check for missing trip information -----------------------------------------
+
+## The table checks for missing variables about the trip...
+#make table of trips with zero animals measured, but Animal under the station is present, within the chosen year
+no_fish <- animal[animal$year == year & is.na(animal$length), ]$trip
+#list of trips present in animal, within the chosen year
+trips <- unique(animal[animal$year == year, ]$trip)
+
+#add a column identifying zero samples
+trip$zero_catch <- ifelse(trip$trip %in% no_fish | trip$trip %!in% trips, "yes", "no")
+
+trip_input <- trip[trip$zero_catch == "no",
+                   c("trip", "dateSample", "harbourLanding", "samplingMethod",
+                     "samplingType", "fisheryType", "platform1", "logBldNr", "remark")]
+
+#format the table input, replace blank with dash in comments
+trip_input[is.na(trip_input$remark) | trip_input$remark=="\r\n","remark"] <- "-"
+
+#select all lines where one or more missing value
+mis_trip <- trip_input[!complete.cases(trip_input),]
+
+if (nrow(mis_trip)>0) {
+
+  #format date output
+  mis_trip$dateSample <- format(mis_trip$dateSample,format='%d/%m/%y')
+  
+  #replace NA, with text
+  mis_trip$dateSample <- as.character(mis_trip$dateSample)
+  mis_trip[is.na(mis_trip)] <- "Mangler"
+  
+  #replace with text
+  mis_trip[mis_trip$fisheryType==1,"fisheryType"] <- "Konsum"
+  mis_trip[mis_trip$fisheryType==2,"fisheryType"] <- "Industri"
+  
+  #make sure the remarks contains no quotations marks
+  mis_trip$remark <- gsub("\"", "", mis_trip$remark)   
+  #Make table, and use mutate_all, to color "mangler" in red
+  mis_trip %>%      
+         mutate_all(~cell_spec(.x, color = case_when(.x == "Mangler" ~ "red",   
+                                                          TRUE ~ "black")))  %>%
+         kbl(escape = F, longtable = T, booktabs = T, linesep = "", row.names = F,
+             col.names = c("tur","Indsaml dato","Land havn", "Metode",
+                                     "Flere skibe?", "Type", "fartøjs nr.", "Log nr.", "Bemærkning"),
+             align = "l") %>%
+         row_spec(0, bold = TRUE) %>%
+         kable_styling(latex_options = c("striped", "hold_position")) %>%
+         column_spec(1, width = "1cm")  %>%
+         column_spec(2:8, width = "1.5cm")  %>%
+         column_spec(9, width = "4cm")
+  
+  
+} else {
+  #message if no errors where found
+  text<-c("Ingen Fejl i Tid og sted")
+  #Make table
+  text %>% 
+      cell_spec(color = "green", font_size = 15, bold = T) %>%
+      kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+      kable_styling(latex_options = c("hold_position")) 
+}
+```
+
+\cleardoublepage
+\section{Stationer}
+
+\subsection{Position og redskab}
+
+I tabllen nedenfor er vist de stationer, hvor det ikke har været muligt at assosiere et ICES område og/eller square til de indtastetde koordinater. Derudover er stationsnavne, der afviger fra den normale form på seks cifre, markeret med rødt i tabellen. 
+
+\renewcommand{\tabcolsep}{12pt}
+
+
+```{r stations, results='asis', echo = FALSE, message = FALSE, warning = FALSE, fig.pos='H'}
+
+## Check for missing gear and missing/correct position  ------------------------
+# merge trips and samples to get all information neeeded in the table
+dat_merge <- merge(trip, sample, by = c("trip", "qtr"))
+
+#format date
+dat_merge$dateSample <- format(dat_merge$dateSample,format='%d/%m/%y')
+
+#exclude trips with no fish
+stat_input <- dat_merge[dat_merge$zero_catch == "no", 
+                        c("platform1", "trip", "dateSample", "station", "dfuArea",
+                                              "statisticalRectangle", "gearType", "meshSize")]
+
+#format geartype
+stat_input[stat_input$gearType %in% c("LL", "LLD", "LLS") & 
+             is.na(stat_input$meshSize), "meshSize"] <- "-"
+
+#select all lines where one or more missing value
+mis_stat <- stat_input[!complete.cases(stat_input), ]
+
+if (nrow(mis_stat) > 0) {
+  
+  #replace NA, with text
+  mis_stat[is.na(mis_stat)] <- "Mangler"
+  mis_stat <- mis_stat[order(mis_stat$trip,mis_stat$station),] 
+  
+  #Make table, and use mutate_all, to color "mangler" in red
+  mis_stat %>%      
+         mutate_all(~cell_spec(.x, color = case_when(.x == "Mangler" ~ "red",   
+                                                          TRUE ~ "black")))  %>%
+         kbl(escape = F, longtable = T, booktabs = T, linesep = "", row.names = F,
+             col.names = c("fartøjs nr.","Tur","Indsamling-dato", "Station",
+                           "ICES område", "ICES square", "Redskab", "Maskevidde"), align = "l") %>%
+         row_spec(0, bold = TRUE) %>%
+         kable_styling(latex_options = c("striped", "hold_position")) %>%
+         column_spec(1:8, width = "1.2cm") 
+  
+  
+} else {
+  
+  #message if no errors are found
+  text<-c("Ingen Fejl i Position og Redskab")
+  #Make table
+  text %>% 
+      cell_spec(color = "green", font_size = 15, bold = T) %>%
+      kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+      kable_styling(latex_options = c("hold_position")) 
+}
+
+```
+
+
+\newpage
+
+\section{Individfisk}
+
+\subsection{Længde-vægt forhold}
+
+I graferne nedenfor er plottet længde-vægt forhold for alle individfisk fra turene, i det valgte år, kvartal og togt. Det skraverede område representere de tidligere år fra samme kvartals, spreding (prediktions intervallet), de Blå punkter følger derved tidligere år, og de Røde punkter representere afvigelse fra det forventede. Da dette udregnes automatisk, kan det dog godt forekomme at individer med helt fine længde-vægt forhold betragtes som afvigelser. \
+
+I den efterfølgende tabel er listet de individer, hvor der forekommer at være en afvigelse for den valgte periode og tidligere år. 
+
+
+\renewcommand{\arraystretch}{1}
+```{r ,echo=FALSE, results='asis', cache=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=7}
+
+# Catch length-weight relation -----------------------------------------------
+#select individuals that have both length and weight 
+animal_ind <- animal[!is.na(animal$length) & !is.na(animal$weight), ] 
+#add an id column to keep track
+animal_ind$id<-c(1:nrow(animal_ind))
+###############################################################################
+#log stuff to get a straigt line relationship
+animal_ind$log_length <- log(animal_ind$length)
+animal_ind$log_weight <- log(animal_ind$weight)
+
+#find relevant species for the given time period
+sps <- unique(animal_ind[animal_ind$year == year & animal_ind$trip %in% trip$trip, ]$speciesCode)
+
+if (length(sps) > 0){
+#Loop through each species and plot
+fun <- function(i) {
+ #subset dataset by sepcies  
+ df_sps <- animal_ind[animal_ind$speciesCode==sps[i],]
+ 
+ #break down data into the new and old, data. NOTE: all data is from same quarter, as relations  changes with the season
+ new <- df_sps[df_sps$year == year & df_sps$trip %in% trip$trip, ]
+ old <- df_sps[df_sps$id %!in% new$id, ]
+ 
+ if (nrow(old) > 0 & nrow(new)> 0) {
+ #make a linear model, the log relationship between weight and length should be linear
+ mod1 = lm(log_weight ~ log_length, data = old)
+ 
+ #estimate the prediction interval, with evenly generated numbers based on data range
+ sim.dat = seq(min(old$log_length), max(old$log_length), length.out=nrow(old))
+ preds <- predict(mod1, newdata = data.frame(log_length=sim.dat), 
+                  level=0.999, interval = 'prediction')
+ 
+ #put the "new"/relevant data trough the model made with the old data, to see how well it follows the given trend
+ preds2 <- predict(mod1, newdata = data.frame(log_length=new$log_length), 
+                   level=0.999, interval = 'prediction')
+ #select data within the preiction interval, and thereby finding outliers
+ insideInterval <- new[new$log_weight > preds2[,'lwr'] & new$log_weight < preds2[,'upr'], ] 
+ 
+ #plot. firstly the confidence band and trend from old data, but without old data points (overridden with white points)
+ #secondly, plot the new data (in red), and data within confidence interval (in blue). overlapping points so as to visualize the putliers
+ plot(old$log_length, old$log_weight, pch = 16, cex = 0.1, 
+        main = paste(" Art:", sps[i],"- Kvartal:", quarter, sep=" "),
+        xlab = "Log(Længde) (mm)",
+        ylab = "Log(Vægt) (kg)", 
+        cex.main = 1.5,
+        cex.lab = 1.5)+ 
+     points(old$log_length, old$log_weight, pch = 16, cex = 0.2, col = "white")+
+     lines(sort(old$log_length), fitted(mod1)[order(old$log_length)], col='red', lwd=3)+
+     polygon(c(rev(sim.dat), sim.dat), 
+             c(rev(preds[ ,3]), preds[ ,2]), density=10, col = 'blue', border = NA)+
+     lines(sim.dat, preds[ ,3], lty = 'dashed', col = 'red')+
+     lines(sim.dat, preds[ ,2], lty = 'dashed', col = 'red')+
+     points(new$log_length, new$log_weight, pch = 16, cex = 1, col = "red")+
+     points(insideInterval$log_length, insideInterval$log_weight, pch = 16, cex = 1, col = "blue")
+    
+  #the new data NOT inside the interval, previously defined
+  db_diff <- new[new$id %!in% insideInterval$id, ] 
+  #Remove the duplicates, that comes from the "number" column treatment
+  db_diff <- db_diff[!duplicated(db_diff[, 5:12]), ]
+  
+  # Make table of outliers, 
+  db_diff <- db_diff[ , 
+                 c("year", "trip", "station", "speciesCode", "landingCategory", 
+                   "individNum", "length", "weight")]
+                   
+ } else if (nrow(new) > 0){
+  
+  #Use only data for chosen period, if not enough data is availeble 
+  text<-c(paste0("Ingen Tidligere Data for ", sps[i], " Bruger Kun Indeværende År"))
+  #Make table
+  print(text %>% 
+      cell_spec(color = "blue", font_size = 15, bold = T) %>%
+      kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+      kable_styling(latex_options = c("hold_position"))) 
+  
+  lw<-new$log_length/new$log_weight
+  
+  ## Calculate the mean and sd
+  smean <- mean(lw, na.rm = TRUE)
+  sds <-  sd(lw, na.rm = TRUE)
+  ## Identify the cells with value greater than cutoff * sd (column wise)
+  points <- rbind(new[which(lw >  smean + (4 * sds)), ], new[which(lw <  smean - (4 * sds)), ])
+  
+  plot(new$log_length, new$log_weight, pch = 16, cex = 1,
+        main = paste(" Art:", sps[i],"- Kvartal:", quarter, sep=" "),
+        xlab = "Log(Længde) (mm)",
+        ylab = "Log(Vægt) (kg)",
+        cex.main = 1.5,
+        cex.lab = 1.5)+
+     points(points$log_length, points$log_weight, pch = 16, cex = 1, col = "red")
+  
+    
+  db_diff <- points[, c("year", "trip", "station", "speciesCode",
+                        "landingCategory", "individNum", "length", "weight")]
+ } 
+}
+temp<-lapply(1:length(sps), fun) #funktion to get data and run the loop/function
+db_diff<-data.frame(do.call("rbind", temp)) #make data frame from the temp file 
+
+
+if (nrow(data.frame(db_diff)) >0) {
+  
+  # Output table of outliers in latex table format
+  
+  cat("\\newpage") 
+  
+  db_diff <- db_diff[order(db_diff$speciesCode),]
+  #Make table
+  db_diff %>%      
+          kbl(escape = F, longtable = T, booktabs = T, linesep = "", row.names = F,
+              col.names = c("År", "Tur", "Station", "Art", "Landings-kategori", 
+                            "individ-nummer", "Længde (mm)", "Vægt (kg)"), align = "l") %>%
+          row_spec(0, bold = TRUE) %>%
+          kable_styling(latex_options = c("striped", "hold_position")) %>%
+          column_spec(1:8, width = "1.2cm")
+  
+} else {
+  #message if no outliers where found
+  text<-c("Ingen afvigelser i Længde-vægt forhold")
+  #Make table
+  text %>% 
+      cell_spec(color = "green", font_size = 15, bold = T) %>%
+      kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+      kable_styling(latex_options = c("hold_position"))
+}
+
+} else {
+  #message if no measured fish is present for the given period
+  text<-c("Ingen Enkeltfisk")
+  #Make table
+  text %>% 
+      cell_spec(color = "blue", font_size = 15, bold = T) %>%
+      kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+      kable_styling(latex_options = c("hold_position"))
+}
+```
+
+
+\newpage{}
+\subsection{Lændge-alder forhold}
+I graferne nedenfor er plottet længde-alder-forhold for alle individfisk fra turene, i det valgte år, kvartal og togt. Det skraverede område representere de tidligere års spreding (prediktions intervallet), de Blå punkter følger derved tidligere år, og de Røde punkter representere afvigelse fra det forventede. Dette udregnes automatisk, og det kan derfor forekomme at individer med helt fine længde-alder forhold betragtes som afvigelser. \
+
+I den efterfølgende tabel er listet de individer, hvor der forekommer at være en afvigelse for den valgte periode og tidligere år. 
+
+
+\renewcommand{\arraystretch}{1}
+
+```{r ,echo=FALSE,results='asis', cache=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=7}
+if (length(sps) > 0){
+## Plot length - age relations ----------------------------------------------
+
+  # Select lines form age data where age and length is known.. 
+age_ind <- age[!is.na(age$length) & !is.na(age$age), ]
+
+if (nrow(data.frame(age_ind))>0){
+  #add id column to keep track of rows
+  age_ind$id<-c(1:nrow(age_ind))
+  #Loop through each species and plot
+  fun <- function(i) {
+  #subset data by sepcies  
+  df_sps <- age_ind[age_ind$speciesCode==sps[i],]
+  
+  #break down data into the new and old, data. NOTE: all data is from same quarter, as relations changes with the season
+  new <- df_sps[df_sps$year == year & df_sps$trip %in% trip$trip, ]
+  old <- df_sps[df_sps$id %!in% new$id, ]
+  
+  if (nrow(old) > 0 & nrow(new)> 0 & FALSE %!in% (new$age %in% old$age)) { 
+  #make a polynomial model, the age-length relationship is not linear, and quite complex, and varies from spoecies to soecies. to simplify a simple model is fitted, and deviation from previus years should therby be visible
+  mod2 = lm(age ~ poly(length, 2), data = old)
+  
+  summary<- summary(mod2)
+  if (summary[["adj.r.squared"]] > 0.2){
+  #estimate the prediction interval, with evenly genrated numbers based on data range
+  sim.dat = seq(min(old$length), max(old$length), length.out=nrow(old))
+  preds <- predict(mod2, newdata = data.frame(length=sim.dat), level=0.999, interval = 'prediction')
+ 
+  #put the "new"/relevant data trough the model made with the old data, to see how well it follows the given trend
+  preds2 <- predict(mod2, newdata = data.frame(length=new$length), level=0.999, interval = 'prediction')
+  #select data within the preiction interval, and therby finding outliers
+  insideInterval <- new[new$age > preds2[,'lwr'] & new$age < preds2[,'upr'], ]
+ 
+  #plot. firstly the confidence band and trend from old data, but without old dataponts (overidden with white points)
+ #secondly, plot the new data (in red), and data within confidence interval (in blue). overlapping points so as to visualise the putliers
+  plot(old$length, old$age, pch = 16, cex = 0.1, 
+        main = paste(" Art:", sps[i],"- Kvartal:", quarter, sep=" "),
+        xlab = "Længde (mm)",
+        ylab = "Alder (år)",
+        cex.main = 1.5,
+        cex.lab = 1.5)+ 
+     points(old$length, old$age, pch = 16, cex = 0.2, col = "white")+
+     lines(sort(old$length), fitted(mod2)[order(old$length)], col='red', lwd=3)+
+     polygon(c(rev(sim.dat), sim.dat), 
+             c(rev(preds[ ,3]), preds[ ,2]), density=10, col = 'blue', border = NA)+
+     lines(sim.dat, preds[ ,3], lty = 'dashed', col = 'red')+
+     lines(sim.dat, preds[ ,2], lty = 'dashed', col = 'red')+
+     points(new$length, new$age, pch = 16, cex = 1, col = "red")+
+     points(insideInterval$length, insideInterval$age, pch = 16, cex = 1, col = "blue")
+    
+  #the new data NOT inside the interval, previously defined
+  db_diff <- new[new$id %!in% insideInterval$id, ] 
+  #Remove the duplicates, that comes from the "number" column treatment
+  db_diff <- db_diff[!duplicated(db_diff[, 6:11]), ]
+  
+  # Make table of outliers, 
+  db_diff <- db_diff[ , 
+                   c("year", "cruise", "trip", "speciesCode", 
+                     "landingCategory", "individNum", "length", "age", "sexCode")]
+    
+    } else {
+      #message if the model has r^2 adjusted, below 0.2
+      text<-c(paste0("Statistisk model fejlede for", sps[i], "Prøver Simpler Metode"))
+      #Make table
+      print(text %>% 
+                cell_spec(color = "red", font_size = 15, bold = T) %>%
+                kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+                kable_styling(latex_options = c("hold_position")))
+    }
+  } else if (nrow(new) > 0){ 
+    #If not enough data, or model fails, use simpler method, where each length group is tested seperetly
+      text<-c(paste0("Bruger Kun Data fra Valgte Kvartal for ", sps[i]))
+      #Make table
+      print(text %>% 
+          cell_spec(color = "blue", font_size = 15, bold = T) %>%
+          kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+          kable_styling(latex_options = c("hold_position")))
+  
+      #subset by age group
+      ID <- unique(new$age)
+      fun <- function(ii) {
+        a <- new[new$age == ID[ii], ]
+
+        ## Calculate the mean and sd
+        smean <- mean(a$length, na.rm = TRUE)
+        sds <-  sd(a$length, na.rm = TRUE)
+        ## Identify the cells with value greater than cutoff * sd (column wise)
+        points <- rbind(a[which(a$length >  smean + (3 * sds)), ],
+                        a[which(a$length <  smean - (3 * sds)), ])
+      }
+      temp<-lapply(1:length(ID), fun) #funktion to get data and run the loop/function
+      outliers<-data.frame(do.call("rbind", temp)) #make data frame from the temp file
+    
+      ## Plot the data, by species by area, with outliers in red
+      plot(new$age, new$length, col = "white",
+           main = paste(paste0(sps[i], " - Alder ved Længde")),
+           xlab = "Alder (år)",
+           ylab = "Længde [mm]")+
+        grid()+
+        points(new$age, new$length, pch = 16, cex = 1, col = "blue")+
+        points(outliers$age, outliers$length, pch = 16, cex = 1, col = "red")
+
+      db_diff <- outliers[ , c("year", "cruise", "trip", "speciesCode", 
+                               "landingCategory", "individNum", "length", "age", "sexCode")]
+ 
+  
+  } else {
+    #message of no age data is available, for a species, where weight data is availeble
+      text<-c(paste0("Ingen Alders Data for ", sps[i]))
+      #Make table
+      print(text %>% 
+          cell_spec(color = "red", font_size = 15, bold = T) %>%
+          kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+          kable_styling(latex_options = c("hold_position")))
+      
+      db_diff <- c()
+   }
+  }
+  temp<-lapply(1:length(sps), fun)
+  db_diff<-do.call("rbind", temp)
+  
+  
+  if (nrow(data.frame(db_diff))>0) {
+    
+    cat("\\newpage") 
+    
+    #make Table over outliers
+    print(db_diff %>%      
+          kbl(escape = F, longtable = T, booktabs = T, linesep = "", row.names = F,
+              col.names = c("År", "Tur", "Station", "Art", "Landings-kategori", 
+                            "individ-nummer", "Længde (mm)", "Alder (år)", "Køn"), align = "l") %>%
+          row_spec(0, bold = TRUE) %>%
+          kable_styling(latex_options = c("striped", "hold_position")) %>%
+          column_spec(1:9, width = "1.5cm"))
+    library(Hmisc)
+    # Output table of outliers in latex table format
+    
+  } else {
+    #message if no outliers are found
+  text<-c("Ingen afvigelser i Længde-alder forhold")
+  #Make table
+  print(text %>% 
+      cell_spec(color = "green", font_size = 15, bold = T) %>%
+      kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+      kable_styling(latex_options = c("hold_position")))
+} 
+  
+}else{
+  #message if no age data is available for any of the species
+  text<-c("Ingen Aldersdata, fra Valgte Togt og Periode")
+  
+  print(text %>% 
+      cell_spec(color = "red", font_size = 15, bold = T) %>%
+      kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+      kable_styling(latex_options = c("hold_position")))
+} 
+} else {
+  #message if no fish is in station (skips from the top of this chuck)
+  text<-c("Ingen Enkeltfisk")
+  #Make table
+  text %>% 
+      cell_spec(color = "blue", font_size = 15, bold = T) %>%
+      kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+      kable_styling(latex_options = c("hold_position"))
+}
+```

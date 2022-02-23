@@ -5,28 +5,37 @@ output: pdf_document
 ---
 
 
-\renewcommand{\familydefault}{\sfdefault}
-\sffamily
 
-```{r define_input, echo=FALSE}
+```{r define_input, echo=FALSE, include=FALSE, cache=FALSE, warning=FALSE,message=FALSE}
 
 #Parameters
-year<- 2015 # @paramYear 
-cruise <- 'LF OES apr.' # @paramCruise
+# year<- @paramYear 
+# cruise <- @paramCruise
+
+year<- 2019
+cruise <- 'BV LF BMS april'
+
 
 ```
 
+```{r set_libraries, echo=FALSE, include=FALSE, cache=FALSE}
 
-```{r set_libraries, include=FALSE}
 
 #Libraries
-library(sqldf)
-library(RODBC)
-library(stringi)
+if (!require(sqldf)) {
+  install.packages("sqldf", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(sqldf)
+}
+if (!require(RODBC)) {
+  install.packages("RODBC", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(RODBC)
+}
+if (!require(stringi)) {
+  install.packages("stringi", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(stringi)
+}
 
 ```
-
-
 
 ```{r getdata, echo=FALSE, message=FALSE, warning=FALSE}
 
@@ -57,16 +66,16 @@ bms$distance_m <- bms$distancePositions*1852;
 
 
 
-```{r writeData, echo=FALSE, include=FALSE, cache=FALSE, warning=FALSE,message=FALSE}
+```{r writeData, warning=FALSE,message=FALSE,inlclude=FALSE,echo=FALSE}
 
 
 #Write csv
-write.csv(bms, file=paste("X:/Line/Data/Skaldyr/Results/",cruise,"_træk_",format(Sys.time(), "%d%b%Y"),".csv",sep=""),row.names=FALSE)
+write.csv(bms, file=paste(cruise,"_træk_",format(Sys.time(), "%d%b%Y"),".csv",sep=""),row.names=FALSE)
 
 
 ```
 
-
 \section{Udtræk: `r cruise` `r year`}
 Foretaget den \today.
+
 

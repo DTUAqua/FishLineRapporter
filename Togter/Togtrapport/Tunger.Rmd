@@ -1,0 +1,1235 @@
+
+---
+fontsize: 11pt
+geometry: top=1in, bottom=0.8in, left=0.8in, right=0.8in
+header-includes:
+- \usepackage{booktabs}
+- \usepackage{longtable}
+- \usepackage{floatrow}
+- \usepackage[T1]{fontenc}
+- \usepackage[danish]{babel}
+- \usepackage[utf8]{inputenc}
+- \usepackage{graphicx}
+- \floatsetup[table]{capposition=bottom}
+- \usepackage{fancyhdr}
+- \pagestyle{fancy}
+- \fancyhf{}
+- \fancyfoot[R]{\thepage}
+- \usepackage[table]{}
+- \usepackage{rotating}
+- \usepackage{ragged2e}
+- \usepackage{catchfile}
+- \usepackage{array}
+- \usepackage[export]{adjustbox}
+- \usepackage{multirow}
+- \linespread{1.15}
+- \usepackage{tabularx}
+- \usepackage{tcolorbox}
+- \usepackage{lipsum}
+- \usepackage{makecell}
+- \usepackage{etoolbox}
+- \usepackage{colortbl}
+- \usepackage{lscape}
+- \usepackage{caption}
+- \usepackage{lastpage}
+output:
+  pdf_document:
+    fig_caption: yes
+    keep_tex: no
+---
+
+
+
+\renewcommand\theadalign{bc}
+\renewcommand\theadfont{\bfseries}
+\renewcommand\theadgape{\Gape[4pt]}
+\renewcommand\cellgape{\Gape[4pt]}
+
+
+\fancypagestyle{companypagestyle}{
+    \fancyhf{}
+    \fancyfoot[L]{
+    \parbox[b]{\dimexpr\linewidth\relax}{\vspace{1cm}
+    {\color{red}\rule{\dimexpr\linewidth\relax}{0.4pt}}\\
+    {\footnotesize \color{gray} www.aqua.dtu.dk \hfill DTU AQUA, Kemitorvet, Building 202\\[-0.15cm]
+           +45 3588 3300 \hfill 2800 Kgs. Lyngby, Denmark}}
+    }
+    \fancyfoot[R]{
+    \parbox[b]{0cm}{}
+    }
+}
+
+
+
+\pagenumbering{arabic}
+\pagestyle{companypagestyle}
+
+\renewcommand{\familydefault}{\sfdefault}
+\def\Tiny{\fontsize{5pt}{5pt}\selectfont}
+
+\sffamily
+
+\renewcommand\floatpagefraction{0}
+\renewcommand\textfraction{0}
+
+
+\def\figurename{Figure}
+\def\tablename{Table}
+
+
+\pagenumbering{arabic}
+
+
+
+
+```{r set_libraries, include=FALSE}
+
+
+#Libraries
+if (!require(pacman)) {
+  install.packages("pacman", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(pacman)
+}
+
+p_load(sqldf,RODBC,xtable,ggplot2,lubridate,reshape2,ggrepel,grid,gridExtra,
+       gplots,Hmisc,stringr, rgdal,maptools, shapefiles,
+       calibrate,plotrix,base,mapplots,data.table,tinytex,knitr,marmap,sf,raster,
+       colormap,dplyr,wesanderson,zip)
+
+detach(package:Hmisc)
+
+
+mylatex <- function (...) {
+    o <- capture.output(latex(...))
+    # this will strip /all/ line-only comments; or if you're only
+    #  interested in stripping the first such comment you could
+    #  adjust accordingly
+    o <- grep('^%', o, inv=T, value=T)
+    cat(o, sep='\n')
+}
+
+
+```
+
+
+
+```{r define_input, include=FALSE, echo=FALSE}
+plannedHauls <- 50
+opts_knit$set(eval.after = 'fig.cap')
+
+
+year <- @paramYear # mandatory
+cruise <- "Tunger"#@paramCruise # mandatory
+trip <- c(@paramTrip)
+par <- "participants.csv"
+coastString <- 'europe_simple_wgs84'
+dk_eezString <- 'eez_dk_line'
+
+str_weather <- @paramWeather
+str_guest <- @paramGuest
+str_oxygen <- @paramOxygen
+str_gear  <- @paramGear
+str_other  <- @paramOther
+
+
+#year <- 2018#@paramYear # mandatory
+#trip <- c(1,2,4,6,8) # mandatory
+#par <- "participants.csv"
+#str_cruiseLeader <- "Henrik Degel"#@paramCruiseLeader
+#coastString <- 'M:/123 - FiskeLine/Rapporter/Rapporter/Discardtjek/kort/europe_simple_wgs84'
+#dk_eezString <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/EEZ/DK_EEZ_Jan_2017"
+
+
+trips <- paste0(trip,collapse = "','")
+zipfile <- sprintf("Danish_sole_survey_maps_%s-%s.zip",year,format(Sys.Date(),"%Y%m%d"))
+# maps <- zip(zipfile = zipfile)
+```
+
+
+
+
+```{r table_setup, echo=FALSE, results='asis',message=FALSE,warning=FALSE}
+
+######### Setup to use in xtable prints ######################
+
+bold <- function(x) {paste('{\\textbf{',x,'}}', sep ='')}
+gray <- function(x) {paste('{\\textcolor{gray}{',x,'}}', sep ='')}
+
+addtorow          <- list()
+addtorow$pos      <- list()
+addtorow$pos[[1]] <- c(0)
+addtorow$command  <- c(paste("\\hline \n",
+                             "\\endhead \n",
+                             "\\hline \n",
+                             #"{\\footnotesize Continued on next page} \n",
+                             "\\endfoot \n",
+                             "\\endlastfoot \n",sep=""))
+
+```
+
+
+
+
+```{r info_cruise, echo=FALSE, message=FALSE, warning=FALSE,include=FALSE}
+
+query1<-sprintf("SELECT Trip.year,Trip.contactPersonName,Trip.contactPersonId , Trip.trip, Trip.cruise, tripLeaderName, dateStart, dateEnd, platform1
+              FROM Trip
+              WHERE     Trip.year = %s and Trip.cruise='%s' and Trip.trip in ('%s')" 
+             ,year,cruise,trips)
+query1
+
+
+query2 <-sprintf("SELECT     Animal.year, Animal.cruise, Animal.speciesCode, Animal.representative, Animal.individNum,
+                           Animal.number, Animal.length, Animal.weight,Animal.statisticalRectangle as ICESsquare
+                FROM       Animal
+                WHERE     Animal.year=%s and Animal.cruise='%s' and 
+               Animal.trip in ('%s')"
+                          ,year,cruise,trips)
+query2
+
+query4<-sprintf("SELECT Sample.cruise,Sample.trip,Sample.station, Sample.stationName, Sample.fishingtime, Sample.latPosStartDec AS lat, Sample.lonPosStartDec AS lon,
+Sample.latPosStartText, Sample.lonPosStartText,
+                      Sample.gearType,Sample.gearQuality,Sample.haulType, Sample.selectionDevice,Sample.meshSize, Sample.dfuArea,
+                      Sample.statisticalRectangle,Sample.quarterGearStart,
+                      Sample.netOpening,Sample.wireLength as warpLength, Sample.otterBoardDist as DoorSpread,
+                      Sample.depthAvg,Sample.windDirection,Sample.windSpeed, Sample.dateGearStart, Trip.platform1
+              FROM Sample
+              left join Trip
+              on Sample.Trip = Trip.Trip and
+                Sample.Cruise = Trip.Cruise and
+                Sample.year = Trip.year
+              WHERE     (Sample.year=%s and Sample.cruise='%s' and 
+Sample.trip in ('%s'))"
+              ,year,cruise,trips)
+query4
+
+
+query5 <-sprintf("SELECT     s.year, s.cruise, s.speciesCode, SUM(s.numberTotal) AS number, SUM(s.weightTotal) AS weight
+                FROM         SpeciesListRaised as s
+                WHERE     s.year=%s and s.cruise='%s' and
+                s.trip in ('%s')
+                GROUP BY s.year, s.cruise, s.speciesCode
+              "
+              ,year,cruise,trips)
+query5
+
+ql <- sprintf("select responsibleName from cruise where year = %s and cruise = '%s'",
+              year,cruise)
+
+channel <- odbcConnect("FishLineDW")
+data1 <- sqlQuery(channel, paste(query1),stringsAsFactors=FALSE)
+data_animal <- sqlQuery(channel, paste(query2),stringsAsFactors=FALSE)
+data_sample <- sqlQuery(channel, paste(query4),stringsAsFactors=FALSE)
+all_spec <- sqlQuery(channel, paste(query5),stringsAsFactors=FALSE)
+CL <- sqlQuery(channel, paste(ql),stringsAsFactors=FALSE)
+close(channel)
+
+cruiseLeader <- CL$responsibleName[1] 
+data1 <- with(data1, data1[order(data1$dateStart),])
+
+cruise2 <- ifelse(cruise %in% c('Torsk','2262-Torsk'),
+                  "Torsk",ifelse(tolower(cruise)=='tunger',"Tunger",
+                                 substr(cruise,1,4)))
+Quarter <- unique(quarter(data1$dateStart),quarter(data1$dateEnd) )
+StartDate <- ifelse(nrow(data1)==1,
+                    format(data1$dateStart,"%d-%m-%Y"),
+                    format(data1$dateStart[1],"%d-%m-%Y"))
+EndDate <- ifelse(nrow(data1)==1,
+                  format(data1$dateEnd,"%d-%m-%Y"),
+                  format(data1$dateEnd[nrow(data1)],"%d-%m-%Y"))
+
+
+StartTime <- paste0(format(data1$dateStart,"%H"),":00")
+EndTime <- paste0(format(data1$dateEnd,"%H"),":00")
+
+cruiseName <- "Danish Sole Survey"
+# cruiseName <- ifelse(substr(cruise,1,4) %in% c("IBTS","BITS","KASU"),
+#                      substr(cruise,1,4),cruise)
+#if (cruiseName=="KASU") {cruiseName <- "BITS"}
+# ship <- ifelse(substr(cruise,1,4) %in% c("IBTS","BITS"),
+#                "R/V DANA",ifelse(substr(cruise,1,4)=="KASU","Havfisken",
+#                                  paste(unique(data1$platform1), collapse=', ' )))
+ship <- paste(sort(unique(data_sample$platform1)),collapse = ", ")
+
+cruise_title2 <- ""
+# ifelse(substr(cruise,1,4)=="IBTS",
+#                         "International Bottom Trawl Survey",
+#                         ifelse(substr(cruise,1,4)=="BITS",
+#                                                                                               "Baltic International Trawl Survey",""))
+cruise_title <- "Danish Sole Survey"
+cruise_title <- ifelse(length(unique(Quarter))==1,
+                       paste0(cruiseName," ",Quarter,"Q"," ",year),
+                       paste(cruiseName, paste0(Quarter,"Q"," ",year, collapse = "\\& ")))
+
+
+
+TripNum <- ifelse(nrow(data1)>1,"MT","ST")
+
+num_AS <- as.character(round(sum(all_spec$number, na.rm=TRUE),0))
+wei_AS <- as.character(round(sum(all_spec$weight, na.rm=TRUE),1))
+
+num_TOR <- as.character(round(sum(all_spec[all_spec$speciesCode=="TOR","number"], na.rm=TRUE),0))
+num_RSP <- as.character(round(sum(all_spec[all_spec$speciesCode=="RSP","number"], na.rm=TRUE),0))
+num_TNG <- as.character(round(sum(all_spec[all_spec$speciesCode=="TNG","number"], na.rm=TRUE),0))
+
+wei_TOR <- as.character(round(sum(all_spec[all_spec$speciesCode=="TOR","weight"], na.rm=TRUE),1))
+wei_RSP <- as.character(round(sum(all_spec[all_spec$speciesCode=="RSP","weight"], na.rm=TRUE),1))
+wei_TNG <- as.character(round(sum(all_spec[all_spec$speciesCode=="TNG","weight"], na.rm=TRUE),1))
+
+
+```
+
+<!-- definere forside -->
+
+
+
+
+\thispagestyle{empty}
+
+<!--
+
+\vspace*{-1cm}
+
+
+\vspace{-0.9cm}
+
+
+<!-- #\begin{figure}[H] -->
+<!-- #        \flushright -->
+<!-- #        \includegraphics[width=10cm]{X:/Line/Togtrapport/logotilkort.png} -->
+<!-- #\end{figure} -->
+
+\vspace*{0.5cm}
+
+
+
+
+
+\thispagestyle{empty}
+
+
+
+\vspace*{-2.5cm}
+
+
+
+\begin{figure}[H]
+        \flushright
+        \includegraphics[height=2cm]{Corp_Red_RGB.png}
+\end{figure}
+
+\vspace*{0.5cm}
+
+
+
+\noindent\textcolor{gray}{\rule{0.6\textwidth}{1pt}}\par
+\vspace*{-0.6cm}
+\noindent\textcolor{gray}{\rule{0.8\textwidth}{1pt}}\par
+
+
+\textcolor{gray}{\Large DTU Aqua - Cruise report}
+
+\vspace*{4.5cm}
+
+
+
+
+\textbf{\Huge `r cruise_title`}\
+
+\vspace*{-0.3cm}
+
+\textbf{\it{\Large `r cruise_title2`}}\
+
+\vspace*{1cm}
+
+\textbf{\Huge `r ship`}
+
+\vspace*{0.3cm}
+
+\textbf{\Huge Denmark}
+
+\vspace*{0.5cm}
+
+\textbf{\large From `r StartDate` to `r EndDate`}
+
+
+
+
+\vfill
+
+\begin{figure}[H]
+        \flushleft
+        \includegraphics[width=10cm]{aqua_uk.png}
+\end{figure}
+
+\vspace{-3.1cm}
+\begin{flushright}
+DTU Aqua\\
+Kemitorvet, Building 202\\
+2800 Kgs. Lyngby\\
+Denmark
+\end{flushright}
+
+
+
+
+
+
+
+\newpage
+
+
+<!-- define header -->
+
+\lhead{\footnotesize \color{gray}  CRUISE REPORT, `r cruise_title`}
+\rhead{\footnotesize \color{gray} PAGE \thepage\ OF \pageref{LastPage}}
+
+
+\vspace*{0.01cm}
+
+
+
+\vspace*{0.01cm}
+
+\renewcommand{\contentsname}{Contents}
+\tableofcontents
+
+\newpage
+
+
+
+\section{Cruise summary}
+\vspace{0.3cm}
+
+\newcolumntype{s}{>{\hsize=.4\hsize}X}
+\newcolumntype{u}{>{\hsize=1\hsize}X}
+\newcolumntype{t}{>{\hsize=0.6\hsize}X}
+
+
+\subsubsection*{General information}
+\vspace{-0.5cm}
+
+
+
+\renewcommand{\arraystretch}{1}
+\renewcommand{\tabcolsep}{5pt}
+\begin{tabularx}{0.93\textwidth}{utst}
+        &\textbf{}   & \textbf{} &  \textbf{} \\
+\it{Cruise} & `r cruiseName`  &  &  \\
+\it{Cruise leader} & `r cruiseLeader`  &  &  \\
+\it{Reseach vessel(s)}   & `r ship` &   &  \\
+\it{Year and quarter}   & `r paste0(Quarter[1],"Q")` `r year`&   &  \\
+\it{Country}    & Denmark & &
+\end{tabularx}
+
+
+
+\vspace{0.3cm}
+
+\subsubsection*{Participants and time}
+
+
+
+
+
+```{r tripInfo,results='asis',echo=FALSE,message=FALSE,warning=FALSE}
+
+# if (TripNum=="MT") {
+    tripInfo <- data1[,c("trip","dateStart","dateEnd","platform1")]
+
+    tripInfo$dateStart <- paste0(format(data1$dateStart,"%d-%m-%Y %H"),":00")
+    tripInfo$dateEnd <- paste0(format(data1$dateEnd,"%d-%m-%Y %H"),":00")
+
+    ti <- tripInfo
+    # trip_table <- xtable(tripInfo,label = "",caption="")
+    colnames(ti) <- c("Trip no.","Start date and time", "End date and time","Ship")
+    # align(trip_table) <- "lp{3cm}p{5cm}p{5cm}p{2.5cm}"
+
+     library(Hmisc)
+
+     mylatex(ti,
+             file='',
+             booktabs =T,
+             col.just = c("l","l","l","l"),
+             # rgroup =n.rgroup$rgroup ,
+             rowname="",
+             # n.rgroup=n.rgroup$n.rgroup,
+             rowlabel="",
+             colnamesTexCmd="bfseries",
+             rgroupTexCmd="itshape",
+             where='H',
+             # collabel.just=c("l","l"),
+             center='none')
+
+
+    detach(package:Hmisc)
+
+ # }
+
+```
+
+
+\vspace{0.5cm}
+
+
+\vspace{0.2cm}
+
+\renewcommand{\arraystretch}{1}
+\renewcommand{\tabcolsep}{20pt}
+
+```{r participants1, results='asis',echo=FALSE,message=FALSE,warning=FALSE}
+read.csv.unknown.sep <- function(file,numCol){
+    for (i in c(",",";","","_")){
+        f <- read.csv(file, header=TRUE, sep = i,stringsAsFactors = F)
+        if (ncol(f)==numCol){
+            return(f)}
+        }    
+    }
+
+participants <- read.csv.unknown.sep(par,6) 
+# participants <- participants[!is.na(participants$Leg),]
+# participants <- participants[participants$Leg==1,]
+participants$order <- as.integer(rownames(participants))
+
+colnames(participants) <- c("Name","Vessel","Institute", "Function and tasks","trip","Leg","no")
+
+pt <- full_join(participants,tripInfo)
+
+colnames(pt) <- c("Name","Vessel","Institute","Function \\\\ and tasks", "Trip",
+                  "Part","no","Start","End","platform1")
+
+library(Hmisc)
+mylatex <- function (...) {
+    o <- capture.output(latex(...))
+    # this will strip /all/ line-only comments; or if you're only
+    #  interested in stripping the first such comment you could
+    #  adjust accordingly
+    o <- grep('^%', o, inv=T, value=T)
+    cat(o, sep='\n')
+}
+detach(package:Hmisc)
+# colnames(participants)[4] <- sprintf)
+
+
+for (i in sort(unique(pt$Trip))){
+  # cat(sprintf("\\paragraph{Trip %s} ",i))
+  
+  pt2 <- pt[pt$Trip==i,]
+  
+  cat(sprintf("\\paragraph{Trip: %s, Vessel: %s, Start: %s, End:  %s} ",
+              i,unique(pt2$Vessel),unique(pt2$Start),unique(pt2$End)))
+  
+  colnames(pt2) <- sprintf("\\thead{ %s } ",colnames(pt2))
+ 
+  lines <- data.frame(table(pt2$Leg))
+ 
+  library(Hmisc) 
+  mylatex(pt2[,c(1,3,4,6)],
+       file='',
+       booktabs =T,
+       col.just = c(rep("l",4)),
+       rgroup = lines$Var1 ,
+       rowname=NULL,
+       n.rgroup=lines$Freq,
+       # rowlabel="",
+       # colnamesTexCmd="bfs",
+       # rgroupTexCmd="itshape",
+       where='H',
+       collabel.just=c(rep("l",4)),
+       center='none')
+  detach(package:Hmisc)
+
+  # cat("\\\\ ")
+
+}
+
+
+
+```
+
+
+
+
+```{r SIS_data, results='asis',echo=FALSE,message=FALSE,warning=FALSE}
+
+#SIS_info <- read.table("X:\\Line\\Togtrapport\\SIS-info_BITS1_2008.csv",header=TRUE,sep=",")
+
+No_oxy <- 1 #nrow(SIS_info[SIS_info$Redskab=="AKU",])
+No_CTD <- 1 #nrow(SIS_info[SIS_info$Redskab=="SEA",])
+
+
+
+
+# yn_cruiseLeader <- ifelse(str_cruiseLeader!="","yes","no")
+# yn_oxygen <- ifelse(str_oxygen!="","yes","no")
+# yn_weather <- ifelse(str_weather!="","yes","no")
+# yn_results <- ifelse(str_results!="","yes","no")
+# yn_comments <- ifelse(str_comments!="","yes","no")
+# yn_gear <- ifelse(str_gear!="","yes","no")
+
+
+pos <- data_sample[,c("station","stationName","gearType","gearQuality",
+                      "lat","lon","dfuArea","latPosStartText",
+                      "lonPosStartText","platform1")]
+pos[is.na(pos$stationName),"stationName"] <- pos[is.na(pos$stationName),"station"]
+pos$stationName <- as.character(pos$stationName)
+pos$platform1 <- as.factor(pos$platform1)
+
+```
+
+
+\newpage
+
+\section{Introduction}
+The “Tunge Survey” (Sole Survey) is an annual survey carried out every autumn in the Kattegat, Skagerrak and Western Belt area. The purpose of the cruise is to provide CPUE data for sole. The results are used for maintaining a time series used in the annually assessment of sole from Kattegat. From 2016 and onwards the survey is carried out by a commercial fishing vessel and the research vessel”Havfisken” owned by DTU Aqua. The gear used is a demersal otter tween trawl.
+ 
+
+ 
+\section{Gear}
+Trawl: Twin "Icelandic-sole-trawl" with 140 mm mesh and rockhopper type ground gear with 150 mm rubber discs.
+Mesh size in the cod end: 55 mm stretch mesh 
+Otter boards: 66''  "Thyborøn".
+Warp: 13 mm. 
+
+The otter boards are mounted directly on the tips of the wings without bridles.
+Wing spread (otter board spread) is app. 44 m.
+
+
+\section{Trawl procedure}
+Towing time is 30 min. 
+
+Before 2016 the towing time was 60 min but towing time down to 20 min has been accepted if no circumstances disqualified the haul.
+
+In 2016 towing time was reduced to 30 min on 25% of the traditional stations and in 2017 the towing time was reduced to 30 on 50\% of the stations. Towing time was 30 min on all new stations in Jammerbugt and Storebælt.
+
+Towing speed: 2.5 kn. over the seabed. 
+
+Hauls start: when the trawl is considered going stable on the bottom.
+
+Haul end: when hauling starts. 
+
+Warp length: The depth varies from station to station and so does the warp length. The warp length was recorded at each station in 2004 and this warp length is used at the station in 2005 and onwards.
+
+Each station is fished in the same direction each year if wind and current allows.
+ 
+Fishing takes place only during night time from app. 5 pm to 7 am.
+
+
+```{r weather, echo=F, results='asis'}
+if (str_weather!=""){
+  cat("\\subsection{Weather conditions} ")
+  
+  cat(str_weather)
+}
+```
+
+```{r oxygen, echo=F, results='asis'}
+if (str_oxygen!=""){
+  cat("\\subsection{Oxygen conditions} ")
+  
+  cat(str_oxygen)
+}
+```
+
+```{r gear, echo=F, results='asis'}
+if (str_gear!=""){
+  cat("\\subsection{Gear performance} ")
+  
+  cat(str_gear)
+}
+```
+
+```{r guests, echo=F, results='asis'}
+if (str_guest!=""){
+  cat("\\subsection{List of guests} ")
+  
+  cat(str_guest)
+}
+```
+
+
+```{r other, echo=F, results='asis'}
+if (str_guest!=""){
+  cat("\\subsection{Other remarks} ")
+  
+  cat(str_other)
+}
+```
+
+
+
+\subsection*{Stations}
+`r nrow(pos)` hauls were conducted during the survey. The positions off all hauls are presented in the map in Fig. 1 and hauls per ICES area are plotted in the maps in Fig. 2-`r length(unique(pos$dfuArea))+1`.
+
+
+```{r , include=F}
+ylim <- c(round(min(pos$lat,na.rm=T)-2),round(max(pos$lat,na.rm=T)+2))
+xlim <- c(round(min(pos$lon,na.rm=T)-1),round(max(pos$lon,na.rm=T)+1))
+
+# bat <- marmap::getNOAA.bathy(lon1 = min(xlim)-1, lon2 = max(xlim)+1,
+#                       lat1 = min(ylim)-1, lat2 = max(ylim)+1, resolution = 1,keep = T)
+
+bat <- marmap::getNOAA.bathy(lon1 = 7, lon2 = 13,lat1 = 54, lat2 = 59, resolution = 1,keep = T)
+
+
+bat2 <- fortify(bat)
+# coast <- read.shapefile(coastString)
+# dk_eez <- read.shapefile(dk_eezString)
+# bat[bat>=0] <- NA
+
+kyst <- st_read(paste0(coastString,".shp"))
+dkeez <- st_read(paste0(dk_eezString,".shp"))
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis',fig.pos='h',fig.cap=paste0("Survey map with all sampling stations.\\label{fig:mapall}"),dpi=300, fig.width=10,fig.height=11}
+
+stationMap <- function(data,x,y,labels="",cpue="",titleString = "",filename=""){
+  
+  d <- bat2
+  d$z[d$z>=0]<- -1
+  
+  # breaks and labels for color scale
+  brks <- c(Inf, 0, -15, -30, -50, -75, -100, -150, -Inf)
+  labs <- c("Land", "-15:0", "-30:-15", "-50:-30",
+            "-75:-50", "-100:-75", "-150:-100", "< -150")
+  d$bin <- cut(d$z, breaks = brks, labels = labs)
+  
+  d <- d[!is.na(d$bin), ] # filter sneaky NA values
+  
+  gr   <- colormap(colormaps$greys, nshades = 10)[4:6]
+  bl   <- colormap(colormaps$velocity_blue, nshades = 13)[3:9]
+  cols <- c(bl, gr)
+  
+  # plot
+  set.seed(42)
+  p <- ggplot() +
+  
+    geom_raster(data = d[d$z<0,], aes(x, y, fill = bin)) 
+  
+    if (cpue == ""){
+     p <- p +  geom_point(data = data,aes(x=lon,y=lat,col=platform1),size=3)
+    }
+    
+  p <- p + geom_sf(data = dkeez, aes(linetype = "DK"),color="red",fill=NA)+
+    geom_sf(data= kyst,fill="#555555ff")+
+    coord_sf(xlim = x, ylim = y,
+               datum = st_crs(4326))
+    
+    if (labels!=""){
+      p <- p + geom_text_repel(data = data, 
+                               aes(x=lon,y=lat,label=stationName,col=platform1),
+                               size=4)+
+        labs(title = titleString)
+    }
+  
+    if (cpue!=""){
+      p <- p + geom_point(data = data, 
+                                aes(x=lon,y=lat,size=cpue),
+                          col="black",shape=21,fill="yellow",alpha=.8)+
+        labs(title = sprintf("CPUE: Sole"),
+             size = "CPUE")
+    }
+    
+  p <- p +
+    scale_fill_manual(values = cols, limits = labs, labels = rev(labs)) +
+    scale_color_manual(values = wes_palette("GrandBudapest1"))+
+    theme_minimal() +
+    labs(fill = "Depth (m)",y="Latitude",x="Longitude",col="Ship",linetype="EEZ")+
+    theme(legend.position = "bottom",legend.box = "vertical")
+  
+  # plot(p)
+  
+  if (filename!=""){
+    pdf(filename,width=10, height=11,pointsize = 8)
+    plot(p)
+    dev.off()
+    
+    # ggsave(filename=filename, plot = p,device = "png",width = 10,height = 11,dpi = 200)
+    
+    # zipr_append(zipfile = zipfile,files = filename)
+  }
+  
+cat("\\begin{figure}[H] \\centering")
+cat(sprintf("\\includegraphics[width=0.9\\textwidth]{%s}",filename))
+cat("\\end{figure}")
+  
+}
+
+
+ylim2 <- c(floor(min(pos$lat,na.rm=T)/.1)*.1,ceiling(max(pos$lat,na.rm=T)/.1)*.1)
+xlim2 <- c(floor(min(pos$lon,na.rm=T)/.5)*.5,ceiling(max(pos$lon,na.rm=T)/.5)*.5)
+
+stationMap(data = pos,x = xlim2,y = ylim2,labels = "yes",
+           filename = sprintf("%s-all_stations-%s.png",
+                              gsub(" ", "_",cruise_title),gsub("-","",Sys.Date())))
+
+
+
+
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis',fig.pos='h',dpi=300, fig.width=10,fig.height=11}
+cat("\\subsection{Stations by ICES area}")
+
+for (a in as.character(sort(unique(pos$dfuArea)))){
+
+  # if (any(pos$dfuArea==a)) {
+
+    cat(sprintf("\\subsubsection{Area %s} ",a))
+
+    caption <- sprintf("Survey map with sampling stations in area %s, %s.\\label{fig:map%s}",
+                       a,cruise_title,a)
+
+    pos2 <- pos[pos$dfuArea==a,]
+
+    #area 20
+    ylim2 <- c(floor((min(pos2$lat,na.rm=T)-.2)/.5)*.5,
+               ceiling((max(pos2$lat,na.rm=T)+.2)/.5)*.5)
+
+    xlim2 <- c(floor((min(pos2$lon,na.rm=T)-.5)/.5)*.5,
+               ceiling((max(pos2$lon,na.rm=T)+.5)/.5)*.5)
+
+
+    stationMap(data = pos2,x = xlim2,y = ylim2, labels="yes",
+               titleString =  sprintf("Stations in area %s",a),
+               filename = sprintf("%s-all_stations_in_area_%s-%s.pdf",
+                                  gsub(" ", "_",cruise_title),a,gsub("-","",Sys.Date())))
+
+    # colnames(participants) <- c("Name","Institute", "Function and tasks","Leg","no")
+	
+    #library(Hmisc)
+    
+    #mylatex <- function (...) {
+   #     o <- capture.output(latex(...))
+        # this will strip /all/ line-only comments; or if you're only
+        #  interested in stripping the first such comment you could
+        #  adjust accordingly
+   #     o <- grep('^%', o, inv=T, value=T)
+   #     cat(o, sep='\n')
+   # }
+
+    pos3 <- pos2 %>%
+      dplyr::arrange(station) %>%
+      dplyr::select(-dfuArea,-station)
+
+    for (gear in sort(unique(pos3$gearType))){
+
+      pos4 <- pos3 %>% filter(gearType==gear)
+
+      for (q in sort(unique(pos4$gearQuality))){
+
+        pos5 <- pos4 %>%
+          filter(gearQuality == q) %>%
+          select(-gearType, -gearQuality) %>%
+          mutate(lat = sprintf("%2.6f",lat),
+                 lon = sprintf("%2.6f",lon))
+
+        cat(sprintf("\\paragraph{Area: %s, Geartype: %s, GearQuality: %s}",a,gear,q))
+
+
+
+    colnames(pos5)<-c("Station \\\\ Name","Latitude \\\\ dec.", "Longitude \\\\ dec."
+                      ,"Latitude \\\\ deg.", "Longitude \\\\ deg.","Ship")
+
+    library(Hmisc)
+    colnames(pos5) <- sprintf("\\thead{%s} ",colnames(pos5))
+
+    cat("\\small ")
+    
+    mylatex(pos5,
+           file='',
+           booktabs =T,
+           rowname=NULL,
+           col.just = c(rep("l",ncol(pos5))),#,rep("p{17mm}",ncol(pos5)-1)),
+           longtable=T,
+           where='H',
+           collabel.just=c(rep("l",ncol(pos5))),#c("l",rep("p{17mm}",ncol(pos5)-1)),
+           center='none')
+
+    # options(xtable.comment = FALSE)
+    # 
+    # xtable(pos5,auto = T)
+
+    detach(package:Hmisc)
+
+cat("\\normalsize")
+
+      }
+
+    }
+
+
+
+    # cat("\\newpage ")
+  # }
+
+
+    cat("\\newpage ")
+    }
+```
+
+\section{Handling of the catch}
+After each haul the catch is sorted by species and weighed to nearest 0.1 kg and the number of specimens recorded. Most fish species are measured as total length (TL) to 1.0 cm below.  Norway lobster is measured in mm carapace length.
+
+
+
+\section{Processing of the results}
+
+\subsection{CPUE}
+CPUE for sole, cod, plaice and Norway lobster is estimated as mean catch (kg or numbers) per hour with Standard Error based on the Standard Stations (i.e. not including the stations in Jammerbugt and Storebælt).
+
+CPUE is in the following map estimated with the equation:
+
+$$CPUE_{station} = \frac{\sum Sole_{station}}{FishingTime_{station}}*60$$
+
+```{r, include=F}
+#calculate cpue
+
+channel <- odbcConnect("FishLineDW")
+tng <- sqlQuery(channel, sprintf("SELECT slr.[year]
+      ,slr.[cruise]
+      ,slr.[trip]
+      ,slr.[tripType]
+      ,slr.[station]
+      ,slr.speciesCode
+      ,slr.[weightTotal]
+      ,slr.[numberTotal]
+	  ,sam.fishingTime
+	  --,sam.dateGearStart
+	  --,sam.dateGearEnd
+  FROM [FishLineDW].[dbo].[SpeciesListRaised] as slr
+  left join [FishLineDW].[dbo].Sample as sam
+  on slr.year = sam.year and
+  slr.cruise = sam.cruise and
+  slr.trip = sam.trip and
+  slr.station = sam.station
+    where slr.cruise like 'tunge%s' and slr.year = %s and slr.trip in ('%s')
+  and slr.speciesCode in ('tng','tor','rsp','dvh')
+  ","%",year,trips),stringsAsFactors=F)
+close(channel)
+
+tng <- tng %>% 
+  group_by(cruise,trip,tripType,station,speciesCode) %>% 
+  mutate(cpueNum = sum(numberTotal,na.rm=T)*60/unique(fishingTime),
+         cpueWeight = sum(weightTotal,na.rm=T)*60/unique(fishingTime))
+
+tng2 <- dplyr::left_join(tng,data_sample)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis',fig.pos='h',dpi=300, fig.width=10,fig.height=11}
+# for (sp in sort(unique(tng2$speciesCode))){
+  
+  tng3 <- tng2[tng2$speciesCode == "TNG",]
+  tng3$cpue <- tng3$cpueNum
+  
+  # cat(sprintf("\\paragraph{%s }",sp))
+  
+ylim2 <- c(floor(min(tng3$lat,na.rm=T)/.1)*.1,ceiling(max(tng3$lat,na.rm=T)/.1)*.1)
+xlim2 <- c(floor(min(tng3$lon,na.rm=T)/.5)*.5,ceiling(max(tng3$lon,na.rm=T)/.5)*.5)
+
+  
+stationMap(data = tng3, x = xlim2, y = ylim2, cpue="yes",
+           filename = sprintf("%s-all_stations-cpue-%s.pdf",
+                              gsub(" ", "_",cruise_title),gsub("-","",Sys.Date())))
+  
+  # 
+# }
+
+
+
+```
+
+
+
+
+
+\subsection{Biomass and abundance}
+The traditional survey area has been stratified in ICES squares (Fig 3, Table 4).
+
+Biomass and abundance estimates is obtained by applying the swept area method (estimated trawling speed * wing spread * trawling time) using the recorded speed, wing spread and trawling time and the stratum area as weighting factor. The catchability coefficient is assumed to be 1.0. 
+
+All catches are standardized to 1 km\textsuperscript{2} swept prior to further calculations.
+
+Over all S.E. is estimated using the stratum area as weighting factor. In strata with one haul only STD=biomass (or abundance).
+
+
+
+
+
+```{r catch_data, echo=FALSE, message=FALSE, warning=FALSE,include=FALSE}
+
+########## Collecting data from Fishline ###########
+
+query1<-sprintf("SELECT    SpeciesListRaised.speciesCode, SUM(SpeciesListRaised.numberTotal) as cruiseNumberTotal,
+                         SUM(SpeciesListRaised.weightTotal) as cruiseWeightTotal
+              FROM       SpeciesListRaised
+              WHERE      (SpeciesListRaised.year=%s and
+                          SpeciesListRaised.cruise='%s' and
+                          SpeciesListRaised.trip in ('%s'))
+              GROUP BY   speciesCode"
+              ,year,cruise,trips)
+query1
+
+query1b <-sprintf("SELECT    SpeciesListRaised.speciesCode, dfuArea as area, SUM(SpeciesListRaised.numberTotal) as cruiseNumberTotal,
+                         SUM(SpeciesListRaised.weightTotal) as cruiseWeightTotal
+              FROM       SpeciesListRaised
+              WHERE      (SpeciesListRaised.year=%s and
+                          SpeciesListRaised.cruise='%s' and
+                          SpeciesListRaised.trip in ('%s'))
+              GROUP BY   speciesCode,dfuArea"
+              ,year,cruise,trips)
+query1b
+
+query2<-paste("SELECT L_Species.speciesCode, L_Species.ukName as Species,L_Species.dkName as dkSpecies,  L_Species.latin
+              FROM L_Species"
+              ,sep = "")
+query2
+
+tripQ <- sprintf("SELECT    SpeciesListRaised.speciesCode, SUM(SpeciesListRaised.numberTotal) as cruiseNumberTotal,
+                         SUM(SpeciesListRaised.weightTotal) as cruiseWeightTotal
+              FROM       SpeciesListRaised
+                 where year = %s and cruise = '%s'
+                 group by tripid,speciesCode,dfuArea",year,cruise)
+
+channel <- odbcConnect("FishLineDW")
+data_catch <- sqlQuery(channel, paste(query1),stringsAsFactors=FALSE)
+data_catch_area <- sqlQuery(channel, paste(query1b),stringsAsFactors=FALSE)
+trip_data <- sqlQuery(channel,tripQ,stringsAsFactors=F)
+close(channel)
+channel <- odbcConnect("FishLine")
+species_names <- sqlQuery(channel, paste(query2),stringsAsFactors=FALSE)
+close(channel)
+
+
+```
+
+
+\newpage
+
+\section{Catch}
+
+<!--
+
+\renewcommand{\arraystretch}{1}
+\renewcommand{\tabcolsep}{5pt}
+\begin{tabularx}{uts}
+        & \textbf{Weight (kg)}   & \textbf{Number}  \\
+\hline
+\it{Total catch} & `r round(sum(all_spec$weight,na.rm=TRUE))` & `r round(sum(all_spec$number,na.rm=TRUE))` \\
+\it{Cod}   & `r round(all_spec[all_spec$speciesCode=="TOR","weight"])`    & `r round(all_spec[all_spec$speciesCode=="TOR","number"])`   \\
+\it{Plaice}    & round(all_spec[all_spec$speciesCode=="RSP","weight"])` & `r round(all_spec[all_spec$speciesCode=="RSP","number"])`\\
+\it{Sole}    & `r round(all_spec[all_spec$speciesCode=="TNG","weight"])` & `r round(all_spec[all_spec$speciesCode=="TNG","number"])`
+\end{tabularx}
+
+-->
+
+The total catch of all species, cod, plaice and sole are presented below.
+The total catch per species per ICES area are presented in table 1-`r length(unique(pos$dfuArea))`.
+
+ \vspace{0.2cm}
+
+
+\renewcommand{\arraystretch}{1}
+\renewcommand{\tabcolsep}{30pt}
+\begin{tabularx}{0.7\textwidth}{lrr}
+        &\textbf{Weight (kg)}   & \textbf{Number}  \\[0.1cm]
+\hline
+\it{\textbf{Total catch}}  & `r wei_AS` & `r num_AS` \\[0.2cm]
+\hline
+\it{\textbf{Cod}}  & `r wei_TOR` & `r num_TOR` \\
+\it{\textbf{Plaice}}  & `r wei_RSP` & `r num_RSP` \\
+\it{\textbf{Sole}}    & `r wei_TNG` & `r num_TNG`
+\end{tabularx}
+
+
+ \vspace{0.3cm}
+
+\small
+
+\renewcommand{\arraystretch}{1}
+\renewcommand{\tabcolsep}{8pt}
+
+
+\captionsetup{font=normal}
+
+
+
+```{r cod_lengths, echo=FALSE, message=FALSE, warning=FALSE,include=FALSE}
+########## Collecting data from Fishline ###########
+
+query1<-sprintf("SELECT  AnimalRaised.trip, AnimalRaised.year, AnimalRaised.speciesCode, AnimalRaised.dfuArea,
+                         AnimalRaised.numberTotalPerLength, AnimalRaised.length, AnimalRaised.station
+              FROM       AnimalRaised
+              WHERE      (AnimalRaised.year = %s and
+                         AnimalRaised.cruise='%s' and AnimalRaised.trip in ('%s') and
+                         AnimalRaised.speciesCode IN ('TNG'))",
+              year,cruise,trips)
+query1
+
+query2<-sprintf("SELECT    Sample.year, count(Sample.station) as tot_stat
+               FROM      Sample
+               WHERE     (Sample.year BETWEEN %s-9 AND %s and
+                         Sample.cruise='%s' AND
+                         Sample.gearQuality='V' and
+                         Sample.trip in ('%s'))
+               GROUP BY  Sample.year ",year,year,cruise,trips)
+
+
+query2
+
+
+channel <- odbcConnect("FishLineDW")
+data_TNG <- sqlQuery(channel, paste(query1),stringsAsFactors=FALSE)
+data_stat <- sqlQuery(channel, paste(query2),stringsAsFactors=FALSE)
+close(channel)
+
+
+CodPerStation <- sqldf('SELECT     data_TNG.year, data_TNG.length,sum(data_TNG.numberTotalPerLength) as numberPerYear,data_stat.tot_stat,
+                                   sum(data_TNG.numberTotalPerLength)/data_stat.tot_stat as NumPerLenPerYear
+                        FROM       data_TNG inner join data_stat on data_TNG.year=data_stat.year
+                        WHERE      data_TNG.speciesCode="TOR"
+                        GROUP BY   data_TNG.year, data_TNG.length')
+
+
+
+min_year <- min(CodPerStation$year)
+max_year <- max(CodPerStation$year)
+
+Cod_weight <- as.integer(round(data_catch[data_catch$speciesCode=='TOR',]$cruiseWeightTotal))
+Sole_weight <- as.integer(round(data_catch[data_catch$speciesCode=='TNG',]$cruiseWeightTotal))
+
+Cod_oto <- nrow(data_animal[!is.na(data_animal$individNum) & data_animal$speciesCode=='TOR',])
+Cod_num <- sum(data_animal[is.na(data_animal$individNum) & data_animal$speciesCode=='TOR',]$number)
+
+Sole_oto <- nrow(data_animal[!is.na(data_animal$individNum) & data_animal$speciesCode=='TNG',])
+Sole_num <- sum(data_animal[is.na(data_animal$individNum) & data_animal$speciesCode=='TNG',]$number)
+
+```
+
+
+
+
+
+\renewcommand{\arraystretch}{1}
+\setlength\arraycolsep{0.2pt}
+\renewcommand{\tabcolsep}{3pt}
+
+\definecolor{}{gray}{0.9}
+
+
+
+
+\newcommand{\abTWO}{`r cruise2`}
+
+\newcommand{\aORbTWO}[1]{%
+        \edef\mytemp{{#1}}%
+        \expandafter\ifstrequal\mytemp{BITS}{
+
+                    \newpage
+
+                    \section{Cod}
+
+                    \renewcommand{\arraystretch}{1.2}
+                    \begin{tabularx}{\textwidth}{@{}lrr@{}}
+                    \textbf{Total kgs of cod catched:} &  `r Cod_weight` & \\
+                    \textbf{Total number of cod measured:} &  `r Cod_num` & \\
+                    \textbf{Total number of cod otoliths collected:} & `r Cod_oto` &
+                    \end{tabularx}
+
+                    \vspace{0.4cm}
+
+                    In figure 1 to 5 the length distributions of cod from `r min_year` to `r max_year` are presented.
+                    For each year, the length distribution presents the average number of cods caught per length and station.
+
+                    \vspace{1cm}
+        }{} %
+        \expandafter\ifstrequal\mytemp{Torsk}{
+
+         \newpage
+
+                    \section{Cod}
+
+                    \renewcommand{\arraystretch}{1.2}
+                    \begin{tabularx}{\textwidth}{@{}lrr@{}}
+                    \textbf{Total kgs of cod catched:} &  `r Cod_weight` & \\
+                    \textbf{Total number of cod measured:} &  `r Cod_num` & \\
+                    \textbf{Total number of cod otoliths collected:} & `r Cod_oto` &
+                    \end{tabularx}
+
+                    \vspace{1cm}
+
+
+
+
+
+
+        }{}%
+        \expandafter\ifstrequal\mytemp{Tunger}{
+
+         \newpage
+
+                    \section{Sole}
+
+                    \renewcommand{\arraystretch}{1.2}
+                    \begin{tabularx}{\textwidth}{@{}lrr@{}}
+                    \textbf{Total kgs of sole catched:} &  `r Sole_weight` & \\
+                    \textbf{Total number of sole measured:} &  `r Sole_num` & \\
+                    \textbf{Total number of sole otoliths collected:} & `r Sole_oto` &
+                    \end{tabularx}
+
+                    \vspace{1cm}
+
+
+
+
+
+
+        }{}%
+}
+
+
+\aORbTWO{\abTWO}
+
+
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE,results='asis', fig.width=7, fig.height=4,fig.cap=sprintf("Length distribution per area for sole, Sole Survey %s",year), fig.pos="H"}
+
+#THIS SECTION IS ONLY INCLUDED FOR BITS CRUISES
+
+spec <- "TNG"
+# 
+# speciesDat <- ddply(data_TNG[data_TNG$year==year & data_TNG$speciesCode==spec,],
+#                     .(year,length,dfuArea),
+#                     summarize,
+#                     number=sum(numberTotalPerLength))
+
+speciesDat <- data_TNG %>% 
+  filter(year == year & speciesCode == "TNG") %>% 
+  group_by(year,length,dfuArea) %>% 
+  summarise(number= sum(numberTotalPerLength,na.rm=T))
+
+ p <- ggplot(speciesDat, aes(x=length, y=number))
+ plot1  <- p + geom_bar(stat="identity",aes(fill=factor(dfuArea)), position ="dodge")+
+    scale_fill_discrete(name="Area")+
+    theme_classic(base_size = 18, base_family = "")+
+    labs(x = "Length (mm)", y="Number")+
+    theme(axis.title.y = element_text(vjust = 2),
+          axis.title.x = element_text(vjust = -1),
+          axis.line = element_line(colour = "black"),
+          panel.grid.major.x = element_blank(),
+          panel.grid.major.y =  element_line(colour="grey", size=0.5),
+          panel.border = element_rect(colour = "black", fill=NA, size=0.8),
+          legend.justification = c(1, 1), legend.position = c(1, 1),
+          legend.background = element_rect(size=0.6, linetype="solid", colour ="black"))+
+  # scale_x_continuous(breaks = seq(100, round_any(max(speciesDat$length), 100, f = ceiling), 
+  #                                 by = 100))
+   scale_x_continuous(breaks = seq(100,(ceiling(max(speciesDat$length)/100)*100),by=100))
+              #+ scale_y_continuous(breaks = seq(0, round_any(max(speciesDat$number), 1000, f = ceiling), by = 500))
+
+    plot(plot1)
+
+
+```

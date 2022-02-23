@@ -9,12 +9,11 @@
 *.docx
 *.xls
 *.tex
-*.rds
-
+*.div
+*.dvi
 # R History
 .RData
 .RHistory
-
 # Kort-filer
 *.dbf
 *.prj
@@ -27,10 +26,9 @@
 *.prj
 *.shx
 *.lock
-
 # output
 *.png
-
 */old_versions/*
 .Rproj.user
 *Rproj
+kort/*

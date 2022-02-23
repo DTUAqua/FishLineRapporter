@@ -1,0 +1,818 @@
+---
+geometry: top=2cm, bottom=1.5cm, left=3cm, right=3cm
+header-includes:
+  \usepackage{tabularx}
+  \usepackage[table, dvipsnames]{}
+  \usepackage{tcolorbox}
+  \usepackage{booktabs}
+  \usepackage{longtable}
+  \usepackage{array}
+  \usepackage{multirow}
+output: pdf_document
+---
+
+\renewcommand{\familydefault}{\sfdefault}
+\sffamily
+
+
+```{r set_libraries, include=FALSE}
+
+#Libraries
+if (!require(pacman)) {
+  install.packages("pacman", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(pacman)
+}
+p_load(sqldf,RODBC,plyr,data.table,tidyr,dplyr,knitr,xtable,Hmisc,sf)
+
+detach("package:Hmisc", unload=TRUE)
+```
+
+
+```{r define_input_ff, echo=FALSE, eval = T}
+
+output_dir <- ""
+
+musOmrString_dir <- ""
+musOmrString <- "Alle_muslingeområder_2019_region_erase2.shp"
+
+#Parameters
+#year<- @paramYear ; cruise <- @paramCruise;  species <- @paramSpecies
+
+```
+
+```{r define_input_dev, echo=FALSE, eval = F}
+
+version_name <- "v14"
+output_dir <- "Q:/mynd/kibi/fishLine/FishLineRapporter/Biomasseberegninger/creating_a_new_biomasse_report/output/"
+
+musOmrString_dir <- "Q:/mynd/kibi/fishLine/FishLineRapporter/Biomasseberegninger/referencer/"
+musOmrString <- "Alle_muslingeområder_2019_region_erase2.shp"
+#species <- params$species
+
+#Parameters
+
+year <- 2021; cruise <- "BV LB BMS okt"; species <- "BMS"
+# year <- 2020; cruise <- "BV LF BMS april"; species <- "BMS"
+# year <- 2011; cruise <- "BV LF OES mar"; species <- "OES"
+# year <- 2017; cruise <- "BV VH BMS mar sug"; species <- "BMS"
+# year <- 2017; cruise <- "BV VH HMS okt sug +R"; species <- "HMS"
+# year <- 2018; cruise <- "BV LF HMS april"; species <- "HMS"
+# year <- 2018; cruise <- "BV VH BMS OST april"; species <- "BMS"
+# year <- 2017; cruise <- "BV HF BMS sept"; species <- "BMS"
+# year <- 2018; cruise <- "BV VH HMS apr ekstra"; species <- "HMS"
+
+```
+
+```{r functions, include = F}
+
+makeTable <- function(data){
+  
+  options(xtable.comment = FALSE)
+  print(
+    xtable(x = data, 
+           align = c(
+      rep("l", ncol(data)), rep("l", 1)
+    ), digits = 4),
+    include.rownames = F,
+    sanitize.text.function = function(x) {x},
+    sanitize.colnames.function = function(x) {
+      x <- gsub("_", "\\_", x, fixed = TRUE)
+      x <- paste0("\\textbf{", x, "}")
+      return(x)
+},
+    booktabs = T,
+    tabular.environment = "longtable"
+  )
+
+}
+
+makeTable_db_m <- function(data){
+  
+  bold <- function(x) {paste('{\\textbf{',x,'}}', sep ='')}
+    
+  options(xtable.comment = FALSE)
+  print(
+    xtable(x = data, align = c(
+      rep("l", 4), rep("p{5cm}", 1), rep("p{2cm}", 1), rep("l", 1)
+    )),
+    include.rownames = F,
+    #sanitize.colnames.function = identity,
+    sanitize.colnames.function = bold,
+    size="\\fontsize{7pt}{7pt}\\selectfont",
+    booktabs = T, 
+    tabular.environment = "longtable"
+  )
+
+}
+
+```
+
+```{r getdata_ff, echo=FALSE, message=FALSE, warning=FALSE, eval = T}
+
+channel <- odbcConnect("FishLineDW")
+data <- sqlQuery(channel, paste("SELECT Sample.sampleId, Sample.year, Sample.cruise, Sample.trip, Sample.station, Sample.stationName, Sample.haulType, Sample.latPosStartText, Sample.lonPosStartText, Sample.latPosEndText, Sample.lonPosEndText, Sample.latPosStartDec,
+                  Sample.lonPosStartDec, Sample.latPosEndDec, Sample.lonPosEndDec, Sample.fishingtime, Sample.distancePositions, Sample.courseTrack, Sample.distanceBottom, Sample.haulSpeedBot * 0.514 AS haulSpeedBotMS, Sample.gearQuality,
+                  SpeciesList.speciesCode, SpeciesList.dfuBase_Category, SpeciesList.weightStep0, SpeciesList.weightStep1, SpeciesList.weightStep2, SpeciesList.weightStep3, SpeciesList.raisingFactor, Animal.representative, Animal.individNum,
+                  Animal.length, Animal.number, Animal.weight, Animal.sizeSortingDFU, SpeciesList.speciesListId, Animal.animalId, Sample.gearType
+FROM     Animal RIGHT OUTER JOIN
+                  SpeciesList ON Animal.speciesListId = SpeciesList.speciesListId RIGHT OUTER JOIN
+                  Sample ON SpeciesList.sampleId = Sample.sampleId
+                                 WHERE     Sample.year = (",year,") AND
+                                           Sample.cruise = ('",cruise,"')", sep=""), stringsAsFactors=FALSE)
+
+db_message <- sqlQuery(channel,
+                       sprintf("SELECT * FROM ErrorLog where origin like '%s->%s%s'",
+                               year,cruise,"%"),
+                       stringsAsFactors = F)
+close(channel)
+
+ref_sample <- distinct(read.csv(paste0(output_dir, "ref_table_BEFISKM2_function.csv"), sep = ";"), gearType, gearVal, STATTYPE, REDSKDIM, 
+                       BEFISKM2_function)
+
+ref_species <- rename(distinct(read.csv(paste0(output_dir, "ref_table_KORR_function.csv")), stationType, speciesCode, 
+                        KORR_function), STATTYPE = stationType)
+```
+
+
+```{r getdata_all_dev, echo=FALSE, message=FALSE, warning=FALSE, eval = F}
+
+
+channel <- odbcConnect("FishLineDW")
+data <- sqlQuery(channel, paste("SELECT Sample.sampleId, Sample.year, Sample.cruise, Sample.trip, Sample.station, Sample.stationName, Sample.haulType, Sample.latPosStartText, Sample.lonPosStartText, Sample.latPosEndText, Sample.lonPosEndText, Sample.latPosStartDec,
+                  Sample.lonPosStartDec, Sample.latPosEndDec, Sample.lonPosEndDec, Sample.fishingtime, Sample.distancePositions, Sample.courseTrack, Sample.distanceBottom, Sample.haulSpeedBot * 0.514 AS haulSpeedBotMS, Sample.gearQuality,
+                  SpeciesList.speciesCode, SpeciesList.dfuBase_Category, SpeciesList.weightStep0, SpeciesList.weightStep1, SpeciesList.weightStep2, SpeciesList.weightStep3, SpeciesList.raisingFactor, Animal.representative, Animal.individNum,
+                  Animal.length, Animal.number, Animal.weight, Animal.sizeSortingDFU, SpeciesList.speciesListId, Animal.animalId, Sample.gearType
+FROM     Animal RIGHT OUTER JOIN
+                  SpeciesList ON Animal.speciesListId = SpeciesList.speciesListId RIGHT OUTER JOIN
+                  Sample ON SpeciesList.sampleId = Sample.sampleId
+WHERE  (Sample.cruise LIKE 'BV%')", sep = ""), stringsAsFactors = FALSE)
+
+db_message <- sqlQuery(channel,
+                       sprintf("SELECT TOP (0) * FROM ErrorLog"),
+                       stringsAsFactors = F)
+
+close(channel)
+
+ref_sample <- distinct(read.csv(paste0(output_dir, "ref_table_BEFISKM2_function.csv"), sep = ";"), gearType, gearVal, STATTYPE, REDSKDIM, 
+                       BEFISKM2_function)
+
+ref_species <- rename(distinct(read.csv(paste0(output_dir, "ref_table_KORR_function.csv")), stationType, speciesCode, 
+                        KORR_function), STATTYPE = stationType)
+
+```
+
+```{r getdata_dev, echo=FALSE, message=FALSE, warning=FALSE, eval = F}
+
+
+channel <- odbcConnect("FishLineDW")
+data <- sqlQuery(channel, paste("SELECT Sample.sampleId, Sample.year, Sample.cruise, Sample.trip, Sample.station, Sample.stationName, Sample.haulType, Sample.latPosStartText, Sample.lonPosStartText, Sample.latPosEndText, Sample.lonPosEndText, Sample.latPosStartDec,
+                  Sample.lonPosStartDec, Sample.latPosEndDec, Sample.lonPosEndDec, Sample.fishingtime, Sample.distancePositions, Sample.courseTrack, Sample.distanceBottom, Sample.haulSpeedBot * 0.514 AS haulSpeedBotMS, Sample.gearQuality,
+                  SpeciesList.speciesCode, SpeciesList.dfuBase_Category, SpeciesList.weightStep0, SpeciesList.weightStep1, SpeciesList.weightStep2, SpeciesList.weightStep3, SpeciesList.raisingFactor, Animal.representative, Animal.individNum,
+                  Animal.length, Animal.number, Animal.weight, Animal.sizeSortingDFU, SpeciesList.speciesListId, Animal.animalId, Sample.gearType
+FROM     Animal RIGHT OUTER JOIN
+                  SpeciesList ON Animal.speciesListId = SpeciesList.speciesListId RIGHT OUTER JOIN
+                  Sample ON SpeciesList.sampleId = Sample.sampleId
+                                 WHERE     Sample.year = (",year,") AND
+                                           Sample.cruise = ('",cruise,"')", sep=""), stringsAsFactors=FALSE)
+
+db_message <- sqlQuery(channel,
+                       sprintf("SELECT * FROM ErrorLog where origin like '%s->%s%s'",
+                               year,cruise,"%"),
+                       stringsAsFactors = F)
+close(channel)
+
+ref_sample <- distinct(read.csv(paste0(output_dir, "ref_table_BEFISKM2_function.csv"), sep = ";"), gearType, gearVal, STATTYPE, REDSKDIM, 
+                       BEFISKM2_function)
+
+ref_species <- rename(distinct(read.csv(paste0(output_dir, "ref_table_KORR_function.csv")), stationType, speciesCode, 
+                        KORR_function), STATTYPE = stationType)
+
+```
+
+
+# Data - Biomasseberegninger
+\begin{tcolorbox}[colback=white!5,colframe=blue!40!black,title=Information om udtrækket]
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{20cm}{@{}lXr@{}}
+\textbf{År} & `r year` & \\
+\textbf{Togt} & `r cruise` & \\
+\textbf{Art} & `r species` & \\
+\textbf{Redskabstype} & `r unique(data$gearType)` &
+\end{tabularx}
+\end{tcolorbox}
+
+```{r intro_ff, eval = F, include = F}
+
+# Move this out of the chuck, when running i FishLine
+
+\begin{tcolorbox}[colback=white!5,colframe=blue!40!black,title=Information om udtrækket]
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{20cm}{@{}lXr@{}}
+\textbf{År} & `r year` & \\
+\textbf{Togt} & `r cruise` & \\
+\textbf{Art} & `r species` & \\
+\textbf{Redskabstype} & `r unique(data$gearType)` &
+\end{tabularx}
+\end{tcolorbox}
+
+```
+
+# NULL stationer
+Træk uden arter. 
+
+```{r NULL stations, results='asis', echo=FALSE, message=FALSE, warning=FALSE, fig.pos='H'}
+
+null <- data[is.na(data$speciesCode),] 
+
+data_null <- subset(data, sampleId %in% null$sampleId)
+
+data_null_1 <- filter(summarise(group_by(data_null, sampleId), no_species = length(unique(speciesCode))), no_species == 1)
+
+data_null_2 <- subset(data_null, sampleId %in% data_null_1$sampleId)
+
+dat_tab <- arrange(distinct(data_null_2, year, cruise, trip, station, gearQuality),
+                   year, cruise, trip, station)
+
+makeTable(dat_tab)
+
+```
+
+# Træk validitet (gearQuality)
+Rapporten medtager kun valide (V) træk - alle andre træk slettes efter dette step. Nedestående tabel viser antal træk (noSamples) per kombination i udtrækket. Efterfølgende tabel viser detaljerede oplysninger om de ikke valide træk.
+
+```{r gearQuality, results='asis', echo=FALSE, message=FALSE, warning=FALSE, fig.pos='H'}
+dat_tab <- summarise(group_by(data, gearQuality), noSamples = length(unique(sampleId)))
+makeTable(dat_tab)
+
+dat_tab <- arrange(distinct(filter(data, gearQuality != "V" | is.na(gearQuality)), year, cruise, trip, station, gearQuality),
+                   year, cruise, trip, station)
+
+makeTable(dat_tab)
+
+
+data <- filter(data, gearQuality == "V")
+```
+
+
+# Stationstype (STATTYPE)
+Stationstype defineres vha. redskabet (gearType), se reference tabellen i Annex 1. Nedestående tabel viser antal træk (noSamples) per kombination i udtrækket
+
+STATTYPE bruges ikke længere i reference tabellen for de korrigerede biomasser, istedet bruges redskabet direkte.
+
+```{r set stationType, results='asis', echo=FALSE, message=FALSE, warning=FALSE, fig.pos='H'}
+
+data <- left_join(data, ref_sample, by = c("gearType" = "gearType"))
+
+dat_tab <- summarise(group_by(data, gearType, STATTYPE), noSamples = length(unique(sampleId)))
+
+
+makeTable(dat_tab)
+
+```
+
+# Redskabsdimension (REDSKDIM)
+Redskabs dimension defineres vha. redskabet (gearType), se reference tabellen i Annex 1. Nedestående tabel viser antal træk (noSamples) per kombination i udtrækket
+
+```{r redsk_dim, results='asis', echo=FALSE, message=FALSE, warning=FALSE, fig.pos='H'}
+
+tab_dat <- summarise(group_by(data, gearType, STATTYPE, REDSKDIM), noSamples = length(unique(sampleId)))
+makeTable(tab_dat)
+
+```
+
+# Distance (DISTANCE)
+Distance bestemmes vha. følgende hieraki
+    
+1.    Udsejlet distance (courseTrack) - Indtastes direkt i FiskeLine
+2.    Distance start-slut (distancePositions) - Distancen mellem positionerne. Udregnes af databasen
+3.    Træktid*trækhastighed (distanceBottom) - Distancen udregnet vha. Trækhastighed og fisketid. Udregnes af databasen
+
+**DISMETH** angiver metoden
+
+```{r distance, results='asis', echo=FALSE, message=FALSE, warning=FALSE, fig.pos='H'}
+
+data[data$courseTrack == 0 & !is.na(data$courseTrack),"courseTrack"] <- NA
+data[data$distancePositions == 0 & !is.na(data$distancePositions),"distancePositions"] <- NA
+#data[data$distanceBottom == 0 & !is.na(data$distanceBottom),"distanceBottom"] <- NA # Open this up later
+
+
+data <- mutate(data, DISTANCE = ifelse(!is.na(courseTrack), courseTrack,
+                                       ifelse(!is.na(distancePositions) & is.na(courseTrack), distancePositions*1852, 
+                                              ifelse(!is.na(distanceBottom) & is.na(distancePositions) & is.na(courseTrack), distanceBottom*1852, NA))),
+               DISMETH = ifelse(!is.na(courseTrack), "Udsejlet distance", 
+                                     ifelse(!is.na(distancePositions) & is.na(courseTrack), "Distance start-slut", 
+                                            ifelse(!is.na(distanceBottom) & is.na(distancePositions) & is.na(courseTrack), "Træktid*trækhastighed", "Kan ikke udregnes"))))
+
+tab_dat <- summarise(group_by(data, gearType, STATTYPE, DISMETH), noSamples = length(unique(sampleId)))
+makeTable(tab_dat)
+
+```
+
+# Befisket areal (BEFISKM2)
+Befisket areal vha. af formlen i reference tabellen (Befisket_Areal_m2_fun), se reference tabellen i Annex 1. Nedestående tabel viser antal træk (noSamples) per kombination i udtrækket
+
+```{r befisket_areal, results='asis', echo=FALSE, message=FALSE, warning=FALSE, fig.pos='H'}
+
+
+fak <- factor(data$BEFISKM2_function)
+
+dat <- c()
+
+for (i in levels(fak)) {
+  
+  dat_sub <- subset(data, BEFISKM2_function == i)
+  
+  dat_sub$FUNBEFISKM2 <- paste0("(dat_sub$", gsub("\\*", "\\ * dat_sub$", dat_sub$BEFISKM2_function), ")")
+  
+  eval(parse(text = paste0("dat_sub$BEFISKM2 <- ", dat_sub$FUNBEFISKM2, "")))
+  
+  dat <- rbind(dat, dat_sub)
+  
+}
+
+data <- dat
+
+data <- mutate(data, areal_metode = ifelse(!(data$STATTYPE %in% c('RAM','VV','SUG')), DISMETH,
+                                             ifelse(STATTYPE == "RAM", "Ramme-areal",
+                                                    ifelse(STATTYPE == "VV", "Grab-areal",
+                                                           ifelse(STATTYPE == "SUG", "Suge-areal", NA))))) # This is empty info - delete
+
+dat_tab <- summarise(group_by(data, gearType, STATTYPE, REDSKDIM, BEFISKM2_function), noSamples = length(unique(sampleId)))
+makeTable(dat_tab)
+
+```
+
+```{r Prep_outputData, echo=FALSE, warning=FALSE,message=FALSE}
+# data <- data[!is.na(data$speciesCode),] # To keep or not to keep - remove when ready
+# test <- data[is.na(data$speciesCode),]
+
+data <- mutate(data, speciesCode = ifelse(is.na(data$speciesCode), "NON", as.character(speciesCode)))
+test2 <- filter(data, speciesCode == "NON")
+
+data$TOTWGT <- as.numeric(apply(data[,c("weightStep0","weightStep1","weightStep2","weightStep3")], 
+                                        1, function(x) min(x[1], x[2], x[3], x[4], na.rm=TRUE)))*data$raisingFactor
+
+# data$TotalWeight_kg2 <- rowSums(data[,c("Weight_kg_small","Weight_kg_STO")],na.rm=T)
+data$TOTNUM <- data$number*data$raisingFactor
+data$Length_cm <- data$length/10
+data$SOP_Length <- data$Length_cm*data$number*data$raisingFactor # Remove - this is not used
+
+# data2 <- sqldf('select    sampleId, stationType, haulType,gearType, year, cruise, trip, station, stationName, 
+#                           latPosStartText,lonPosStartText, latPosStartDec, lonPosStartDec,
+#                           latPosEndText,lonPosEndText, latPosEndDec, lonPosEndDec, fishingtime,haulSpeedBotMS,
+#                           redsk_dim as REDSKDIM, Befisket_Areal_m2,areal_metode, speciesCode,weight_kg_STO, weight_kg_small,
+#                           sum(TotalWeight_kg) as TotalWeight_kg, sum(TotalNumber) as TotalNumber, 
+#                           sum(SOP_Length)/sum(TotalNumber) as MeanLength_cm, 
+#                           min(Length_cm) as Min_Length_cm
+#                 from      data
+#                 group by  sampleId, haulType,stationType, year, cruise, trip, station, stationName, latPosStartText,
+#                           lonPosStartText,latPosStartDec, lonPosStartDec, latPosEndText,lonPosEndText, latPosEndDec, 
+#                           lonPosEndDec, Befisket_Areal_m2, speciescode')
+
+if (length(unique(data$sizeSortingDFU[data$speciesCode=="BMS"]))>1 & 
+    species == "BMS"){
+
+  # sizeSortingDFU2 <- unique(c(unique(data$sizeSortingDFU),c("SMÅ","STO")))  
+  sizeSortingDFU2 <- c("SMÅ","STO")  
+  
+  bms <- data %>%
+    filter(speciesCode=="BMS") %>%
+    tidyr::expand(nesting(sampleId,STATTYPE,haulType,gearType,year,cruise,trip,station,
+                   stationName,latPosStartText,lonPosStartText,latPosStartDec,
+                   lonPosStartDec,latPosEndText,lonPosEndText,latPosEndDec,
+                   lonPosEndDec,fishingtime,haulSpeedBotMS,REDSKDIM,
+                   BEFISKM2,areal_metode, DISMETH, speciesCode, FUNBEFISKM2),
+           sizeSortingDFU2) %>%
+    dplyr::rename(sizeSortingDFU=sizeSortingDFU2)
+  
+  data1 <- data %>% full_join(bms)
+  
+  data1$sizeSortingDFU[data1$speciesCode=="BMS" & 
+                       is.na(data1$sizeSortingDFU)] <- "SMÅ"
+  
+} else{data1 <- data}
+
+
+
+# uw <- unique(data1[,c("speciesListId","sizeSortingDFU","TotalWeight_kg")])
+# # 
+data2 <- data1 %>%
+  # full_join(bms) %>% 
+  # filter(station==1) %>% 
+  dplyr::rename(REDSKDIM = REDSKDIM) %>%
+  dplyr::group_by(sampleId, STATTYPE, haulType, gearType, year, cruise, trip,
+                  station, stationName, latPosStartText,lonPosStartText,
+                  latPosStartDec, lonPosStartDec,latPosEndText,lonPosEndText,
+                  latPosEndDec, lonPosEndDec, fishingtime, haulSpeedBotMS,
+                  REDSKDIM, BEFISKM2, areal_metode, DISMETH, speciesCode, FUNBEFISKM2) %>% 
+  dplyr::summarise(TOTWGTSMA = 
+                     sum(unique(TOTWGT[sizeSortingDFU=="SMÅ"]),na.rm=T),
+                   TOTNUMSMA = 
+                     sum(TOTNUM[sizeSortingDFU=="SMÅ"],na.rm=T),
+                   LENMEANSMA = sum(SOP_Length[sizeSortingDFU=="SMÅ"],na.rm=T)/
+                     sum(TOTNUM[sizeSortingDFU=="SMÅ"],na.rm=T),
+                   LENMINSMA = 
+                     min(Length_cm[sizeSortingDFU=="SMÅ"],na.rm=T),
+                   
+                   TOTWGTSTO = 
+                     sum(unique(TOTWGT[sizeSortingDFU=="STO"]),na.rm=T),
+                   TOTNUMSTO = 
+                     sum(TOTNUM[sizeSortingDFU=="STO"],na.rm=T),
+                   LENMEANSTO = 
+                     sum(SOP_Length[sizeSortingDFU=="STO"],na.rm=T)/
+                     sum(TOTNUM[sizeSortingDFU=="STO"],na.rm=T),
+                   LENMINSTO = 
+                     min(Length_cm[sizeSortingDFU=="STO"],na.rm=T),
+                   
+                   TOTWGT = sum(unique(TOTWGT),na.rm=T),
+                   TOTNUM = sum(TOTNUM,na.rm=T),
+                   LENMEAN = 
+                     sum(SOP_Length,na.rm=T)/sum(TOTNUM,na.rm=T),
+                   LENMIN = min(Length_cm,na.rm=T)) 
+
+
+
+if (species=="SST") {data2$LENMIN <- NULL; data2$LENMEAN <- NULL;}
+if (species=="SKL") {data2$LENMIN <- NULL; data2$LENMEAN <- NULL;}
+
+
+```
+
+# Fangst_kg_m2 (FANGM2)
+
+FANGM2 = TotalWeight_kg / BEFISKM2
+
+```{r FANGM2, echo=F, include=F, warning=F, message=F}
+
+#Catch per m2 - overall and spread out with new variables
+data2$FANGM2SMA <- data2$TOTWGTSMA/as.numeric(data2$BEFISKM2)
+data2$FANGM2STO <- data2$TOTWGTSTO/as.numeric(data2$BEFISKM2)
+data2$FANGM2 <- data2$TOTWGT/as.numeric(data2$BEFISKM2)
+
+data2[species == species &
+        data2$speciesCode == species,
+      paste0("FANG", species, "SMA")] <-
+  as.numeric(data2[species == species &
+                     data2$speciesCode == species, ]$FANGM2SMA)
+
+data2[species == species &
+        data2$speciesCode == species,
+      paste0("FANG", species, "STO")] <-
+  as.numeric(data2[species == species &
+                     data2$speciesCode == species, ]$FANGM2STO)
+
+data2[species == species &
+        data2$speciesCode == species,
+      paste0("FANG", species)] <-
+  as.numeric(data2[species == species &
+                     data2$speciesCode == species, ]$FANGM2)
+
+```
+
+# Korrigeret fangst (KORRxxxx)
+
+Hvis NA i ref_table_BEFISKM2_function.csv, så sættes KORRxxxx = FANGM2
+
+```{r korrigeret, include = F}
+
+#### Korrigeret fangst ####
+
+ref_spp <- unique(ref_species$speciesCode)
+
+data3 <- mutate(left_join(ungroup(data2), ref_species), KORR_function = 
+                  ifelse(is.na(KORR_function) & speciesCode %in% ref_spp, "x", 
+                         ifelse(is.na(KORR_function) & !(speciesCode %in% ref_spp), "ingen", as.character(KORR_function))))
+
+
+fak_spp <- factor(data3$speciesCode)
+dat2 <- c()
+dat_spp <- c()
+
+for (spp in levels(fak_spp)) {
+  
+  dat_spp_sub <- subset(data3, speciesCode == spp)
+  fak_korr <- factor(dat_spp_sub$KORR_function)
+  
+  for (j in levels(fak_korr)) {
+    
+    dat2_sub <- subset(dat_spp_sub, KORR_function == j)
+    
+    if (j != "ingen") {
+        
+      dat2_sub$FUNKORR <- paste0("(", gsub("x", "dat2_sub$FANGM2", dat2_sub$KORR_function), ")")
+      eval(parse(text = paste0("dat2_sub$KORR",dat2_sub$speciesCode," <- ", dat2_sub$FUNKORR, "")))
+      
+      if (spp == "BMS" & species == "BMS") {
+        
+        dat2_sub$FUNKORRSTO <- paste0("(", gsub("x", "dat2_sub$FANGBMSSTO", dat2_sub$KORR_function), ")")
+        eval(parse(text = paste0("dat2_sub$KORR", dat2_sub$speciesCode,"STO <- ", dat2_sub$FUNKORRSTO, "")))
+      
+        dat2_sub$KORRBMSSTO[is.na(dat2_sub$KORRBMSSTO)] <- 0
+      
+        dat2_sub$KORRBMSSMA <- dat2_sub$KORRBMS - dat2_sub$KORRBMSSTO
+      
+      
+      }
+      
+      } else {
+    
+      dat2_sub <- dat2_sub
+    }   
+      dat2 <- bind_rows(dat2, dat2_sub)
+    } 
+}
+
+data2 <- dat2
+
+```
+
+
+```{r final_correction_selction,echo=F,include=F,warning=F,message=F}
+
+
+#Select data depending on mark and sample ID
+
+data2[data2$STATTYPE=="OES" & data2$speciesCode=="OES" & species=="OES" |
+      data2$STATTYPE=="OES" & data2$speciesCode=="BMS" & species=="BMS" |
+      data2$STATTYPE=="OES" & data2$speciesCode=="SST" & species=="SST" |
+      data2$STATTYPE=="OES" & data2$speciesCode=="OST" & species=="OST" |
+
+      data2$STATTYPE=="BMS" & data2$speciesCode=="OES" & species=="OES" |
+      data2$STATTYPE=="BMS" & data2$speciesCode=="BMS" & species=="BMS" |
+      data2$STATTYPE=="BMS" & data2$speciesCode=="SST" & species=="SST" |
+      data2$STATTYPE=="BMS" & data2$speciesCode=="SKL" & species=="SKL" |
+      data2$STATTYPE=="BMS" & data2$speciesCode=="OST" & species=="OST" |
+
+      data2$STATTYPE=="RAM" & data2$speciesCode=="HMS" & species=="HMS" |
+      data2$STATTYPE=="RAM" & data2$speciesCode=="BMS" & species=="BMS" |
+      data2$STATTYPE=="RAM" & data2$speciesCode=="OST" & species=="OST" |
+
+      data2$STATTYPE=="SST" & data2$speciesCode=="SST" & species=="SST" |
+
+      data2$STATTYPE=="VV" & data2$speciesCode=="HMS" & species=="HMS" |
+
+      data2$STATTYPE=="SUG" & data2$speciesCode=="BMS" & species=="BMS" |
+      data2$STATTYPE=="SUG" & data2$speciesCode=="OST" & species=="OST" |
+      data2$STATTYPE=="SUG" & data2$speciesCode=="HMS" & species=="HMS" |
+
+      data2$STATTYPE=="BOS" & data2$speciesCode=="OES" & species=="OES" |
+      data2$STATTYPE=="BOS" & data2$speciesCode=="BMS" & species=="BMS" |
+      data2$STATTYPE=="BOS" & data2$speciesCode=="OST" & species=="OST" |
+      data2$STATTYPE=="BOS" & data2$speciesCode=="SST" & species=="SST" |
+
+      data2$STATTYPE=="BMSOK" & data2$speciesCode=="OES" & species=="OES" |
+      data2$STATTYPE=="BMSOK" & data2$speciesCode=="BMS" & species=="BMS" |
+      data2$STATTYPE=="BMSOK" & data2$speciesCode=="SST" & species=="SST" |
+      data2$STATTYPE=="BMSOK" & data2$speciesCode=="SKL" & species=="SKL" |
+      data2$STATTYPE=="BMSOK" & data2$speciesCode=="OST" & species=="OST" ,
+      "mark"]  <-1
+
+
+data2[is.na(data2$mark),"mark"] <- 2
+data3 <- data2[with(data2, order(sampleId,mark)), ]
+
+dat_spp <- subset(data3, speciesCode %in% species)
+
+dat_no_spp <- slice(arrange(group_by(subset(data3, !(sampleId %in% dat_spp$sampleId)), sampleId), sampleId, mark, speciesCode), 1)
+
+data4 <- bind_rows(dat_spp, dat_no_spp)
+
+data4$mark <- NULL
+data4$sampleId <- NULL
+
+## Remove "korrigeret" catch values for other species than the one in question
+
+if (species=="BMS") {
+  data4$KORROES<-NULL;
+  data4$KORRSST<-NULL;
+  data4$KORRSKL<-NULL;
+  data4$KORRHMS<-NULL;
+  data4$KORROST<-NULL
+  }
+if (species=="OES") {
+    data4$KORRBMS<-NULL;
+  data4$KORRBMSSTO<-NULL;
+  data4$KORRBMSSMÅ<-NULL;
+  data4$KORRSST<-NULL;
+  data4$KORRSKL<-NULL;
+  data4$KORRHMS<-NULL;
+  data4$KORROST<-NULL
+  }
+if (species=="SST") {
+    data4$KORRBMS<-NULL;
+  data4$KORRBMSSTO<-NULL;
+  data4$KORRBMSSMÅ<-NULL;
+  data4$KORROES<-NULL;
+  data4$KORRSKL<-NULL;
+  data4$KORRHMS<-NULL;
+  data4$KORROST<-NULL
+  }
+if (species=="SKL") {
+    data4$KORRBMS<-NULL;
+  data4$KORRBMSSTO<-NULL;
+  data4$KORRBMSSMÅ<-NULL;
+  data4$KORRSST<-NULL;
+  data4$KORROES<-NULL;
+  data4$KORRHMS<-NULL;
+  data4$KORROST<-NULL
+  }
+if (species=="HMS") {
+    data4$KORRBMS<-NULL;
+  data4$KORRBMSSTO<-NULL;
+  data4$KORRBMSSMÅ<-NULL;
+  data4$KORRSST<-NULL;
+  data4$KORROES<-NULL;
+  data4$KORRSKL<-NULL;
+  data4$KORROST<-NULL
+  }
+if (species=="OST") {
+  data4$KORRBMS<-NULL;
+  data4$KORRBMSSTO<-NULL;
+  data4$KORRBMSSMÅ<-NULL;
+  data4$KORRSST<-NULL;
+  data4$KORROES<-NULL;
+  data4$KORRSKL<-NULL;
+  data4$KORRHMS<-NULL
+  }
+
+
+## Final corrections - zeroes/NA's
+
+data4[is.na(data4$TOTWGT), "TOTWGT"] <- 0
+data4[is.na(data4$FANGM2), "FANGM2"] <- 0
+data4[is.na(data4[[paste0("FANG", species)]]),
+      paste0("FANG", species)] <- 0
+
+data4[is.na(data4[[paste0("KORR", species)]]), paste0("KORR", species)] <- 0
+
+data4[data4[[paste0("FANG", species)]] == 0, "TOTWGT"] <- 0
+
+data4[data4[[paste0("FANG", species)]] == 0, "TOTNUM"] <- 0
+
+data4[data4[[paste0("FANG", species)]] == 0, "FANGM2"] <- 0
+
+
+data4[data4[[paste0("FANG", species)]] == 0, paste0("KORR", species)] <- 0
+
+if (species %in% c("OES","BMS","HMS")) {
+  
+    data4[data4[[paste0("FANG", species)]] == 0, "LENMIN"] <- NA
+    data4[data4[[paste0("FANG", species)]] == 0, "LENMEAN"] <- NA
+
+}
+
+final_data <- data4
+
+############# to linjer udkomenteret af JOSTOU da nogle colonner er formateret sjovt sp det ikke virker #########
+#final_data[, c(23:43, 45, 47:ncol(final_data))][
+ # is.na(final_data[, c(23:43, 45, 47:ncol(final_data))])] <- 0
+
+final_data$LENMINSMA[is.infinite(final_data$LENMINSMA)]<-0
+final_data$LENMINSTO[is.infinite(final_data$LENMINSTO)]<-0
+# final_data[is.infinite(final_data)] <- 0
+
+final_data <- select(final_data, -KORR_function)
+```
+
+
+# Musling produktionsområder (OMRådENUM,OMRådENAV)
+
+Shape file: `r musOmrString`
+
+```{r , include = F}
+sf::sf_use_s2(FALSE)
+  MUSOMR <- st_read(paste0(musOmrString_dir, musOmrString))
+  MUSOMR <- MUSOMR %>% select(OMRådENUM,OMRådENAV)
+  
+  final_data$lat <- final_data$latPosStartDec
+  final_data$lon <- final_data$lonPosStartDec
+  
+  data5 <- st_as_sf(final_data, coords = c("lon","lat"),crs = 4326)
+  
+  data6 <- st_join(data5, MUSOMR)
+  
+  st_geometry(data6) <- NULL
+  final_data <- data6 %>% 
+    # select(-AREAL,-STATUS,-Area_km2,-Nr,) %>% 
+    as.data.frame()
+  
+```
+
+# Meddelelser fra datawarehouset
+
+Her vil der blive vist eventuelle fejl og advarsler fra ejsporten af togtet fra databasen til datawarehouset. Fejl og advarsler kan forklare uventede resultater, men kan også være af mindre betydning. Hvis der er lavet ændringer siden den anførte logTime og der har været efterfølgende eksport af togtet uden at logTime har ændret sig, betyder det at togtet efter ændringer ikke har udløst nye fejl.
+
+```{r db_messages, results='asis',echo=FALSE,message=FALSE,warning=FALSE,fig.pos='H', eval = T}
+
+if (nrow(db_message)>0){
+  
+  db_message$year <- 0
+  db_message$cruise <- ""
+  db_message$trip <- ""
+  db_message$station <- ""
+  
+  for (i in 1:nrow(db_message)){
+    origin <- strsplit(db_message$origin[i],split="->")
+    
+    db_message$year[i] <- as.numeric(origin[[1]][1])
+    db_message$cruise[i] <- origin[[1]][2]
+    db_message$trip[i] <- origin[[1]][3]
+    db_message$station[i] <- origin[[1]][4]
+  }
+  
+  db_message$logTime <- as.character(db_message$logTime)
+  
+  warnings <- db_message[db_message$errorType=="Warning",]
+  errors <- db_message[db_message$errorType=="Error",]
+ 
+} else {
+  
+  warnings <- c()
+  errors <- c()
+}
+
+cat("\\subsection{Advarsler fra datawarehouset}")
+# if (exists("warnings")){
+  if (!is.null(nrow(warnings)) && nrow(warnings)>0){
+
+  w <- warnings %>% 
+    dplyr::select(trip,station,recordType,description,logTime,transferErrorId) 
+  
+  makeTable_db_m(w)
+
+} else{
+  cat("Der har ikke været registreret advarsler fra datawarehouset\n")
+}
+
+cat("\\subsection{Fejlmeddelelser fra datawarehouset}")
+
+if (!is.null(nrow(errors)) && nrow(errors)>0){
+  
+  er <- errors %>% 
+    dplyr::select(trip,station,recordType,description,logTime,transferErrorId) 
+  
+  makeTable_db_m(er)
+} else{
+  cat("Der har ikke været registreret fejl fra datawarehouset\n")
+  }
+ 
+```
+
+\newpage
+
+# Annex 1 - Reference tabel - befisket areal (BEFISKM2)
+
+```{r ref_annex_1, results='asis', echo=FALSE, message=FALSE, warning=FALSE, fig.pos='H', eval = T}
+
+makeTable(ref_sample)
+
+```
+
+\newpage
+
+# Annex 2 - Reference tabel - Korrigeret fangst (KORRxxxx)
+
+x = Fangst_kg_m2 (FANGM2)
+
+*work in progress* - de matematisk symboler skaber problem. Indtil dette er løst så outputtes denne reference tabel sammen med de andre outputs.
+
+ref_table_KORR_function.csv
+
+```{r ref_annex_2, results='asis', echo=FALSE, message=FALSE, warning=FALSE, fig.pos='H', eval = F}
+
+ref_species$KORR_function <- paste0("$\\", ref_species$KORR_function, "$")
+
+makeTable(ref_species)
+
+```
+
+
+```{r save_output_dev, echo=FALSE, warning=FALSE,message=FALSE, eval = F}
+
+write.csv(final_data,
+          file = paste(output_dir, "Biomasse_",species,"_",version_name,"_",
+                     format(Sys.time(), "%d%b%Y"),".csv",sep = ""),
+          row.names=FALSE,fileEncoding = "UTF-8")
+
+saveRDS(final_data,
+          file = paste(output_dir, "Biomasse_",species,"_",version_name,"_",
+                     format(Sys.time(), "%d%b%Y"),".rds",sep = ""))
+
+
+```
+
+
+```{r save_output, echo=FALSE, warning=FALSE, message=FALSE, eval = T}
+
+# Write csv
+cruise <- gsub(" ","_",cruise)
+write.csv(final_data,
+          file=paste("Biomasse_",year,"_",cruise,"_",species,"_",
+                     format(Sys.time(), "%d%b%Y"),".csv",sep=""),
+          row.names=FALSE,fileEncoding = "UTF-8")
+
+write.csv(ref_species,
+          file=paste("ref_table_KORR_function_",
+                     format(Sys.time(), "%d%b%Y"), ".csv",sep=""),
+          row.names=FALSE,fileEncoding = "UTF-8")
+```

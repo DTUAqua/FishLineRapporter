@@ -1,0 +1,153 @@
+---
+fontsize: 11pt
+geometry: top=2cm, bottom=2cm, left=1.5cm, right=1.5cm,headsep=1cm
+header-includes:
+- \usepackage[utf8]{inputenc}
+- \usepackage{fancyhdr}
+- \pagestyle{fancy}
+- \fancyfoot{}
+- \usepackage{ragged2e}
+- \linespread{1.15}
+- \usepackage{float}
+output: pdf_document
+fig_caption: yes
+keep_tex: yes
+---
+
+```{r set_libraries, include=FALSE, warning=FALSE}
+
+#Libraries used in the r code
+if (!require(pacman)){
+  install.packages("pacman", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(pacman)
+}
+p_load(kableExtra, sqldf, RODBC, dplyr, lubridate, data.table)
+
+#special for this script
+
+## costum functions
+
+
+```
+
+
+```{r set_parameters, include=FALSE}
+
+# y1 <- @paramYear1
+# y2 <- @paramYear2
+# species <- c(@paramSpecies)
+
+# Paramters to use in R
+y1 <- 2021
+y2 <- 2021
+species <- c("TBM")
+
+
+```
+
+
+```{r get_data, include=FALSE}
+
+channel <- odbcConnect("FishLineDW")
+
+dat <- sqlQuery(channel,
+        paste("SELECT Sample.sampleId, Sample.tripId, Animal.animalId, Sample.year, 
+                      Sample.quarterGearStart, Sample.cruise, Sample.trip, Sample.tripType, 
+                      Sample.station, Sample.labJournalNum, Trip.platform1, Trip.harbourLanding, 
+                      Sample.dfuArea, Sample.statisticalRectangle, Sample.latPosStartText, 
+                      Sample.latPosEndText, Sample.lonPosStartText, Sample.lonPosEndText, 
+                      Sample.latPosStartDec, Sample.lonPosStartDec, Sample.latPosEndDec, 
+                      Sample.lonPosEndDec, Sample.dateGearStart, SpeciesList.speciesCode, 
+                      SpeciesList.sizeSortingDFU, SpeciesList.landingCategory, SpeciesList.treatment,
+                      Animal.representative, Animal.individNum, Animal.length, Animal.lengthMeasureUnit,
+                      SpeciesList.sexCode AS sp_sexcode, Animal.sexCode, Animal.number AS AnimalNumber, 
+                      Animal.weight, Animal.treatmentFactor, Animal.parasiteCode, Animal.maturityIndex,
+                      Animal.maturityIndexMethod, Animal.maturityReaderId, Animal.maturityReader, 
+                      Animal.numVertebra, Age.age, Age.number AS AgeNumber, Age.ageReadId,
+                      Age.ageReadName, Age.otolithReadingRemark, Age.hatchMonth, Age.hatchMonthRemark,
+                      Age.hatchMonthReaderId, Age.hatchMonthReaderName, Sample.remark AS remarkSample, 
+                      Animal.remark AS remarkAnimal, Age.remark AS remarkAge, Age.hatchMonthRemark, 
+                      Age.genetics, Age.visualStock, Age.geneticStock
+            FROM      Sample INNER JOIN
+                      SpeciesList ON Sample.sampleId = SpeciesList.sampleId INNER JOIN
+                      Animal ON SpeciesList.speciesListId = Animal.speciesListId INNER JOIN
+                      Trip ON Sample.tripId = Trip.tripId LEFT OUTER JOIN
+                      Age ON Animal.animalId = Age.animalId
+            WHERE     (Sample.year between ",y1," and ",y2," ) AND 
+                      (SpeciesList.speciesCode IN ('", paste(species,collapse = "','"),"'))
+            ORDER BY  Sample.dateGearStart
+                      ", sep = ""))
+                     
+close(channel)
+
+dat$labJournalNum <- ifelse((dat$labJournalNum == '' | is.na(dat$labJournalNum)) & dat$tripType == "HVN",
+                            dat$station, dat$labJournalNum)
+
+dat$date <- date(dat$dateGearStart)
+
+###
+
+channel <- odbcConnect("FishLineDW")
+animalReference<-sqlQuery(channel,
+                  paste("SELECT  animalId, referenceId
+                         FROM     R_AnimalReference
+                                          ", sep = ""))
+close(channel)
+
+channel <- odbcConnect("FishLine")
+L_reference<-sqlQuery(channel,
+                  paste("SELECT  L_referenceId AS referenceId, description
+                        FROM     L_Reference
+                               ", sep = ""))
+close(channel)
+
+merged1 <- merge(animalReference, L_reference, by = c("referenceId"), all.y = TRUE)
+merged1$referenceId <- paste0("ref_", merged1$referenceId)
+
+setDT(merged1)
+wide <- dcast(merged1, animalId ~ referenceId, value.var = "description")
+wide <- wide[complete.cases(wide$animalId), ]
+
+merged2 <- merge(dat, wide, by = c("animalId"), all.x = TRUE)
+
+```
+
+```{r export table, include=FALSE}
+#reorder data frame
+merged2 <- merged2 %>% relocate(c(animalId), 
+                        .after = tripId)
+
+merged2 <- merged2 %>% relocate(c(ref_1, ref_2, ref_3, ref_4, ref_6, ref_7, ref_8, ref_9, 
+                                  ref_10, ref_11, ref_12, ref_13), 
+                        .after = date)
+
+# ##Output fish-age information
+
+#write.csv2(merged2, file = "Q:/dfad/users/jostou/home/temp/SIL_otput.csv",
+#            quote = FALSE, row.names = FALSE, na = '')
+
+names <- toString(species)
+names <- gsub(', ', '.', names)
+
+write.csv2(merged2, paste0(names, "_", y1, "_", y2, "_Data_", Sys.Date(), ".csv"),
+           quote = FALSE, row.names = FALSE, na = '')
+
+
+title<-c(paste0(Sys.Date(), ".csv"))
+```
+
+\thispagestyle{empty}
+
+\vspace*{2cm} 
+
+\textbf{\LARGE Data eksporteret som "`r names`\_`r y1`\_`r y1`\_Data\_`r title`"}
+
+\vspace{2cm}   
+
+
+\textbf{\LARGE Data for år `r y1` til `r y2`}\
+\vspace{0.5cm}
+
+\textbf{\Large Art:}
+\textbf{\Large `r species`}\
+\vspace{0.5cm}

@@ -1,0 +1,161 @@
+---
+fontsize: 11pt
+geometry: top=2cm, bottom=2cm, left=1cm, right=2cm,headsep=1cm
+header-includes:
+- \usepackage{booktabs}
+- \usepackage{longtable}
+- \usepackage{}
+- \usepackage[T1]{fontenc}
+- \usepackage[danish]{babel}
+- \usepackage[utf8]{inputenc}
+- \usepackage{fancyhdr}
+- \pagestyle{fancy}
+- \fancyhf{}
+- \fancyfoot{}
+- \usepackage{graphicx}
+- \usepackage{ragged2e}
+- \usepackage{catchfile}
+- \usepackage{array}
+- \usepackage[export]{adjustbox}
+- \usepackage{multirow}
+- \linespread{1.15}
+- \usepackage{tabularx}
+- \usepackage{tcolorbox}
+- \usepackage{lipsum}
+- \usepackage{pbox}
+- \usepackage{lastpage}
+- \usepackage{tabu}
+output:
+  pdf_document: 
+    number_sections: false
+---
+<!-- This report looks through the rrorlog to find anything related to bv-cruises within a given year. If something is found, it is presented in tables. Users can then try to procress the cruise to the datawarehouse to see if the error has been corrected. If it has not, the logTime will change when this report is created after processesing the cruise to the datawarehouse again -->
+
+
+\renewcommand{\familydefault}{\sfdefault}
+\sffamily
+
+```{r define_input, echo=FALSE}
+#@paramYear
+# SELECT c.year, year
+# FROM FishLineDW.dbo.Cruise c
+# WHERE (c.cruise LIKE '%BMS%' OR
+# 	  c.cruise LIKE '%OES%' OR
+#   	  c.cruise LIKE '%MUSSE%' OR
+#   	  c.cruise LIKE '%SST%' OR
+#   	  c.cruise LIKE '%HMS%' OR
+#   	  c.cruise LIKE '%OST%' OR
+#   	  c.cruise LIKE 'BV %')
+#   AND c.cruise<>'OESTER'
+# group by year 
+# order by year desc
+
+
+
+#Parameters
+#year <- @paramYear
+
+year <- 2012
+
+```
+
+
+\lhead{\footnotesize Gennemgang af log for BV-togter fra år `r year`}
+\rhead{\footnotesize Udskrevet: `r Sys.time()`}
+\fancyfoot[R]{\thepage/\pageref{LastPage}}
+
+\section{Gennemgang af log for BV-togter i `r year`}
+
+Denne rapport gennemgår en log-fil, der indeholder fejl og advarsler i forbindelse med overførsel af data fra BV-togterne i et givnet år til datawarehouset. 
+
+Viser en fejl eller advarsel sig, kan man undersøge togtet og prøve at oparbejde det til datawarehouset igen. Kommer der ingen advarsler her, og fornys tidspunktet i errorloggen ikke når denne rapport genereres igen, betyder det at fejlen er blevet udbedret. 
+
+```{r librariesAndFunctions, include=FALSE}
+
+#Libraries
+if (!require(pacman)) {
+  install.packages("pacman", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(pacman)
+}
+p_load(dplyr,RODBC,knitr,kableExtra,stringr)
+
+makeTable <- function(eT,text){
+  
+  data3 <- data2 %>% 
+    filter(errorType == eT) %>% 
+    select(year,cruise,trip,station,description,logTime) %>% 
+    group_by(year,cruise,trip,station,description) %>% 
+    summarise(logTime = max(logTime,na.rm=T)) 
+    
+
+    colnames(data3) <- c("År","Togt","Tur","Station","Beskrivelse","Tidspunkt")
+  
+    if (nrow(data3)>0){
+      a <- data3 %>% 
+        kable(booktabs = T,longtable=T,) %>% 
+        kable_styling(latex_options = c("striped","repeat_header"),
+                      repeat_header_text = sprintf("\\textit{%s, fortsat}",text),
+                      repeat_header_continued = "\\textit{Fortsættes}",
+                      full_width = T) %>%
+        row_spec(0, bold=T,angle = 0) %>% 
+        column_spec(2,width = "3cm") %>% 
+        column_spec(5,width = "7cm") %>% 
+        column_spec(6,width = "2cm")
+    } else{
+      
+      a <- sprintf("Ingen %s blev fundet i loggen.",tolower(text))
+      
+      }
+  
+  return(a)
+}
+```
+
+
+```{r getdata, echo=FALSE, message=FALSE, warning=FALSE}
+
+
+channel <- odbcConnect("FishLineDW")
+data <- sqlQuery(channel, sprintf("SELECT  [transferErrorId]
+      ,[errorType]
+      ,[cruiseId]
+      ,[origin]
+      ,[recordType]
+      ,[recordTypeId]
+      ,[description]
+      ,[logTime]
+  FROM [FishLineDW].[dbo].[ErrorLog]
+
+  where origin like '%s->BV%s'",year,"%"), stringsAsFactors=FALSE) 
+
+close(channel)
+
+
+
+#If want to selcet by trip: Sample.trip = ('",trip,"') AND
+
+if (nrow(data)>0){
+  data2 <- data %>% 
+  mutate(year = as.numeric(str_split(origin,pattern = "->",simplify = T)[,1]),
+         cruise = trimws(str_split(origin,pattern = "->",simplify = T)[,2]),
+         trip = trimws(str_split(origin,pattern = "->",simplify = T)[,3]),
+         station = trimws(str_split(origin,pattern = "->",simplify = T)[,4]))
+}
+
+```
+
+\subsection{Advarsler i overførsel til datawarehouse}
+```{r warnings, echo=F, results='asis', warning = F, error = F, message = F}
+if (nrow(data)>0){
+  w <- makeTable("Warning","Advarsler")
+  cat(w)
+  } else{cat("Ingen advarsler blev fundet i loggen.")}
+```
+
+\subsection{Fejlmeddelelser i errorloggen}
+```{r errors, echo=F, results='asis', warning = F, error = F, message = F}
+if (nrow(data)>0){
+  er <- makeTable("Error","Fejlmeddelelser")
+  cat(er)
+  } else{cat("Ingen fejlmeddelelser blev fundet i loggen.")}
+```

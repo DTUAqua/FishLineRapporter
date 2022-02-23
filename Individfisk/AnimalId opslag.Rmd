@@ -1,0 +1,122 @@
+---
+fontsize: 12pt
+geometry: top=2cm, bottom=1.2cm, left=1.5cm, right=1.5cm
+header-includes:
+- \usepackage{booktabs}
+- \usepackage{longtable}
+- \usepackage{floatrow}
+- \usepackage[T1]{fontenc}
+- \usepackage[danish]{babel}
+- \usepackage[utf8]{inputenc}
+- \usepackage{graphicx}
+- \floatsetup[table]{capposition=top}
+- \usepackage[table]{}
+- \usepackage{ragged2e}
+- \usepackage{catchfile}
+- \usepackage{array}
+- \usepackage[export]{adjustbox}
+- \usepackage{multirow}
+- \linespread{1.15}
+- \usepackage{tabularx}
+- \usepackage{tcolorbox}
+- \usepackage{lipsum}
+- \usepackage{pbox}
+- \usepackage{tabu}
+output:
+  pdf_document: default
+word_document: default
+---
+  
+  \renewcommand{\familydefault}{\sfdefault}
+\sffamily
+
+
+```{r define_input, echo=FALSE}
+#options(kableExtra.latex.load_packages = FALSE,knitr.kable.NA = '', scipen = 999)
+
+#Parameters
+ from <- @paramFrom
+ to <- c(@paramTo)
+
+#from <- 6000000
+#to <- 6000300
+
+from <- as.numeric(as.character(from))
+to <- ifelse(is.null(to),NA, as.numeric(as.character(to)))
+
+
+range <- ifelse(is.na(to), 
+                sprintf("= %s",from), 
+                sprintf("between %s and %s",from, to))
+```
+
+
+
+
+```{r set_libraries, include=FALSE}
+
+#Libraries
+if (!require(pacman)) {
+  install.packages("pacman", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(pacman)
+}
+p_load(knitr,RODBC,dplyr,kableExtra)
+
+
+
+
+```
+
+\section{Resultat}
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE,results='asis'}
+
+query <- sprintf("SELECT a.animalId, 
+a.year, a.cruise, a.trip, a.station,s.stationName,s.labJournalNum,a.sizeSortingEU,a.individNum,a.speciesCode,age.age
+
+from Animal a
+left join Sample s
+on a.year = s.year and
+a.cruise = s.cruise and
+a.trip = s.trip and
+a.station = s.station
+left join Age age
+on a.year = age.year and
+a.cruise = age.cruise and
+a.trip = age.trip and
+a.station = age.station and
+a.animalId = age.animalId
+
+where a.animalId %s",range)
+
+if (is.na(to) | (to - from) <= 500){
+  
+  channel <- odbcConnect("FishLineDW")
+  data <- sqlQuery(channel, query, stringsAsFactors=FALSE) 
+  close(channel)
+  
+  
+  if (nrow(data)>0){
+    
+  colnames(data) <- c("animalId","År","Togt","Tur","Station","Stationsnavn",
+                      "Journal","Sortering","IndividNum","Art","Alder")
+  
+  data %>% 
+    arrange(animalId) %>% 
+    kable(booktabs = T,longtable=T,) %>% 
+    kable_styling(latex_options = c("striped","repeat_header"),
+                  repeat_header_text = "\\textit{Fortsat}",
+                  repeat_header_continued = "\\textit{Fortsættes}",
+                  full_width = F) %>% 
+    row_spec(0, bold=F, align = "c")
+ 
+  } else{print("Ingen fisk kunne findes.")}
+ 
+} else{ print("Du har indtastet et spænd i animalIds på mere end 500.")}
+
+
+
+```
+
+
+<!-- animalIdLookup -->
