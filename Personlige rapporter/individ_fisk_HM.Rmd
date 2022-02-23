@@ -38,9 +38,9 @@ p_load(kableExtra, sqldf, RODBC, dplyr, lubridate, data.table)
 # species <- c(@paramSpecies)
 
 # Paramters to use in R
-y1 <- 2020
+y1 <- 2021
 y2 <- 2021
-species <- c("TOR", "SIL")
+species <- c("TBM")
 
 
 ```
@@ -74,8 +74,7 @@ dat <- sqlQuery(channel,
                       Trip ON Sample.tripId = Trip.tripId LEFT OUTER JOIN
                       Age ON Animal.animalId = Age.animalId
             WHERE     (Sample.year between ",y1," and ",y2," ) AND 
-                      (SpeciesList.speciesCode IN ('", paste(species,collapse = "','"),"')) AND 
-                      (Animal.individNum > 0)
+                      (SpeciesList.speciesCode IN ('", paste(species,collapse = "','"),"'))
             ORDER BY  Sample.dateGearStart
                       ", sep = ""))
                      
