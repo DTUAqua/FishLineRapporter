@@ -1,7 +1,7 @@
 # Create R_StockSpeciesSpaceTime
 
-Existing relation: 
-Using the Existing relation:
+Existing relation: ./Lookup and relational tables/R_StockSpeciesSpaceTime/oldStuff/GetStock_v1_2.R
+Using the Existing relation: ./Lookup and relational tables/R_StockSpeciesSpaceTime/oldStuff/landings_per_stock.R
 
 ## Check and update existing lookups
 1.	L_DFUArea - areaICES on all DFUArea
