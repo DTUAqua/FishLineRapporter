@@ -1,29 +1,13 @@
 ---
+header-includes:
+- \usepackage{tabularx}
+- \usepackage{booktabs}
+- \usepackage{longtable}
+output:
+  pdf_document:
+    latex_engine: xelatex
   fontsize: 12pt
 geometry: top=0.2cm, bottom=1.2cm, left=0.5cm, right=0.5cm
-header-includes:
-  - \usepackage{booktabs}
-- \usepackage{longtable}
-- \usepackage{floatrow}
-- \usepackage[T1]{fontenc}
-- \usepackage[danish]{babel}
-- \usepackage[utf8]{inputenc}
-- \usepackage{graphicx}
-- \floatsetup[table]{capposition=top}
-- \usepackage[table]{xcolor}
-- \usepackage{ragged2e}
-- \usepackage{catchfile}
-- \usepackage{array}
-- \usepackage[export]{adjustbox}
-- \usepackage{multirow}
-- \linespread{1.15}
-- \usepackage{tabularx}
-- \usepackage{tcolorbox}
-- \usepackage{lipsum}
-- \usepackage{pbox}
-output:
-  pdf_document: default
-word_document: default
 ---
   
   \renewcommand{\familydefault}{\sfdefault}
@@ -32,15 +16,21 @@ word_document: default
 
 ```{r define_input, echo=FALSE}
 
+
 #Parameters
-year <- @paramYear
-cruise <- @paramCruise
-trip <- @paramTrip
-station <- @paramStation
-journal <- @paramJournal 
-species <- @paramSpecies
+# year <- @paramYear
+# cruise <- @paramCruise
+# trip <- @paramTrip
+# station <- @paramStation
+# journal <- @paramJournal 
+# species <- @paramSpecies
 
-
+year <- 2020
+cruise <- 'IBTS-1'
+trip <- '1'
+station <- '64'
+journal <- ""
+species <- "KUL"
 ```
 
 
@@ -57,10 +47,21 @@ if (!require(RODBC)) {
   install.packages("RODBC", repos="http://ftp.ussg.iu.edu/CRAN/")
   library(RODBC)
 }
-if (!require(xtable)) {
-  install.packages("xtable", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(xtable)
+if (!require(knitr)) {
+  install.packages("knitr", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(knitr)
 }
+if (!require(kableExtra)) {
+  install.packages("kableExtra", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(kableExtra)
+}
+if (!require(tinytex)) {
+  install.packages("tinytex", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(tinytex)
+}
+
+
+# knit_hooks$set(document = function(x) {sub('\\usepackage[]{color}', '\\usepackage[table]{xcolor}', x, fixed = TRUE)})
 
 ```
 
@@ -69,9 +70,9 @@ if (!require(xtable)) {
 
 channel <- odbcConnect("FishLineDW")
 data <- sqlQuery(channel, paste("SELECT     Animal.animalId, Animal.year, Animal.cruise, Animal.trip, Animal.tripType, 
-                                Animal.station, Animal.dateGearStart,Animal.dfuArea, Animal.statisticalRectangle,
+                                Animal.station, Animal.dateGearStart, Animal.dfuArea, Animal.statisticalRectangle,
                                 Animal.speciesCode, Animal.landingCategory, 
-                                Animal.representative, Animal.sizeSortingEU as sorting,
+                                Animal.representative, Animal.sizeSortingEU as sorting, Animal.sizeSortingDFU as opdeling, 
                                 Animal.individNum, Animal.number, Animal.length, Animal.weight, Animal.sexCode, 
                                 Animal.maturityIndex, Age.age, Sample.labJournalNum,Trip.harbourLanding as havn
                                 FROM       Animal INNER JOIN
@@ -82,18 +83,16 @@ data <- sqlQuery(channel, paste("SELECT     Animal.animalId, Animal.year, Animal
                                 WHERE      (Animal.year = (",year, ") AND 
                                 Animal.trip = ('",trip,"') AND
                                 Animal.cruise = ('",cruise,"') AND
-                                Animal.station = (",station, ") AND
+                                Animal.station = ('",station, "') AND
                                 Animal.speciesCode = ('",species, "') AND
-                                Animal.individNum != 0  ) " ,sep=""), stringsAsFactors=FALSE)                        
+                                Animal.individNum != 0  ) " ,sep=""), as.is = TRUE)                        
 close(channel)
+
+data$weight <- as.numeric(data$weight)
 
 date <- format(as.Date(data$dateGearStart[1]), "%d-%m-%Y")
 
 ```
-
-
-
-
 
 
 ```{r, echo=FALSE, include=FALSE, cache=FALSE, warning=FALSE}
@@ -101,65 +100,90 @@ date <- format(as.Date(data$dateGearStart[1]), "%d-%m-%Y")
 ##make tex-table 1
 
 
-data[21][is.na(data$labJournalNum),] <- "-"; journal <- data$labJournalNum[1]
-data_table <- data[c("sorting", "individNum","length","weight","age","sexCode","maturityIndex","animalId")]
+data$labJournalNum[is.na(data$labJournalNum)] <- "-" 
+journal <- data$labJournalNum[1]
+data_table <- data[c("sorting", "opdeling", "individNum","length","weight","age","sexCode","maturityIndex","animalId")]
 data_table2 <- data_table[order(data_table$sorting,data_table$individNum) ,]
 data_table2$comment <- ""
 data_table2[data_table2=="FALSE"] <- ""
 
+data_table2[is.na(data_table2)] <- "-"
 
-tbl <- xtable(data_table2)
-digits(tbl) <- c(0,0,0,0,3,0,0,0,0,0)
-print(tbl,
-      only.contents=TRUE,
-      include.rownames=FALSE,
-      include.colnames=FALSE,
-      type="latex",
-      file="tblout.tex")
+```
+
+```{r}
+
+
+# \setlength{\tabcolsep}{20pt}
+# \renewcommand{\arraystretch}{1.2}
+# \begin{tabularx}{\textwidth}{ l l l l l l}
+# \textbf{Togt:} `r cruise`  & \textbf{Tur:} `r trip` & \textbf{Station:} `r station` & \textbf{Type:} `r data$tripType[1]` & \textbf{Dato:} `r date`\\
+# \textbf{Art:} `r species`  & \textbf{Journal:} `r journal` & \textbf{Område:} `r data$dfuArea[1]` & 
+#   \textbf{Square:} `r data$statisticalRectangle[1]` & \textbf{Havn:} `r data$havn[1]` \\
+# \end{tabularx}
+# 
+# \vspace{0.5cm}
+
+```
+
+
+
+
+```{r,  echo = F, results = "asis", eval = T}
+
+
+kableExtra::kable(
+    data_table2,
+    longtable = T,
+    row.names = F,
+    col.names = c(
+      "Sort.",
+      "Opdel.",
+      "IndividNum",
+      "Længde",
+      "Vægt",
+      "Alder",
+      "Køn",
+      "Moden.",
+      "aninalId",
+      "Kommentar"
+    ),
+    vline = ""
+  ) %>%
+kable_styling(full_width = F, position = "center") %>%
+  column_spec(column = 1:9, width_max = "1cm") %>%
+  column_spec(column = 10, width_min = "2cm") 
 
 
 ```
 
 
 
-\setlength{\tabcolsep}{20pt}
-\renewcommand{\arraystretch}{1.2}
-\begin{tabularx}{\textwidth}{ l l l l l l}
-\textbf{Togt:} `r cruise`  & \textbf{Tur:} `r trip` & \textbf{Station:} `r station` & \textbf{Type:} `r data$tripType[1]` & \textbf{Dato:} `r date`\\
-\textbf{Art:} `r species`  & \textbf{Journal:} `r journal` & \textbf{Område:} `r data$dfuArea[1]` & 
-  \textbf{Square:} `r data$statisticalRectangle[1]` & \textbf{Havn:} `r data$havn[1]` \\
-\end{tabularx}
+```{r, results = "asis", eval = F}
 
+library(xtable)
 
+options(xtable.comment = FALSE)
 
+print(
+  xtable(
+      x = data_table2
+      #align = c("l", rep("L{1cm}", ncol(data_table2)))
+  ),
+  
+  #table.placement = "H",
+  include.rownames = F,
+  include.colnames = TRUE,
+  booktabs = T,
+  #tabular.environment = c("tabularx"),
+  tabular.environment = "tabularx",
+  width="\\textwidth" #,
+  # floating = FALSE,
+  #scalebox='0.75'
+  
+)
 
-\vspace{0.5cm}
-
-\CatchFileDef{\tabmacro}{tblout}{}
-
-\newcommand\B{\rule[-1.2ex]{0pt}{0pt}} % Bottom strut
-
-\definecolor{lightgray}{gray}{0.85}
-\setlength\LTleft{0.5cm}
-\setlength\LTright{0pt}
-\setlength{\tabcolsep}{0.8em}
-\renewcommand{\arraystretch}{1.1}
-\rowcolors{3}{}{lightgray}
-\begin{longtable}{l|r|r|r|l|l|l|l|p{3cm}@{} l}
-\hline
-\rule{0pt}{4ex}
-\centering
-\pbox{8cm}{\textbf{Sortering} \\  } & \pbox{8cm}{\textbf{Individ} \\ \textbf{fisk}} & \pbox{8cm}{\textbf{Længde} \\ \textbf{(mm)}} & \pbox{8cm}{ \textbf{Vægt} \\ \textbf{(kg)}} & \pbox{8cm}{\textbf{Alder} \\ }
-& \pbox{8cm}{\textbf{Køn} \\} & \pbox{8cm}{\textbf{Modenhed} \\ } & \pbox{8cm}{\textbf{ID} \\} &  \pbox{8cm}{\textbf{Kommentar} \\}   \\[0.3cm]
-
-\hline
-\endhead
-
-
-\tabmacro
-
-\end{longtable}
-
+```
 
 
 
