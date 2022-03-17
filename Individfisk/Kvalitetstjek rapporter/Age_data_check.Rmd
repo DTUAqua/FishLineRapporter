@@ -135,6 +135,9 @@ age_fish <- merge(age, merged, by = c("animalId" ,"year", "cruise","trip", "stat
 # write.csv2(age_fish, file = "Q:/dfad/users/jostou/home/21_11_11_Julie_reports/results/table.csv",
 #            quote = FALSE, row.names = FALSE, na = '')
 
+age_fish <- age_fish %>% relocate(c(number, weight), 
+                        .before = length_mm)
+
 write.csv(age_fish, paste0("age_fish_", format(Sys.Date(), "%d%m%y"), ".csv"),
             quote = FALSE, row.names = FALSE, na = '')
 
