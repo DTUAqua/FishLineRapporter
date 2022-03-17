@@ -98,7 +98,7 @@ age <- sqlQuery(channel, paste("SELECT   animalId, individNum, year,
                                 			        ", sep = ""))
 
 animal <- sqlQuery(channel, paste("SELECT     animalId, year, 
-                                              cruise, trip, station, speciesCode, speciesListId,
+                                              cruise, trip, station, speciesCode, speciesListId, weight,
                                               remark AS remark_animal
                                      FROM     animal
                                      WHERE    (speciesCode IN ('", paste(species,collapse = "','"),"')) AND 
