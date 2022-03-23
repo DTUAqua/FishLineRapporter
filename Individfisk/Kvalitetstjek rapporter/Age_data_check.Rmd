@@ -92,8 +92,7 @@ age <- sqlQuery(channel, paste("SELECT   animalId, individNum, year,
                                   	  	      (dfuArea IN ('", paste(areas,collapse = "','"),"')) AND 
                                               (year between ",y1," and ",y2," ) AND
                                               (cruise IN ('", paste(cruise,collapse = "','"),"')) AND
-                                              (individNum != 0) AND
-                                              (age != 0)
+                                              (individNum != 0) 
                                   	 ORDER BY dateGearStart
                                 			        ", sep = ""))
 
@@ -121,6 +120,8 @@ speciesList <- sqlQuery(channel, paste("SELECT    year,
                                      ORDER BY dateGearStart
                                 			        ", sep = ""))
 close(channel)
+
+age <- age[!is.na(age$age), ]
 
 merged <- merge(animal, speciesList, by = c("year", "cruise","trip", "station", "speciesCode", "speciesListId"))
 merged$speciesListId <- NULL
