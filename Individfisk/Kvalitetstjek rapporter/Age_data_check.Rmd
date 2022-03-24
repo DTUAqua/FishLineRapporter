@@ -121,7 +121,7 @@ speciesList <- sqlQuery(channel, paste("SELECT    year,
                                 			        ", sep = ""))
 close(channel)
 
-age <- age[!is.na(age$age), ]
+age <- age[!is.na(age$otolithReadingRemark), ]
 
 merged <- merge(animal, speciesList, by = c("year", "cruise","trip", "station", "speciesCode", "speciesListId"))
 merged$speciesListId <- NULL
@@ -141,6 +141,10 @@ age_fish <- age_fish %>% relocate(c(number, weight),
 
 write.csv(age_fish, paste0("age_fish_", format(Sys.Date(), "%d%m%y"), ".csv"),
             quote = FALSE, row.names = FALSE, na = '')
+
+
+#get rid of records where the otolith could not be read, to make analysis esier
+age_fish <- age_fish[!is.na(age_fish$age), ]
 
 ```
 
