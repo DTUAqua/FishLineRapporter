@@ -381,11 +381,11 @@ fun <- function(i) {
  #estimate the prediction interval, with evenly generated numbers based on data range
  sim.dat = seq(min(old$log_length), max(old$log_length), length.out=nrow(old))
  preds <- predict(mod1, newdata = data.frame(log_length=sim.dat), 
-                  level=0.999, interval = 'prediction')
+                  level=0.999999, interval = 'prediction')
  
  #put the "new"/relevant data trough the model made with the old data, to see how well it follows the given trend
  preds2 <- predict(mod1, newdata = data.frame(log_length=new$log_length), 
-                   level=0.999, interval = 'prediction')
+                   level=0.999999, interval = 'prediction')
  #select data within the preiction interval, and thereby finding outliers
  insideInterval <- new[new$log_weight > preds2[,'lwr'] & new$log_weight < preds2[,'upr'], ] 
  
