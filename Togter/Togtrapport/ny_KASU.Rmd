@@ -23,7 +23,7 @@ if (!require(pacman)){
 p_load(kableExtra, sqldf, RODBC, dplyr)
 
 #special for this script
-p_load(data.table, mapplots, shapefiles, officer)
+p_load(data.table, mapplots, shapefiles, maptools, ggplot2, plyr)
 
 ```
 
@@ -37,15 +37,28 @@ weather <- @paramWeather
 gear <- @paramGear
 oxygen <- @paramOxygen
 
-# year <- 2020 
+# year <- 2021
 # cruise <- "KASU-2"
 # exDate <- "2020-11-06"
 # weather <-""
 # gear <- ""
 # oxygen <- ""
+
+weather <- ifelse(weather == "", "No Remarks on the Weather conditions")
+gear <-ifelse(gear == "", "No remarks on the Gear performance")
+oxygen <- ifelse(oxygen == "", "No remarks on the Oxygen conditions")
+
+#get shapefiles for the map
+# invisible(coast <- read.shapefile('Q:/gis/Dynamisk/GEOdata/BasicLayers/CoastLines/Europe/europe'))
+# invisible(dk_eez <- read.shapefile('Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/EEZ/LandAndSea/eez_dk_LandAndSea_2019'))
+
+invisible(coast <- read.shapefile('europe'))
+invisible(dk_eez <- read.shapefile('eez_dk_LandAndSea_2019'))
 ```
 
 ```{r get_data, include=FALSE}
+
+#get data from fishline data base
 
 channel <- odbcConnect("FishLine")
 
@@ -63,10 +76,6 @@ trips <- sqlQuery(channel, paste("SELECT    cruiseId, trip, tripId, tripType, da
                                    		      ", sep = ""))
 
 close(channel)
-
-
-tripID <- trips$tripId
-species <- c("TOR", "RSP", "TNG")
 
 channel <- odbcConnect("FishLineDW")
 
@@ -92,15 +101,13 @@ sp_lst <- sqlQuery(channel, paste("SELECT    year, cruise, trip, tripType, stati
                                   	  	     cruise = ('",cruise,"') 
                                 			       ", sep = ""))
 
-animal <- sqlQuery(channel, paste("SELECT     animalId, year, 
-                                              cruise, trip, station, dfuArea AS area, speciesCode,
-                                              number, weight
-                                     FROM     animal
-                                     WHERE    (speciesCode IN ('", paste(species,collapse = "','"),"')) AND 
-                                              year = (",year,") AND
-                                              cruise = ('",cruise,"')
-                                        ORDER BY dateGearStart
-                                			        ", sep = ""))
+cod_lst <- sqlQuery(channel, paste("SELECT    year, cruise, trip, tripType, station, dfuArea, 
+                                             speciesCode, length, numberTotalPerLength
+                                   FROM      AnimalRaised
+                                   WHERE     year = (",year,") AND
+                                  	  	     cruise = ('",cruise,"') AND 
+                                  	  	     speciesCode = ('","TOR","') 
+                                			       ", sep = ""))
 
 names <- sqlQuery(channel, paste("SELECT   speciesCode, ukName, dkName, latin
                                     FROM   L_Species"
@@ -113,6 +120,7 @@ close(channel)
 
 ```{r format_for_front_page, include=FALSE}
 
+#here the information is formatted to be inserted directly into the later latex part.
 ship <- ifelse(cruise %like% "KASU", "Havfisken", "DANA")
 
 start_date <- as.Date(trips$dateStart)
@@ -145,19 +153,19 @@ titl <- ifelse(cruise %like% "KASU", "BITS/KASU", "BITS")
 \vspace*{4.5cm}
 
 \textbf{\Huge `r titl` `r quarter`Q `r year`}\
-
+\vspace*{0.2cm}
+\textit{\textbf{\large Baltic International Trawl Survey}}\
 \vspace*{1cm}
 
 \textbf{\Huge `r ship`}
 
-\vspace*{0.3cm}
+\vspace*{0.2cm}
 
 \textbf{\Huge Denmark}
 
 \vspace*{0.5cm}
 
 \textbf{\large Cruise no. `r cruise_no`}\
-
 \textbf{\large From `r start_date` to `r end_date`}
 
 
@@ -237,7 +245,7 @@ Staff and crew Exchange & `r exDate`      &               \\ \bottomrule
 
 \subsection{Participants}
 ```{r format_crew list, echo=FALSE, results='asis'}
-
+#read in the uploaded csv file with participants and output it to the report
 participants <- read.csv2("participants.csv") 
 
 ind1 <- range(which(participants$Leg == 1))
@@ -257,35 +265,23 @@ participants[2:4] %>%
 
 
 \section{Objectives}
-```{r format_objective, include=FALSE}
-
-if (titl == "BITS/KASU"){
-  objective1 <- "To describe the existence of fish in Kattegat, Øresund, Storebælt, Lillebælt and the Western Baltic based on their occurrence in test trawl. The fishery in ICES araes 22 and 23 are a part of the IBTS survey./ At beskrive udbredelsen af fisk i Kattegat, Øresund, Storebælt, Lillebælt og den Vest-lige Østersø ud fra forekomst i forsøgstrawl. Fiskeriet i område 22 og 23 er en del af BITS."
-  
-  objective2 <- "To collect biological data regarding age, weight and maturity from subsamples of the catch from selected species./ At indsamle biologisk materiale vedr. alder, vægt og modenhed fra stikprøver fra fangsten af udvalgte arter."
-  
-  objective3 <- "Recording of hydrographic data with CTD./Opsamling af hydrografidata med CTD."
-} else{
-  
-  objective1 <- ""
-  
-  objective2 <- ""
-  
-  objective3 <- ""
-}
-```
 
 \begin{itemize}
-    \item `r objective1`
+    \item To describe the existence of fish in Kattegat, Øresund, Storebælt, Lillebælt and the Western Baltic based on their occurrence in test trawl. The fishery in ICES araes 22 and 23 are a part of the IBTS survey./ At beskrive udbredelsen af fisk i Kattegat, Øresund, Storebælt, Lillebælt og den Vest-lige Østersø ud fra forekomst i forsøgstrawl. Fiskeriet i område 22 og 23 er en del af BITS.
     
-    \item `r objective2`
+    \item To collect biological data regarding age, weight and maturity from subsamples of the catch from selected species./ At indsamle biologisk materiale vedr. alder, vægt og modenhed fra stikprøver fra fangsten af udvalgte arter.
     
-    \item `r objective3`
+    \item Recording of hydrographic data with CTD./Opsamling af hydrografidata med CTD.
 \end{itemize}
 
 
 \section{This Survey}
-
+During the cruise, apart from recording a complete set of factual
+information concerning haul information, gear performance, catch
+results, hydrographic information etc., the cruise leader keeps a
+logbook taking notes about circumstances (unusual gear performance,
+special catches, non-conformities etc. during the survey. The haul
+summary below is the overview from this logbook.
 \subsection{Stations}
 
 `r nrow(samples)` hauls were conducted during the survey. The positions off all hauls are presented in the map in Fig. 1.
@@ -303,35 +299,35 @@ if (titl == "BITS/KASU"){
 
 ```{r station_plot, echo=FALSE, results='asis', cache=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=12}
 
-invisible(coast <- read.shapefile('europe'))
-invisible(dk_eez <- read.shapefile('eez_dk_LandAndSea_2019'))
-
+#define the map outline
 if (titl == "BITS/KASU"){
 ylim <- c(54,57.8)
 xlim <- c(9.5,13.5)
 
 }
 
-samples$legend <- ifelse(samples$gearType == "TV3" & samples$gearQuality == "V", "Valid TV3", "Invalid")
-samples$legend <- ifelse(samples$gearType == "OTB" & samples$gearQuality == "V", "Valid OTB", samples$legend)
+invalid <- samples[samples$gearQuality != "V", ]
 
-samples$legend <- as.factor(samples$legend)
-
+#make the plot using the mapplots pakage
 p1 <- basemap(xlim, ylim, main = paste0(titl, " ",  quarter, "Q ", year))+
               draw.shape(coast, col="cornsilk")+
               draw.shape(dk_eez, col="transparent", border = "red")+
               draw.rect()+
-              points(samples$lonPosStartDec, samples$latPosStartDec, col=samples$legend, pch = 16, cex = 1.5)+
-              text(samples$lonPosStartDec, samples$latPosStartDec, samples$stationName, pos=2)
-legend("bottomright", legend=unique(samples$legend),
-                    col=unique(samples$legend), pch=16, cex = 1.5)
+              points(samples$lonPosStartDec, samples$latPosStartDec, col="green", pch = 16, cex = 1.5)
+              points(invalid$lonPosStartDec, invalid$latPosStartDec, col="black", pch = 16, cex = 1.5)
+              pointLabel(x=samples$lonPosStartDec,  y= samples$latPosStartDec,
+                         labels=as.character(samples$stationName),
+                         cex=1,offset=-1, allowSmallOverlap = FALSE)
+              legend("bottomright", legend=c(paste0("Valid ", unique(samples$gearType)), "Invalid"),
+                  col=c("green", "black"), pch = 16, cex=1.5, bg='white')
 ```
-
+Figure 1. Survey map with trawl stations.
 \newpage
-\section{catch}
+\section{Catch}
 
 ```{r format_catch list, echo=FALSE, results='asis'}
 
+#format information to directly be inputed to latex table
 total_w <- as.character(round(sum(sp_lst$weightTotal), digits = 1))
 total_n <- as.character(round(sum(sp_lst$numberTotal), digits = 0))
 
@@ -343,10 +339,13 @@ plaice_n <- as.character(round(sum(sp_lst[sp_lst$speciesCode == "RSP", "numberTo
 
 sole_w <- as.character(round(sum(sp_lst[sp_lst$speciesCode == "TNG", "weightTotal"]), digits = 1))
 sole_n <- as.character(round(sum(sp_lst[sp_lst$speciesCode == "TNG", "numberTotal"]), digits = 0))
+
+area <- unique(sp_lst$dfuArea)
+a <- chartr("123456789", "ABCDEFGHI", c(1:length(area)))
 ```
 
-The total catch of all species, cod, plaice and sole are presented below.
-The total catch per species per ICES area are presented in table 1-`r length(unique(sp_lst$dfuArea))`.
+\subsection{Overview}
+The total catch of all species, cod, plaice and sole are presented below. followed by a length frequency plot for COD caught in each area shown in figure 2 `r a`.
 
  \vspace{0.2cm}
 
@@ -363,10 +362,44 @@ Sole        & `r sole_w`   & `r sole_n`   \\ \bottomrule
 }
 \end{table}
 
-\setcounter{table}{0}
+```{r COD length frequency,echo=FALSE, results='asis', cache=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=7}
+jj = 0
+for (j in area[1:length(area)]) {
+jj = jj + 1
 
+dat <- setDT(cod_lst[cod_lst$dfuArea == j, ])  
+
+# get the frequency of age by length
+freq <- dat[ ,. (frequency = sum(numberTotalPerLength)),
+             by = (length)]
+
+x_range <- round_any(seq(range(freq$length)[1], range(freq$length)[2], length.out = 5), 10)
+# Stacked barplot with multiple groups
+p2 <- ggplot(freq, aes(x=length, y=frequency)) +
+        geom_bar(stat="identity")+
+        theme_bw() +
+        labs(x = "Length [mm]", y = "Frequency in Nr")+
+        ggtitle(paste0(a[jj],", cod - Area ", j, " - Histogram of Length by Age"))+
+        theme(plot.title = element_text(hjust = 0.5))+
+        scale_x_continuous(breaks=x_range)+
+        theme(axis.title = element_text(size=16),
+              plot.title = element_text(size=16),
+               axis.text.x = element_text(angle = 45, hjust=1, size=14),
+               axis.text.y = element_text(size=14))
+
+plot(p2)
+}
+```
+Figure 2 `r a`. Length frequency of the COD caught in the respective areas.
+\newpage
+\subsection{Species Cought}
+\setcounter{table}{0}
+The total catch per species per ICES area are presented in table 1-`r length(unique(sp_lst$dfuArea))`.
+ \vspace{0.2cm}
+ 
 ```{r format_species list, echo=FALSE, results='asis'}
 
+#aggregate the raised species list, to make an overview of species couhgt 
 setDT(sp_lst)
 
 sp <- sp_lst[ ,. (number = round(sum(numberTotal, na.rm = T), digits = 0), 
@@ -378,15 +411,17 @@ sp[sp$number == 0, "number"] <- NA
 
 sp2 <- merge(names, sp, by = "speciesCode")
 
+#exclude the litter rows
 sp2 <- sp2[!sp2$speciesCode %in% c("AF1", "AF2", "AF3", "AF4", "AF5"), ]
 
-
+#make table in loop, one table pr area
 area <- unique(sp2$dfuArea)
 
 for (i in area[1:length(area)]) {
   
   dat <- sp2[sp2$dfuArea == i, ]
   
+  #format which column we would like, and their order 
   dat <- dat[ , c("latin", "ukName", "dkName", "number", "weight")]
   
   print(dat %>%
