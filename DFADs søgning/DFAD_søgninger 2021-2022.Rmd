@@ -47,21 +47,20 @@ v_fid <- str_replace_all(v_fid, fixed(" "), "")
 #param_filter <- c("Fartøj_og_Landingsdato") # Fartøj, Fartøj_og_Landingsdato, Logbogs_nr
 #v_ldato <- c("2020-08-26")
 #v_year <- c("2020")
-#v_fid <- c("KE321")
+v_fid <- c("KE321")
 #art_out <- c("NAN")
-#FirstDate <-c("2020-07-25")
-#LastDate <-c("2020-07-27")
-#v_match <- c("0002906716")
+FirstDate <-c("2020-07-25")
+LastDate <-c("2020-07-27")
+v_match <- c("0002906716")
 
 
 ```
 
 ```{r import_data, echo=FALSE, cache = FALSE}
 
-dfad <- readRDS("<dfad-path>/dfad.rds")
-#dfad <- readRDS("//fishline.dtuaqua.dk/dfad-share/dfad.rds")
-# testfile <- read.csv("<dfad-path>/test.csv",sep=";",header=TRUE)
-# head(testfile)
+#dfad <- readRDS("<dfad-path>/dfad.rds")
+dfad <- readRDS("Q:/dfad/users/jostou/home/FishLineRapporter/DFADs søgning/dfad.rds")
+
 
 ```
 

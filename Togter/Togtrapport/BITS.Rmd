@@ -239,7 +239,13 @@ close(channel)
 
 quarter <- data1$quarter  
 
-channel <- odbcConnect("DanaDBDW") # OR "DanaDBDW"/"DanaDB_DW"
+server <- "10.55.102.161"
+db_name<- "DanaDB_DW"
+username <- "sa"
+MyPassword <- "dfudfu"
+connectionString <- paste0("DRIVER={SQL Server}; server=",server,"; database=",db_name,"; uid=",username,"; pwd=",MyPassword, sep="")
+channel <-  odbcDriverConnect(connection=connectionString)
+channel <- odbcConnect("DanaDB_DW") # OR "DanaDBDW"/"DanaDB_DW"
 CruiseSIS <- sqlQuery(channel, paste("SELECT     cruiseID, shipCode, cruiseYear, cruiseNo, cruiseDays, cruiseName, startDate
                                       FROM       CruiseInformation
                                       WHERE      (cruiseYear = ",year,") AND 

@@ -192,13 +192,13 @@ hlca_a <- sqlQuery(channel, paste0(
   an.representative, an.individNum, an.length,
   an.lengthMeasureUnit, an.sexCode, an.number AS Animal_number,
   an.weight, an.maturityIndex, an.maturityIndexMethod, a.age,
+  a.number AS Age_Number,
   
   an.animalId, 
   
   an.parasiteCode, an.remark, a.otolithReadingRemark, a.genetics,
-  an.weightLiver, an.weightGonads, an.weightGutted,
+  an.weightLiver, an.weightGonads, an.weightGutted
   
-  a.number AS Age_Number
   FROM    [FishLineDW].[dbo].[Age] AS a RIGHT OUTER JOIN
   [FishLineDW].[dbo].[Animal] AS an RIGHT OUTER JOIN
   [FishLineDW].[dbo].[SpeciesList] AS sl ON an.speciesListId = sl.speciesListId
@@ -217,6 +217,8 @@ FROM     [FishLineDW].[dbo].[R_AnimalReference]
 WHERE  (referenceName IN ('TOM', 'BRÆK'))"), stringsAsFactors=FALSE) 
 
 hlca_a <- merge(hlca_a, hlca_a_2, all.x = T)
+
+
 
 # COLLECT SPECIES INFO ########################################################
 
@@ -258,7 +260,7 @@ hlca <- hlca_a
 if (any(v_cruise %in% c("IBTS-1", "IBTS-2"))) {survey <- "NS-IBTS"}
 if (any(v_cruise %in% c("BITS-1", "BITS-2"))) {survey <- "BITS"}
 if (any(toupper(v_cruise) %in% c("KASU-1", "KASU-2","FISHHABIT"))) {survey <- "KASU"}
-if (any(toupper(v_cruise) %in% c("TUNGER"))) {survey <- "TN" }
+if (any(toupper(v_cruise) %in% c("TUNGER", "Tunger"))) {survey <- "TN" }
 if (any(toupper(v_cruise) %in% c('2262-TORSK', 'TORSK'))) {survey <- 'TOR' }
 if (any(toupper(v_cruise) %in% c('E349', 'E562', 'L151', 'R500', 'L610',
                         # 'Reyklanes','Reykjanes',
@@ -366,8 +368,13 @@ if (survey %in% c("BITS","NS-IBTS","KASU")) {
   # then DayNight = D(ay) else N(ight) - with sun_int af buffer
   hh1_c$DayNight <- ifelse(hh1_c$sunRiseGMTint <= hh1_c$DN_check &
                              hh1_c$DN_check <= hh1_c$sunSetGMTint, "D", "N")
-
-
+  
+  # ldie - ændret den 04/04/2022
+} else if (survey %in% c("TBM")) {
+  
+  hh1_c <- hh1_b
+  hh1_c$DayNight <- "N"
+  
 } else {
   # If not want day/night variable
   hh1_c <- hh1_b
@@ -410,7 +417,14 @@ hh2[hh2$survey == "KASU"  & hh2$year < 2016, "ship"] <- "HAF"
 hh2[!(hh2$survey %in% c("NS-IBTS","KASU","BITS")), "ship"] <-
   hh2[!(hh2$survey %in% c("NS-IBTS", "KASU", "BITS")),]$platform1
 
-
+if (survey %in% c("TBM")) {
+  hh2$ship[hh2$ship == "REYKJA"] <- "26RK"
+  hh2$ship[hh2$ship == "SALLIN"] <- "26SB"
+  hh2$ship[hh2$ship == "L526"] <- "26BV"
+  hh2$ship[hh2$ship == "ARCTIC"] <- "26G1"
+    
+}
+  
 # Depth and stratum -----------------------------------------------------------------------------------
 
 # Depth
@@ -442,7 +456,7 @@ hh2[minute(hh2$dateGearStart) < 10,"minute_start"] <-
 hh2[minute(hh2$dateGearStart) >= 10,"minute_start"] <-
   minute(hh2[minute(hh2$dateGearStart) >= 10,]$dateGearStart)
 hh2$TimeShot <- paste0(hh2$hour_start,hh2$minute_start)
-hh2$TimeShot <- as.character(hh2$TimeShot) # ldie
+#hh2$TimeShot <- as.character(hh2$TimeShot) # ldie
 
 # Haul type -------------------------------------------------------------------------------------------
 
@@ -480,10 +494,14 @@ hh2[is.na(hh2$netOpening),"netOpening"] <- -9
 hh2$CodendMesh <- ifelse_na(hh2$meshSize) 
 
 
+if (survey %in% c("NS-IBTS")) {
 # Pelagic trawl sampling type (ldie - tilføjet den 22-06-2020) 
 hh2$PelSampType <- ifelse(hh2$gearType %in% c("TMX", "PTM", "OTM") & hh2$depthAveGear < 500 & !is.na(hh2$depthAveGear), 2, # or 1
        ifelse(hh2$gearType %in% c("TMX", "PTM", "OTM") & hh2$depthAveGear > 500 & !is.na(hh2$depthAveGear), 3, -9))
 
+} else {
+  hh2$PelSampType <- "-9"
+}
 
 # Highest- and lowest point of the pelagic trawling (ldie - tilføjet den 22-06-2020) 
   # note - should be changed when possible 
@@ -575,6 +593,14 @@ for (i in 1:nrow(hh2)) {
     hh2$DoorType[i] <- "P"; hh2$Warpdia[i] <- 20; hh2$WarpDen[i] <- 1.5817;
     hh2$DoorSurface[i] <- 4.5; hh2$DoorWgt[i] <- 1250; hh2$Buoyancy[i]<- 172;
     hh2$KiteDim[i] <- 0.7225;hh2$WgtGroundRope[i] <- -9
+    
+    # Tobis skrabetogt  # ldie - tilføjet 04/04/2022
+  } else if (hh2$survey[i]=='TBM' & hh2$gearType[i]!="GRB" & !is.na(hh2$gearType[i])) {
+    hh2$Gear[i] <- 'DSD' ; hh2$SweepLngt[i] <- -9; hh2$GearEx[i] <- "S";
+    hh2$DoorType[i] <- -9; hh2$WarpDen[i] <- -9; hh2$Warpdia[i] <- -9;
+    hh2$DoorSurface[i] <- -9; hh2$DoorWgt[i] <- -9; hh2$Buoyancy[i]<- -9;
+    hh2$KiteDim[i] <- -9; hh2$WgtGroundRope[i] <- -9
+  
     # Other
   } else {
     hh2$Gear[i] <- ifelse(!is.na(hh2$gearType[i]),hh2$gearType[i],-9);
@@ -614,9 +640,9 @@ hl2 <- data.frame(hlca1, SpecCodeType = "W", SpecVal = 1, LngtCode = ".",
                   SpecCode = ifelse_na(hlca1$aphiaID), Sex = ifelse_na(hlca1$speciesList_sexCode))
 
 # Sub weight as minimum weight step
-hl2$subWgt <- as.numeric(apply(hl2[, c("weightStep0", "weightStep1", "weightStep2", "weightStep3")],
+hl2$SubWgt <- as.numeric(apply(hl2[, c("weightStep0", "weightStep1", "weightStep2", "weightStep3")],
                                1, function(x) min(x[1], x[2], x[3], x[4], na.rm = TRUE)*1000))
-hl2$subWgt[hl2$subWgt == "Inf"] <- -9
+hl2$SubWgt[hl2$SubWgt == "Inf"] <- -9
 
 
 # Development or maturity stage defined by non-invasive observations (ldie - added den 30-06-2020)
@@ -644,27 +670,27 @@ for (i in 1:nrow(hl2)) {
 
 # Sum animal_number (number in animal table) by grouped variables
 hl3 <- sqldf('select   sampleid, specieslistid, SpecCodeType, SpecCode, SpecVal,
-             Sex, CatIdentifier, representative, SubFactor, SubWgt,
-             LngtCode, length as LngtClass, sum(Animal_number) as HlNoAtLngt, DevStage, LenMeasType
+             Sex, DevStage, LenMeasType, CatIdentifier, representative, SubFactor, SubWgt,
+             LngtCode, length as LngtClass, sum(Animal_number) as HlNoAtLngt
              from     hl2
-             group by sampleid, specieslistid, SpecCodeType, SpecCode, SpecVal, Sex,
+             group by sampleid, specieslistid, SpecCodeType, SpecCode, SpecVal, Sex, DevStage, LenMeasType,
              CatIdentifier, representative, SubFactor, SubWgt, LngtCode, length')
 
 # Get total weight, CatCatchWgt, by multiplying subfactor and subwgt - per length class
-hl4_a <- sqldf('select   sampleid, specieslistid, SpecCodeType, SpecCode, SpecVal, Sex,
+hl4_a <- sqldf('select   sampleid, specieslistid, SpecCodeType, SpecCode, SpecVal, Sex, DevStage, LenMeasType,
                CatIdentifier, representative, SubFactor, SubWgt,LngtCode,
-               LngtClass, HlNoAtLngt, SubFactor*SubWgt as CatCatchWgt, DevStage, LenMeasType
+               LngtClass, HlNoAtLngt, SubFactor*SubWgt as CatCatchWgt
                from     hl3
-               group by sampleid, specieslistid, SpecCodeType, SpecCode, SpecVal, Sex,
+               group by sampleid, specieslistid, SpecCodeType, SpecCode, SpecVal, Sex,DevStage, LenMeasType,
                CatIdentifier, representative,LngtClass
                order by sampleid')
 
 # Get number of length measured fish and total number of caught fish
 hl4_b <- sqldf('select   sampleid, specieslistid, SpecCodeType, SpecCode, SpecVal,
-               Sex, CatIdentifier, representative, SubFactor, SubWgt,
-               sum(HlNoAtLngt) as NoMeas, sum(HlNoAtLngt)*subFactor as TotalNo, DevStage, LenMeasType
+               Sex, DevStage,LenMeasType, CatIdentifier, representative, SubFactor, SubWgt,
+               sum(HlNoAtLngt) as NoMeas, sum(HlNoAtLngt)*subFactor as TotalNo
                from     hl3
-               group by sampleid, specieslistid, SpecCodeType, SpecCode, SpecVal, Sex,
+               group by sampleid, specieslistid, SpecCodeType, SpecCode, SpecVal, Sex,DevStage,LenMeasType,
                CatIdentifier, representative
                order by sampleid')
 
@@ -730,8 +756,7 @@ if (survey %in%  c("BITS","KASU","NS-IBTS") ) {
 
 # FishID  ---------------------------------------------------------------------------------------------
     # ldie - added den 22-06-2020 
-ca$FishID <- ifelse_na(ca$animalId)
-ca$FishID <- as.numeric(ca$FishID)
+ca$FishID <- as.numeric(ifelse_na(ca$animalId))
 
 # Genetics --------------------------------------------------------------------------------------------
   # Genetic samples - Flag whether genetic sample was taken (ldie - added den 22-06-2020) 
@@ -758,7 +783,7 @@ ca$AgePrepMet <- -9
 #                                     ifelse(ca$otolithReadingRemark == 'C', 3,
 #                                            ifelse(ca$otolithReadingRemark == 'D', 4, -9)))))
   
-# ldie - chnaged the 10-02-2022 # fra A,B,C,D til AQ1, AQ2, AQ3 (mangler en AQ4)
+# ldie - changed the 10-02-2022 # fra A,B,C,D til AQ1, AQ2, AQ3 (mangler en AQ4)
 ca$OtGrading <- ifelse(is.na(ca$otolithReadingRemark), -9,
                        ifelse(ca$otolithReadingRemark == 'AQ1', 1,
                               ifelse(ca$otolithReadingRemark == 'AQ2', 2,
@@ -776,7 +801,7 @@ ca$Sex_CA[is.na(ca$Sex_CA) | ca$Sex_CA=="T"] <- "-9"
 ca$StomSamp <- ifelse(!is.na(ca$referenceName) & ca$referenceName %in% c("Bræk", "Tom", "Mave"), "Y" , "-9")
 
 
-  # StomachFullness - once a year for Bastian (BALTICA cruise) # ldie - added den 13-03-2020
+  # StomachFullness - once a year for Bastian (BALTICA cruise) # ldie - added den 13-03-2020 
 ca$StomachFullness <- ca$referenceName
 ca$StomachFullness[is.na(ca$StomachFullness) | ca$StomachFullness=="T"] <- "-9"
 
@@ -787,7 +812,12 @@ ca$StomachFullness <- ifelse(ca$StomachFullness %in% c("0", "2"), ca$StomachFull
 
 # Comments  -------------------------------------------------------------------------------------------
   # added by ldie den 13-03-2020
-ca$Comments <- paste(ca$remark.1,ca$remark, sep = "/")
+
+
+ca$Comments <- ifelse(!is.na(ca$remark.1) & !is.na(ca$remark), paste(ca$remark.1,ca$remark, sep = "/"), 
+                      ifelse(!is.na(ca$remark.1) & is.na(ca$remark), paste(ca$remark.1),
+                             ifelse(!is.na(ca$remark) & is.na(ca$remark.1), paste(ca$remark),-9)))
+
 ca$Comments <- as.character(ca$Comments)
 
 
@@ -875,19 +905,19 @@ ca[ca$maturityIndexMethod == 'M' & ca$maturityIndex == 6, "Maturity"] <- 65
 
 
 # method N (ldie - added den 26-11-2020)
+ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 21, "Maturity"] <- 2
+ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 22, "Maturity"] <- 2
+ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 31, "Maturity"] <- 3
+ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 32, "Maturity"] <- 3
+ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 41, "Maturity"] <- 4
+ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 42, "Maturity"] <- 4
+
 ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 1, "Maturity"] <- 61
 ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 2, "Maturity"] <- 62
 ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 3, "Maturity"] <- 63
 ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 4, "Maturity"] <- 64
 ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 5, "Maturity"] <- 65
 ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 6, "Maturity"] <- 66
-
-ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 21, "Maturity"] <- "S1"
-ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 22, "Maturity"] <- "S2"
-ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 31, "Maturity"] <- "S3"
-ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 32, "Maturity"] <- "S4"
-ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 41, "Maturity"] <- "S5"
-ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 42, "Maturity"] <- "S6"
 
 
 } else{
@@ -906,41 +936,52 @@ ca$MaturityScale <- ifelse(!is.na(ca$maturityIndexMethod), "M6", -9)
 
 
 
+
 # AGGREGATING BIOLOGICAL DATA #################################################
 
 # representative out???
 
 # Sum number of aged fish per length class
-ca_age <- sqldf('select   sampleId, speciesListId, SpecCodeType, SpecCode,
+ca_age <- sqldf('select   sampleId, FishID, speciesListId, SpecCodeType, SpecCode,
                           SpecVal, Sex_CA, CatIdentifier, LngtCode, 
                           length as LngtClass, PlusGr, age as AgeRings, 
-                          MaturityScale, Maturity, sum(age_number) as CANoAtLngt, representative,
-                          FishID, GenSamp, AgeSource, AgePrepMet, OtGrading, StomSamp, ParSamp,
-                          LiverWormScaleUsed, OtolithsAvailable, StomachFullness, LiverParasiteStage, GuttedWeight, LiverWeight, GonadWeight, Comments
+                          Maturity, MaturityScale, sum(age_number) as CANoAtLngt, representative, 
+                          GenSamp, AgeSource, AgePrepMet, OtGrading, OtolithsAvailable,
+                          StomSamp, Comments, ParSamp, LiverWeight, GonadWeight, GuttedWeight, 
+                          LiverWormScaleUsed, LiverParasiteStage
                  from     ca
-                 group by sampleId, speciesListId, SpecCodeType, SpecCode, SpecVal, 
-                          Sex_CA, CatIdentifier, representative,
-                          LngtCode, LngtClass, PlusGr, age, Maturity')
+                 group by sampleId, FishID, speciesListId, SpecCodeType, SpecCode, SpecVal, 
+                          Sex_CA, CatIdentifier, representative, GenSamp, AgeSource, AgePrepMet, OtGrading, OtolithsAvailable,
+                          StomSamp, Comments, ParSamp,LiverWeight, GonadWeight, GuttedWeight, 
+                          LiverWormScaleUsed, LiverParasiteStage,
+                          LngtCode, LngtClass, PlusGr, age, Maturity, MaturityScale')
 # LngtCode, length, PlusGr, age, Maturity')
 
 # sum total number of fish and weight per length
-ca_wgt <- sqldf('select   sampleId, speciesListId, SpecCodeType, SpecCode, SpecVal, 
+ca_wgt <- sqldf('select   sampleId, FishID, speciesListId, SpecCodeType, SpecCode, SpecVal, 
                           Sex_CA, CatIdentifier, LngtCode, length as LngtClass,
-                          PlusGr, age as AgeRings, Maturity, representative,
+                          PlusGr, age as AgeRings, Maturity, MaturityScale, representative, 
+                          GenSamp, AgeSource, AgePrepMet, OtGrading, OtolithsAvailable, StomSamp,
+                          Comments, ParSamp, LiverWeight, GonadWeight, GuttedWeight, 
+                          LiverWormScaleUsed, LiverParasiteStage,
                           sum(weight*1000)/sum(Animal_number) as IndWgt
                  from     ca
                  where    weight not like "NA"
-                 group by sampleId, speciesListId, SpecCodeType, SpecCode, SpecVal, 
-                          Sex_CA, CatIdentifier, LngtCode, representative,
-                          length, PlusGr,age, Maturity')
+                 group by sampleId, FishID, speciesListId, SpecCodeType, SpecCode, SpecVal, 
+                          Sex_CA, CatIdentifier, LngtCode, representative,GenSamp, AgeSource, AgePrepMet, OtGrading,
+                          OtolithsAvailable, StomSamp, 
+                          Comments, ParSamp, LiverWeight, GonadWeight, GuttedWeight, 
+                          LiverWormScaleUsed, LiverParasiteStage,
+                          length, PlusGr,age, Maturity, MaturityScale')
 
 
-ca3 <- merge(ca_age, ca_wgt, by = c("sampleId", "speciesListId", "representative",
+ca3 <- merge(ca_age, ca_wgt, by = c("sampleId", "FishID", "speciesListId","representative", "GenSamp", 
+                                    "AgeSource", "AgePrepMet","OtGrading", "OtolithsAvailable", "StomSamp", "Comments", 
+                                    "ParSamp", "LiverWeight",
+                                    "GonadWeight", "GuttedWeight", "LiverWormScaleUsed", "LiverParasiteStage",
                                     "SpecCodeType", "SpecCode", "SpecVal", "Sex_CA",
                                     "CatIdentifier", "LngtCode", "LngtClass",
-                                    "PlusGr", "AgeRings", "Maturity"), all = TRUE)
-
-
+                                    "PlusGr", "AgeRings", "Maturity", "MaturityScale"), all = TRUE)
 
 if (nrow(ca3)>0){
   ca3$CAMark <- 1
@@ -954,8 +995,8 @@ ca3 <- ca3[!is.na(ca3$LngtClass),]
 ca4 <- merge(ca3, unique(hhhl[,c("HaulVal", "sampleId")]) )
 
 if (nrow(ca4)>0){
-  #ca4[ca4$HaulVal == "I", "SpecVal"] <- 0
-  ca4$HaulVal[ca4$HaulVal=="I"] <- 0
+  ca4[ca4$HaulVal == "I", "SpecVal"] <- 0
+  #ca4$HaulVal[ca4$HaulVal=="I"] <- 0
 }
 
 # COMBINE DATA HH, HL AND CA ##################################################
@@ -1016,26 +1057,26 @@ hhhlca3_1[in_ejRep, "LngtCode_HL"] <- -9
 hhhlca3_1[in_ejRep, "Length_HL"] <- -9
 hhhlca3_1[in_ejRep, "HlNoAtLngt"] <- -9
 
-# added by ldie/jepol den 24-03-2020
-hhhlca3_1[in_ejRep, "LiverWormScaleUsed"] <- -9 
-hhhlca3_1[in_ejRep, "LiverParasiteStage"] <- -9
-hhhlca3_1[in_ejRep, "StomachFullness"] <- -9
-hhhlca3_1[in_ejRep, "LiverWeight"] <- -9
-hhhlca3_1[in_ejRep, "GonadWeight"] <- -9
-hhhlca3_1[in_ejRep, "GuttedWeight"] <- -9
-hhhlca3_1[in_ejRep, "OtolithsAvailable"] <- -9
-hhhlca3_1[in_ejRep, "Comments"] <- -9
-
-# added by ldie den 22-06-2020
-hhhlca3_1[in_ejRep, "AgeSource"] <- -9
-hhhlca3_1[in_ejRep, "AgePrepMet"] <- -9
-hhhlca3_1[in_ejRep, "OtGrading"] <- -9
-hhhlca3_1[in_ejRep, "ParSamp"] <- -9
-
 hhhlca3_1[in_ejRep, "LenMeasType"] <- -9
 hhhlca3_1[in_ejRep, "DevStage"] <- -9
 
+# added by ldie/jepol den 24-03-2020
+#hhhlca3_1[in_ejRep, "LiverWormScaleUsed"] <- -9 
+#hhhlca3_1[in_ejRep, "LiverParasiteStage"] <- -9
+#hhhlca3_1[in_ejRep, "StomachFullness"] <- -9
+#hhhlca3_1[in_ejRep, "LiverWeight"] <- -9
+##hhhlca3_1[in_ejRep, "GonadWeight"] <- -9
+#hhhlca3_1[in_ejRep, "GuttedWeight"] <- -9
+#hhhlca3_1[in_ejRep, "OtolithsAvailable"] <- -9
+#hhhlca3_1[in_ejRep, "Comments"] <- -9
 
+# added by ldie den 22-06-2020
+#hhhlca3_1[in_ejRep, "AgeSource"] <- -9
+#hhhlca3_1[in_ejRep, "AgePrepMet"] <- -9
+#hhhlca3_1[in_ejRep, "OtGrading"] <- -9
+#hhhlca3_1[in_ejRep, "ParSamp"] <- -9
+#hhhlca3_1[in_ejRep, "LenMeasType"] <- -9
+#hhhlca3_1[in_ejRep, "DevStage"] <- -9
 
 ```
 
@@ -1117,7 +1158,7 @@ if (nrow(ca)>0) {
 
 # HH
 DATA_HH <- data.frame(
-  "RecordType" = "HH", "Survey" = hhhlca3$survey[in_HH],
+  "RecordType" = "HH", 
   "Quarter" = hhhlca3$quarterGearStart[in_HH], "Country" = hhhlca3$country[in_HH],
   "Ship" = hhhlca3$ship[in_HH], "Gear" = hhhlca3$Gear[in_HH],
   "SweepLngt" = hhhlca3$SweepLngt[in_HH], "GearEx" = hhhlca3$GearEx[in_HH],
@@ -1151,8 +1192,7 @@ DATA_HH <- data.frame(
   "CodendMesh" = hhhlca3$CodendMesh[in_HH], "SecchiDepth" = hhhlca3$SecchiDepth[in_HH],
   "Turbidity" = hhhlca3$Turbidity[in_HH], "TidePhase" = hhhlca3$TidePhase[in_HH], 
   "TideSpeed" = hhhlca3$TideSpeed[in_HH], "PelSampType" = hhhlca3$PelSampType[in_HH], 
-  "MinTrawlDepth" = hhhlca3$MinTrawlDepth[in_HH],"MaxTrawlDepth" = hhhlca3$MaxTrawlDepth[in_HH],
-  "DateofCalculation" = format(Sys.Date(),"%Y%m%d"), # only in download-format not exchange format 
+  "MinTrawlDepth" = hhhlca3$MinTrawlDepth[in_HH],"MaxTrawlDepth" = hhhlca3$MaxTrawlDepth[in_HH], 
   stringsAsFactors = FALSE)
 
 
@@ -1161,7 +1201,7 @@ DATA_HH <- data.frame(
 if (cruise_all %in% c("BALTICA_parasite")) {
   if (nrow(ca)>1) {
   DATA_CA <- data.frame(
-    "RecordType" = "CA", "Survey" = hhhlca3$survey[in_CA],
+    "RecordType" = "CA", 
     "Quarter" = hhhlca3$quarterGearStart[in_CA], "Country" = hhhlca3$country[in_CA],
     "Ship" = hhhlca3$ship[in_CA], "Gear" = hhhlca3$Gear[in_CA],
     "SweepLngt" = hhhlca3$SweepLngt[in_CA],"GearEx" = hhhlca3$GearEx[in_CA],
@@ -1182,11 +1222,9 @@ if (cruise_all %in% c("BALTICA_parasite")) {
     "GuttedWeight" = hhhlca3$GuttedWeight[in_CA], "LiverWeight" = hhhlca3$LiverWeight[in_CA],
     "GonadWeight" = hhhlca3$GonadWeight[in_CA], "StomachFullness" = hhhlca3$StomachFullness[in_CA],
     "OtolithsAvailable" = hhhlca3$OtolithsAvailable[in_CA], "Comments" = hhhlca3$Comments[in_CA],
-    "DateofCalculation" = format(Sys.Date(),"%Y%m%d"), # only in download-format not exchange format 
-    "ValidAphiaID" = hhhlca3$SpecCode[in_CA], # only in download-format not exchange format 
     stringsAsFactors = FALSE)
 } else {
-  DATA_CA <- data.frame("RecordType"="CA","Survey"=-9,"Quarter"=-9,
+  DATA_CA <- data.frame("RecordType"="CA","Quarter"=-9,
                         "Country"=-9,"Ship"=-9,"Gear"=-9,"SweepLngt"=-9,"GearEx"=-9,
                         "DoorType"=-9,"StNo"=-9, "HaulNo"=-9,"Year"=-9,"SpecCodeType"=-9,
                         "SpecCode"=-9,"AreaType"=-9,"AreaCode"=-9,"LngtCode"=-9,
@@ -1194,15 +1232,13 @@ if (cruise_all %in% c("BALTICA_parasite")) {
                         "IndWgt"=-9, "MaturityScale"=-9, "FishID"=-9, "GenSamp"=-9, "StomSamp"=-9, "AgeSource"=-9,
                         "AgePrepMet"=-9, "OtGrading"=-9, "ParSamp"=-9, "LiverWormScaleUsed"=-9, "LiverParasiteStage"=-9, 
                         "GuttedWeight"=-9, "LiverWeight"=-9, "StomachFullness"=-9, "OtolithsAvailable"= -9, 
-                        "GonadWeight"=-9, "Comments"=-9, 
-                        "DateofCalculation"=format(Sys.Date(),"%Y%m%d"), # only in download-format not exchange format 
-                        "ValidAphiaID"=-9, # only in download-format not exchange format 
+                        "GonadWeight"=-9, "Comments"=-9,
                         stringsAsFactors = FALSE)
 }
 } else {
   if (nrow(ca)>1) {
   DATA_CA <- data.frame(
-    "RecordType" = "CA", "Survey" = hhhlca3$survey[in_CA],
+    "RecordType" = "CA", 
     "Quarter" = hhhlca3$quarterGearStart[in_CA], "Country" = hhhlca3$country[in_CA],
     "Ship" = hhhlca3$ship[in_CA], "Gear" = hhhlca3$Gear[in_CA],
     "SweepLngt" = hhhlca3$SweepLngt[in_CA],"GearEx" = hhhlca3$GearEx[in_CA],
@@ -1220,19 +1256,15 @@ if (cruise_all %in% c("BALTICA_parasite")) {
     "AgeSource" = hhhlca3$AgeSource[in_CA], "AgePrepMet" = hhhlca3$AgePrepMet[in_CA],
     "OtGrading" = hhhlca3$OtGrading[in_CA], "ParSamp" = hhhlca3$ParSamp[in_CA],
     "LiverWeight" = hhhlca3$LiverWeight[in_CA],
-    "DateofCalculation" = format(Sys.Date(),"%Y%m%d"), # only in download-format not exchange format 
-    "ValidAphiaID" = hhhlca3$SpecCode[in_CA], # only in download-format not exchange format 
     stringsAsFactors = FALSE)
 } else {
-  DATA_CA <- data.frame("RecordType"="CA","Survey"=-9,"Quarter"=-9,
+  DATA_CA <- data.frame("RecordType"="CA","Quarter"=-9,
                         "Country"=-9,"Ship"=-9,"Gear"=-9,"SweepLngt"=-9,"GearEx"=-9,
                         "DoorType"=-9,"StNo"=-9, "HaulNo"=-9,"Year"=-9,"SpecCodeType"=-9,
                         "SpecCode"=-9,"AreaType"=-9,"AreaCode"=-9,"LngtCode"=-9,
                         "LngtClass"=-9, "Sex"=-9,"Maturity"=-9, "PlusGr"=-9,"AgeRings"=-9,"CANoAtLngt"=-9,
                         "IndWgt"=-9, "MaturityScale"=-9, "FishID"=-9, "GenSamp"=-9, "StomSamp"=-9, "AgeSource"=-9,
                         "AgePrepMet"=-9, "OtGrading"=-9, "ParSamp"=-9, "LiverWeight"=-9,
-                        "DateofCalculation"=format(Sys.Date(),"%Y%m%d"), # only in download-format not exchange format 
-                        "ValidAphiaID"=-9, # only in download-format not exchange format 
                         stringsAsFactors = FALSE)
   }
 }
@@ -1240,7 +1272,7 @@ if (cruise_all %in% c("BALTICA_parasite")) {
 
 # HL
 DATA_HL <- data.frame(
-  "RecordType" = "HL", "Survey" = hhhlca3$survey[in_HL],
+  "RecordType" = "HL", 
   "Quarter" = hhhlca3$quarterGearStart[in_HL], "Country" = hhhlca3$country[in_HL],
   "Ship" = hhhlca3$ship[in_HL], "Gear" = hhhlca3$Gear[in_HL],
   "SweepLngt" = hhhlca3$SweepLngt[in_HL], "GearEx" = hhhlca3$GearEx[in_HL],
@@ -1254,8 +1286,6 @@ DATA_HL <- data.frame(
   "LngtCode" = hhhlca3$LngtCode[in_HL], "LngtClass" = hhhlca3$Length_HL[in_HL],
   "HLNoAtLngt" = hhhlca3$HlNoAtLngt[in_HL], "DevStage" = hhhlca3$DevStage[in_HL], 
   "LenMeasType" = hhhlca$LenMeasType[in_HL],
-  "DateofCalculation"=format(Sys.Date(),"%Y%m%d"), # only in download-format not exchange format 
-  "ValidAphiaID" = hhhlca3$SpecCode[in_HL],
   stringsAsFactors = FALSE)
 
 

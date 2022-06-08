@@ -58,20 +58,20 @@ if (!require(dbscan)) {
 
 ```{r set_parameters, include=FALSE}
 
-y1 <- @paramYear1
-y2 <- @paramYear2
-species <- c(@paramSpecies)
-areas <- c(@paramArea)
-cruise <- c(@paramCruise)
+# y1 <- @paramYear1
+# y2 <- @paramYear2
+# species <- c(@paramSpecies)
+# areas <- c(@paramArea)
+# cruise <- c(@paramCruise)
 
 
 
 # Paramters to use in R
-# y1 <- 2021
-# y2 <- 2021
-# species <- c("SIL")
-# areas <- c("4B")
-# cruise <- c("IBTS-1", "IBTS-2")
+y1 <- 2022
+y2 <- 2022
+species <- c("TOR")
+areas <- c(22, 23, 24, 25, 26)
+cruise <- c("BITS-1", "IN-LYNG", "KASU-1", "MON")
 ```
 
 ```{r get_data, include=FALSE}
@@ -248,8 +248,12 @@ if (nrow(age_fish) != 0){
     if (TRUE %in% unique(is.na(sex_plot$sexCode))){
     sex_plot[is.na(sex_plot$sexCode), ]$sexCode <- "Not Sexed"
     }
-    sex_plot$sexCode <- as.factor(sex_plot$sexCode)
     
+    #remove class if it occurs only once (since this will be weird in a frequency plot)
+    count <- data.frame(table(sex_plot$sexCode))
+    sex_plot <- sex_plot[sex_plot$sexCode %in% count[count$Freq > 1, "Var1"], ]
+    
+    sex_plot$sexCode <- as.factor(sex_plot$sexCode)
     ##make the frequency plot with sm::sm.density.compare (using "with" for easy data extraction)
     with(sex_plot, {
       # Length frequency plot, pr sex.
