@@ -30,30 +30,30 @@ p_load(data.table, mapplots, shapefiles, maptools, ggplot2, plyr)
 
 ```{r set_parameters, include=FALSE}
 
-year <- @paramYear # mandatory
-cruise <- @paramCruise # mandatory
-exDate <- @paramExDate
-weather <- @paramWeather
-gear <- @paramGear
-oxygen <- @paramOxygen
+# year <- @paramYear # mandatory
+# cruise <- @paramCruise # mandatory
+# exDate <- @paramExDate
+# weather <- @paramWeather
+# gear <- @paramGear
+# oxygen <- @paramOxygen
 
-# year <- 2021
-# cruise <- "KASU-2"
-# exDate <- "2020-11-06"
-# weather <-""
-# gear <- ""
-# oxygen <- ""
+year <- 2021
+cruise <- "KASU-2"
+exDate <- "2020-11-06"
+weather <-""
+gear <- ""
+oxygen <- ""
 
 weather <- ifelse(weather == "", "No Remarks on the Weather conditions")
 gear <-ifelse(gear == "", "No remarks on the Gear performance")
 oxygen <- ifelse(oxygen == "", "No remarks on the Oxygen conditions")
 
 #get shapefiles for the map
-# invisible(coast <- read.shapefile('Q:/gis/Dynamisk/GEOdata/BasicLayers/CoastLines/Europe/europe'))
-# invisible(dk_eez <- read.shapefile('Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/EEZ/LandAndSea/eez_dk_LandAndSea_2019'))
+invisible(coast <- read.shapefile('Q:/gis/Dynamisk/GEOdata/BasicLayers/CoastLines/Europe/europe'))
+invisible(dk_eez <- read.shapefile('Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/EEZ/LandAndSea/eez_dk_LandAndSea_2019'))
 
-invisible(coast <- read.shapefile('europe'))
-invisible(dk_eez <- read.shapefile('eez_dk_LandAndSea_2019'))
+# invisible(coast <- read.shapefile('europe'))
+# invisible(dk_eez <- read.shapefile('eez_dk_LandAndSea_2019'))
 ```
 
 ```{r get_data, include=FALSE}
@@ -101,7 +101,7 @@ sp_lst <- sqlQuery(channel, paste("SELECT    year, cruise, trip, tripType, stati
                                   	  	     cruise = ('",cruise,"') 
                                 			       ", sep = ""))
 
-cod_lst <- sqlQuery(channel, paste("SELECT    year, cruise, trip, tripType, station, dfuArea, 
+cod_lst <- sqlQuery(channel, paste("SELECT   year, cruise, trip, tripType, station, dfuArea, 
                                              speciesCode, length, numberTotalPerLength
                                    FROM      AnimalRaised
                                    WHERE     year = (",year,") AND
@@ -113,8 +113,14 @@ names <- sqlQuery(channel, paste("SELECT   speciesCode, ukName, dkName, latin
                                     FROM   L_Species"
                                            ,sep = ""))
 
-close(channel)
+ages <- sqlQuery(channel, paste("SELECT    animalId, year, cruise, trip, tripType, station, dfuArea, 
+                                          speciesCode, age, genetics
+                                FROM      Age
+                                WHERE     year = (",year,") AND
+                              	  	      cruise = ('",cruise,"')
+                              		        ", sep = ""))
 
+close(channel)
 
 ```
 
@@ -342,6 +348,21 @@ sole_n <- as.character(round(sum(sp_lst[sp_lst$speciesCode == "TNG", "numberTota
 
 area <- unique(sp_lst$dfuArea)
 a <- chartr("123456789", "ABCDEFGHI", c(1:length(area)))
+
+
+# format age info for table
+age <- ages[!is.na(ages$age), ]
+age_t <- nrow(age)
+age_cod <- nrow(age[age$speciesCode == "TOR", ])
+age_plaice <- nrow(age[age$speciesCode == "RSP", ])
+age_sole <- nrow(age[age$speciesCode == "TNG", ])
+
+gen <- ages[ages$genetics == 1, ]
+gen_t <- nrow(gen)
+gen_cod <- nrow(gen[gen$speciesCode == "TOR", ])
+gen_plaice <- nrow(gen[gen$speciesCode == "RSP", ])
+gen_sole <- nrow(gen[gen$speciesCode == "TNG", ])
+
 ```
 
 \subsection{Overview}
@@ -350,17 +371,21 @@ The total catch of all species, cod, plaice and sole are presented below. follow
  \vspace{0.2cm}
 
 \begin{table}[H]
-\resizebox{0.5\columnwidth}{!}{%
-\begin{tabular}{lrr}
+\begin{center}
+\resizebox{0.9\columnwidth}{!}{%
+\begin{tabular}{lrrrr}
 \toprule
-            & Weight (kg)   & Number        \\ \midrule
-Total Catch & `r total_w`  & `r total_n`  \\
-Cod         & `r cod_w`    & `r cod_n`    \\
-Plaice      & `r plaice_w` & `r plaice_n` \\
-Sole        & `r sole_w`   & `r sole_n`   \\ \bottomrule
+            & Weight (kg)  & Number       & Aged            & Genetics sampled    \\ \midrule
+Total Catch & `r total_w`  & `r total_n`  & `r age_t`       & `r gen_t`           \\
+Cod         & `r cod_w`    & `r cod_n`    & `r age_cod`     & `r gen_cod`         \\
+Plaice      & `r plaice_w` & `r plaice_n` & `r age_plaice`  & `r gen_plaice`      \\
+Sole        & `r sole_w`   & `r sole_n`   & `r age_sole`    & `r gen_sole`        \\ \bottomrule
 \end{tabular}
 }
+\end{center}
 \end{table}
+
+\vspace*{0.5cm}
 
 ```{r COD length frequency,echo=FALSE, results='asis', cache=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=7}
 jj = 0
