@@ -1,0 +1,262 @@
+---
+fontsize: 11pt
+geometry: top=2cm, bottom=2cm, left=1.5cm, right=1.5cm,headsep=1cm
+header-includes:
+- \usepackage[utf8]{inputenc}
+- \usepackage{fancyhdr}
+- \pagestyle{fancy}
+- \fancyfoot{}
+- \usepackage{ragged2e}
+- \linespread{1.15}
+- \usepackage{float}
+- \usepackage{lastpage}
+output: pdf_document
+---
+
+```{r set_libraries, include=FALSE, warning=FALSE}
+
+#Libraries used in the r code
+if (!require(pacman)){
+  install.packages("pacman", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(pacman)
+}
+p_load(kableExtra, sqldf, RODBC, dplyr)
+
+#special for this script
+p_load(data.table)
+
+```
+
+```{r define_input, echo=FALSE}
+
+fid <- c(@paramFid)
+start <-as.Date(@paramStart)
+end <-as.Date(@paramEnd)
+log <- c(@paramLog)
+ldat <- c(@paramLdat)
+
+
+# fid <- "L757"
+# start <-as.Date("2022-05-05")
+# end <-as.Date("2022-05-10")
+# log <- c("0008617390")
+# ldat <- c("2022-05-05")
+
+# fid <- "L757"
+# start <-as.Date("2022-05-05")
+# end <-as.Date("")
+# log <- c("")
+# ldat <- c("")
+
+```
+
+```{r import_data, echo=FALSE, cache = FALSE}
+
+#dfad <- readRDS("<dfad-path>/dfad.rds")
+dfad <- readRDS("Q:/dfad/users/jostou/home/FishLineRapporter/DFADs søgning/dfad.rds")
+
+
+```
+
+```{r filter_data, echo=FALSE, cache = FALSE}
+# use if statements to determine the best aggregation of data, depending on input, and make scenarios (sce) to output error and warning messages to the report
+if (log != ""){
+  dat  <- dfad[dfad$match_alle == log, ]
+  
+  sce = 1
+} else if (ldat != ""){
+  dat <- dfad[dfad$fid == fid & dfad$ldato == ldat, ]
+  
+  sce = 2
+} else if (!is.na(start) & !is.na(end)){
+  dat <- dfad[dfad$fid == fid & (dfad$ldato > start & dfad$ldato <= (end+3)), ]
+  
+  if (nrow(dat) == 0){
+    dat <- dfad[dfad$fid == fid & (dfad$ldato > start & dfad$ldato <= end), ]
+  }
+  
+  sce = 3
+} else if (!is.na(start) & is.na(end)){
+  dat <- dfad[dfad$fid == fid & (dfad$ldato > start), ]
+  
+  txt <- "Kun start dato intastet, viser sumerede resultater fra indtastede start dato til nyeste optegnelse fra fartøjet, angiv en slut dato for mere detaljerede resultater"
+  sce = 4
+} else if (is.na(start) & !is.na(end)){
+  dat <- dfad[dfad$fid == fid & (dfad$ldato <= (end+3)), ]
+  
+  if (nrow(dat) == 0){
+    dat <- dfad[dfad$fid == fid & (dfad$ldato <= end), ]
+  }
+  
+  txt <- "Kun slut dato intastet, viser sumerede resultater fra indtastede slut dato til ældste optegnelse fra fartøjet, angiv en start dato for mere detaljerede resultater"
+  sce = 5
+} else {
+  dat <- dfad[dfad$fid == fid, ]
+  
+  sce = 6
+}
+
+#make apropriate statement if subset of data failed, and use only the whole dataset.
+if (nrow(dat) == 0){
+  
+  if (sce == 1){
+    txt <- "Det indtastede logbogsnummer matcher ikke. Viser summerede resultater for alle ture af givne fartøj. Data er muligvis ikke kommet ind i systemet endu, prøv igen om et par dage"
+  } else if (sce == 2) {
+    txt <- "Den indtastede landingsdato matcher ikke. Viser summerede resultater for alle ture af givne fartøj. Prøv at indtaste en periode via \"start dato\" og \"slut dato\". Eventuelt er data ikke kommet ind i systemet endu, prøv igen om et par dage"
+  } else if (sce %in% c(3, 4, 5)) {
+    txt <- "Den indtastede tidsperiode matcher ikke nogen ture. Viser summerede resultater for alle ture af givne fartøj. Eventuelt er data ikke kommet ind i systemet endu, prøv igen om et par dage"
+  } else if (sce == 6) {
+    txt <- "Ingen data kunne findes for det indtastede Fartøj"
+    sce = 7
+  }
+  
+  dat <- dfad[dfad$fid == fid, ]
+}
+
+  
+  
+
+```
+
+
+```{r agregate_data, echo=FALSE, cache = FALSE}
+#fix underscores
+dat$match_alle <- gsub("_", "\\\\_", dat$match_alle) 
+
+#aggregate data to different levels
+setDT(dat)
+out <- dat[ ,. (opknr = toString(unique(opknr)),
+                dfadfvd_ret = toString(unique(dfadfvd_ret)),
+                redskb = toString(unique(redskb)),
+                maske = toString(unique(maske)),
+                art = "Alle", 
+                vgt = sum(hel, na.rm = T)),
+            by = .(fid, match_alle, ldato, afstid, anktid)]
+
+out$afstid <- as.Date(out$afstid)
+out$anktid <- as.Date(out$anktid)
+
+out2 <- dat[ ,. (redskb = toString(unique(redskb)),
+                 maske = unique(maske),
+                 vgt = sum(hel, na.rm = T),
+                 sort = toString(unique(sort)),
+                 ltilst = toString(unique(ltilst)),
+                 square_ret = toString(unique(square_ret))),
+            by = .(fid, match_alle, ldato, art)]
+
+out2 <- out2 %>% relocate(c(art, vgt), 
+                        .after = maske)
+
+# out3 <- dat[ ,. (redskb = unique(redskb),
+#                  maske = unique(maske),
+#                  vgt = sum(hel, na.rm = T),
+#                  sort = toString(unique(sort)),
+#                  ltilst = toString(unique(ltilst)),
+#                  square_ret = toString(unique(square_ret))),
+#             by = .(fid, ldato, start_fngtid, slut_fngtid, match_alle, art)]
+
+
+
+#sort the listst
+out <- out[order(out$ldato), ]
+out2 <- out[order(out2$ldato), ]
+#out3 <- out[order(out3$ldato), ]
+
+
+```
+
+
+\thispagestyle{empty}
+
+\vspace*{1cm}
+
+\textbf{\huge DFADS Søgning}
+
+\vspace*{1.5cm}
+
+\textcolor{gray}{\large Indtastede Oplysninger:}\
+\begin{itemize}
+  \item \textcolor{gray}{\large Fartøj: `r fid`}
+  \item \textcolor{gray}{\large Start dato: `r start`}
+  \item \textcolor{gray}{\large Slut dato: `r end`}
+  \item \textcolor{gray}{\large Logbogsnummer: `r log`}
+  \item \textcolor{gray}{\large landingsdato: `r ldat`}
+\end{itemize}
+\vspace*{2cm}
+
+```{r print out, echo=FALSE, cache = FALSE}
+
+#this is the first output if no problems with subsetting data
+if (!exists("txt")){
+  cat("Landinger pr Tur")
+
+  out %>%
+       kbl(escape = F, longtable = T, booktabs = T, linesep = "",
+           row.names = F, caption = "Summeret data pr tur af givne fartøj",
+           col.names = c("fartøj", "logbogs nr", "land dato", "afs tid", "ank tid",
+                         "opk nr", "farvand", "redskb", "maske", "art", "vgt (kg)")) %>%
+       row_spec(0, bold = TRUE) %>%
+       kable_styling(latex_options = c("striped", "hold_position"), font_size = 8) %>%
+       column_spec(1, width = "1cm") %>%
+       column_spec(2:5, width = "1.5cm") %>%
+       column_spec(6:11, width = "1cm")
+
+}
+```
+
+
+```{r print out2, echo=FALSE, cache = FALSE}
+
+#this is the second output if no problems with subsetting data
+if (!exists("txt") & sce != 6){
+  cat("Landinger pr Art og Tur", "\n")
+  
+  out2 %>%
+       kbl(escape = F, longtable = T, booktabs = T, linesep = "", 
+           row.names = F, caption = "Summeret data pr art og tur for alle ture af givne fartøj",
+           col.names = c("fartøj", "logbogs nr", "land dato", "redskb", "maske",
+                         "art", "vgt (kg)", "sort", "ltilst", "square")) %>%
+       row_spec(0, bold = TRUE) %>%
+       kable_styling(latex_options = c("striped", "hold_position"), font_size = 8) %>%
+       column_spec(1, width = "1cm") %>%
+       column_spec(2:4, width = "1.5cm") %>%
+       column_spec(5:9, width = "1cm") %>%
+       column_spec(10, width = "3cm")
+  
+}
+```
+
+```{r print warnings, echo=FALSE, cache = FALSE}
+
+#this prints the error meassage if problems with subsetting data
+if (exists("txt")){
+  
+  #Make table
+  txt %>% 
+      cell_spec(color = "red", font_size = 12, bold = T) %>%
+      kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+      kable_styling(latex_options = c("hold_position")) %>%
+       column_spec(1, width = "15cm")
+  
+}
+```
+
+\vspace*{1cm}
+```{r print data to warnings, echo=FALSE, cache = FALSE}
+#this outputs alternative subset of data, if errors with subsetting has occured
+if (exists("txt") & sce != 7){
+  
+   out %>%
+       kbl(escape = F, longtable = T, booktabs = T, linesep = "", 
+           row.names = F, caption = "Summeret data for alle ture af givne fartøj",
+           col.names = c("fartøj", "logbogs nr", "land dato", "afs tid", "ank tid",
+                         "opk nr", "farvand", "redskb", "maske", "art", "vgt (kg)")) %>%
+       row_spec(0, bold = TRUE) %>%
+       kable_styling(latex_options = c("striped", "hold_position"), font_size = 8) %>%
+       column_spec(1, width = "1cm") %>%
+       column_spec(2:5, width = "1.5cm") %>%
+       column_spec(6:11, width = "1cm")
+
+}
+
+```
