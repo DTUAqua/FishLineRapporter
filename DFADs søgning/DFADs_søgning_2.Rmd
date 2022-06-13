@@ -29,11 +29,11 @@ p_load(data.table)
 
 ```{r define_input, echo=FALSE}
 
-fid <- c(@paramFid)
-start <-as.Date(@paramStart)
-end <-as.Date(@paramEnd)
-log <- c(@paramLog)
-ldat <- c(@paramLdat)
+# fid <- c(@paramFid)
+# start <-as.Date(@paramStart)
+# end <-as.Date(@paramEnd)
+# log <- c(@paramLog)
+# ldat <- c(@paramLdat)
 
 
 # fid <- "L757"
@@ -42,11 +42,11 @@ ldat <- c(@paramLdat)
 # log <- c("0008617390")
 # ldat <- c("2022-05-05")
 
-# fid <- "L757"
-# start <-as.Date("2022-05-05")
-# end <-as.Date("")
-# log <- c("")
-# ldat <- c("")
+fid <- "L757"
+start <-as.Date("")
+end <-as.Date("")
+log <- c("0008617390")
+ldat <- c("")
 
 ```
 
@@ -159,7 +159,7 @@ out2 <- out2 %>% relocate(c(art, vgt),
 
 #sort the listst
 out <- out[order(out$ldato), ]
-out2 <- out[order(out2$ldato), ]
+out2 <- out2[order(out2$ldato), ]
 #out3 <- out[order(out3$ldato), ]
 
 
