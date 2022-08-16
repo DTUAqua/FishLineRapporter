@@ -28,7 +28,7 @@ detach("package:Hmisc", unload=TRUE)
 ```
 
 
-```{r define_input_ff, echo=FALSE, eval = T}
+```{r define_input_ff, echo=FALSE, eval = F}
 
 output_dir <- ""
 
@@ -36,14 +36,14 @@ musOmrString_dir <- ""
 musOmrString <- "Alle_muslingeområder_2019_region_erase2.shp"
 
 #Parameters
-#year<- @paramYear ; cruise <- @paramCruise;  species <- @paramSpecies
+year<- c(@paramYear) ; cruise <- c(@paramCruise);  species <- @paramSpecies
 
 ```
 
-```{r define_input_dev, echo=FALSE, eval = F}
+```{r define_input_dev, echo=FALSE, eval = T}
 
 version_name <- "v14"
-output_dir <- "Q:/mynd/kibi/fishLine/FishLineRapporter/Biomasseberegninger/creating_a_new_biomasse_report/output/"
+output_dir <- "Q:/mynd/kibi/fishLine/FishLineRapporter/Biomasseberegninger/output/"
 
 musOmrString_dir <- "Q:/mynd/kibi/fishLine/FishLineRapporter/Biomasseberegninger/referencer/"
 musOmrString <- "Alle_muslingeområder_2019_region_erase2.shp"
@@ -107,7 +107,7 @@ makeTable_db_m <- function(data){
 
 ```
 
-```{r getdata_ff, echo=FALSE, message=FALSE, warning=FALSE, eval = T}
+```{r getdata_ff, echo=FALSE, message=FALSE, warning=FALSE, eval = F}
 
 channel <- odbcConnect("FishLineDW")
 data <- sqlQuery(channel, paste("SELECT Sample.sampleId, Sample.year, Sample.cruise, Sample.trip, Sample.station, Sample.stationName, Sample.haulType, Sample.latPosStartText, Sample.lonPosStartText, Sample.latPosEndText, Sample.lonPosEndText, Sample.latPosStartDec,
@@ -117,13 +117,15 @@ data <- sqlQuery(channel, paste("SELECT Sample.sampleId, Sample.year, Sample.cru
 FROM     Animal RIGHT OUTER JOIN
                   SpeciesList ON Animal.speciesListId = SpeciesList.speciesListId RIGHT OUTER JOIN
                   Sample ON SpeciesList.sampleId = Sample.sampleId
-                                 WHERE     Sample.year = (",year,") AND
-                                           Sample.cruise = ('",cruise,"')", sep=""), stringsAsFactors=FALSE)
+                                 WHERE     Sample.year in ('", paste(year, collapse = "','"), "') AND
+                                           Sample.cruise in ('", paste(cruise, collapse = "','"), "')"), 
+                                           stringsAsFactors=FALSE)
 
 db_message <- sqlQuery(channel,
-                       sprintf("SELECT * FROM ErrorLog where origin like '%s->%s%s'",
-                               year,cruise,"%"),
-                       stringsAsFactors = F)
+                       sprintf("SELECT * FROM ErrorLog
+                               WHERE     year in ('", paste(year, collapse = "','"), "') AND
+                                         cruise in ('", paste(cruise, collapse = "','"), "')"), 
+                                           stringsAsFactors=FALSE)
 close(channel)
 
 ref_sample <- distinct(read.csv(paste0(output_dir, "ref_table_BEFISKM2_function.csv"), sep = ";"), gearType, gearVal, STATTYPE, REDSKDIM, 
@@ -134,7 +136,7 @@ ref_species <- rename(distinct(read.csv(paste0(output_dir, "ref_table_KORR_funct
 ```
 
 
-```{r getdata_all_dev, echo=FALSE, message=FALSE, warning=FALSE, eval = F}
+```{r getdata_all_dev, echo=FALSE, message=FALSE, warning=FALSE, eval = T}
 
 
 channel <- odbcConnect("FishLineDW")
@@ -145,7 +147,7 @@ data <- sqlQuery(channel, paste("SELECT Sample.sampleId, Sample.year, Sample.cru
 FROM     Animal RIGHT OUTER JOIN
                   SpeciesList ON Animal.speciesListId = SpeciesList.speciesListId RIGHT OUTER JOIN
                   Sample ON SpeciesList.sampleId = Sample.sampleId
-WHERE  (Sample.cruise LIKE 'BV%')", sep = ""), stringsAsFactors = FALSE)
+WHERE  (Sample.cruise LIKE 'BV LF BMS%')", sep = ""), stringsAsFactors = FALSE)
 
 db_message <- sqlQuery(channel,
                        sprintf("SELECT TOP (0) * FROM ErrorLog"),
@@ -153,10 +155,10 @@ db_message <- sqlQuery(channel,
 
 close(channel)
 
-ref_sample <- distinct(read.csv(paste0(output_dir, "ref_table_BEFISKM2_function.csv"), sep = ";"), gearType, gearVal, STATTYPE, REDSKDIM, 
+ref_sample <- distinct(read.csv(paste0(musOmrString_dir, "ref_table_BEFISKM2_function.csv"), sep = ";"), gearType, gearVal, STATTYPE, REDSKDIM, 
                        BEFISKM2_function)
 
-ref_species <- rename(distinct(read.csv(paste0(output_dir, "ref_table_KORR_function.csv")), stationType, speciesCode, 
+ref_species <- rename(distinct(read.csv(paste0(musOmrString_dir, "ref_table_KORR_function.csv")), stationType, speciesCode, 
                         KORR_function), STATTYPE = stationType)
 
 ```
