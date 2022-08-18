@@ -14,6 +14,24 @@ output: pdf_document
 \renewcommand{\familydefault}{\sfdefault}
 \sffamily
 
+```{r readme include = F}
+
+# This report is set up with chucks that runs under FishLine and directly in R.
+# The chuncks are activated by usinging eval = T/F. the specific chunks are:
+#   define_input_ff
+#   define_input_dev
+#   getdata_ff
+#   getdata_all_dev
+#   getdata_dev
+# 
+# To run in FishLine, then set eval = T for define_input_ff and getdata_ff. 
+# The rest should be set to eval = F
+# 
+# To run local in R studio do the opposit and remenber to set the paths
+
+```
+
+
 
 ```{r set_libraries, include=FALSE}
 
@@ -28,7 +46,7 @@ detach("package:Hmisc", unload=TRUE)
 ```
 
 
-```{r define_input_ff, echo=FALSE, eval = F}
+```{r define_input_ff, echo=FALSE, eval = T}
 
 output_dir <- ""
 
@@ -40,7 +58,7 @@ year<- c(@paramYear) ; cruise <- c(@paramCruise);  species <- @paramSpecies
 
 ```
 
-```{r define_input_dev, echo=FALSE, eval = T}
+```{r define_input_dev, echo=FALSE, eval = F}
 
 version_name <- "v14"
 output_dir <- "Q:/mynd/kibi/fishLine/FishLineRapporter/Biomasseberegninger/output/"
@@ -107,7 +125,7 @@ makeTable_db_m <- function(data){
 
 ```
 
-```{r getdata_ff, echo=FALSE, message=FALSE, warning=FALSE, eval = F}
+```{r getdata_ff, echo=FALSE, message=FALSE, warning=FALSE, eval = T}
 
 channel <- odbcConnect("FishLineDW")
 data <- sqlQuery(channel, paste("SELECT Sample.sampleId, Sample.year, Sample.cruise, Sample.trip, Sample.station, Sample.stationName, Sample.haulType, Sample.latPosStartText, Sample.lonPosStartText, Sample.latPosEndText, Sample.lonPosEndText, Sample.latPosStartDec,
@@ -136,7 +154,7 @@ ref_species <- rename(distinct(read.csv(paste0(output_dir, "ref_table_KORR_funct
 ```
 
 
-```{r getdata_all_dev, echo=FALSE, message=FALSE, warning=FALSE, eval = T}
+```{r getdata_all_dev, echo=FALSE, message=FALSE, warning=FALSE, eval = F}
 
 
 channel <- odbcConnect("FishLineDW")
@@ -147,7 +165,7 @@ data <- sqlQuery(channel, paste("SELECT Sample.sampleId, Sample.year, Sample.cru
 FROM     Animal RIGHT OUTER JOIN
                   SpeciesList ON Animal.speciesListId = SpeciesList.speciesListId RIGHT OUTER JOIN
                   Sample ON SpeciesList.sampleId = Sample.sampleId
-WHERE  (Sample.cruise LIKE 'BV LF BMS%')", sep = ""), stringsAsFactors = FALSE)
+WHERE  (Sample.cruise LIKE 'BV LF OES%')", sep = ""), stringsAsFactors = FALSE)
 
 db_message <- sqlQuery(channel,
                        sprintf("SELECT TOP (0) * FROM ErrorLog"),
