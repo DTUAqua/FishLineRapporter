@@ -139,13 +139,13 @@ FROM     Animal RIGHT OUTER JOIN
                   SpeciesList ON Animal.speciesListId = SpeciesList.speciesListId RIGHT OUTER JOIN
                   Sample ON SpeciesList.sampleId = Sample.sampleId
                                  WHERE     Sample.year in ('", paste(year, collapse = "','"), "') AND
-                                           Sample.cruise in ('", paste(cruise, collapse = "','"), "')"), 
-                                           stringsAsFactors=FALSE)
+                                           Sample.cruise in ('", paste(cruise, collapse = "','"), "')
+                                           ", sep = ""))
 
 db_message <- sqlQuery(channel,
                        paste0("SELECT * FROM ErrorLog
-                               WHERE SUBSTRING(origin, 1, 4) in ('", paste(year, collapse = "','"), "')"), 
-                                           stringsAsFactors=FALSE)
+                               WHERE SUBSTRING(origin, 1, 4) in ('", paste(year, collapse = "','"), "')
+                               ", sep = ""))
 
 close(channel)
 
