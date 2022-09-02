@@ -20,7 +20,7 @@ if (!require(pacman)){
   install.packages("pacman", repos="http://ftp.ussg.iu.edu/CRAN/")
   library(pacman)
 }
-p_load(kableExtra, sqldf, RODBC, dplyr)
+p_load(kableExtra, sqldf, RODBC, dplyr, haven)
 
 #special for this script
 p_load(data.table)
@@ -29,11 +29,11 @@ p_load(data.table)
 
 ```{r define_input, echo=FALSE}
 
-# fid <- c(@paramFid)
-# start <-as.Date(@paramStart)
-# end <-as.Date(@paramEnd)
-# log <- c(@paramLog)
-# ldat <- c(@paramLdat)
+fid <- c(@paramFid)
+start <-as.Date(@paramStart)
+end <-as.Date(@paramEnd)
+log <- c(@paramLog)
+ldat <- c(@paramLdat)
 
 
 # fid <- "L757"
@@ -42,19 +42,22 @@ p_load(data.table)
 # log <- c("0008617390")
 # ldat <- c("2022-05-05")
 
-fid <- "L757"
-start <-as.Date("")
-end <-as.Date("")
-log <- c("0008617390")
-ldat <- c("")
+# fid <- "L757"
+# start <-as.Date("")
+# end <-as.Date("")
+# log <- c("0008617390")
+# ldat <- c("")
 
 ```
 
 ```{r import_data, echo=FALSE, cache = FALSE}
 
 #dfad <- readRDS("<dfad-path>/dfad.rds")
-dfad <- readRDS("Q:/dfad/users/jostou/home/FishLineRapporter/DFADs søgning/dfad.rds")
+dfad <- readRDS("dfad.rds")
+#dfad <- readRDS("Q:/dfad/users/jostou/home/FishLineRapporter/DFADs søgning/dfad.rds")
 
+havn <-  haven::read_sas("Q:/mynd/SAS Library/FD_Format/lplads.sas7bdat")   
+names(havn)[1:2] <- c("lplads", "lhavn")
 
 ```
 
@@ -123,9 +126,10 @@ if (nrow(dat) == 0){
 #fix underscores
 dat$match_alle <- gsub("_", "\\\\_", dat$match_alle) 
 
+dat <- merge(dat, havn[, 1:2], by = "lplads")
 #aggregate data to different levels
 setDT(dat)
-out <- dat[ ,. (opknr = toString(unique(opknr)),
+out <- dat[ ,. (lhavn = toString(unique(lhavn)),
                 dfadfvd_ret = toString(unique(dfadfvd_ret)),
                 redskb = toString(unique(redskb)),
                 maske = toString(unique(maske)),
@@ -147,20 +151,23 @@ out2 <- dat[ ,. (redskb = toString(unique(redskb)),
 out2 <- out2 %>% relocate(c(art, vgt), 
                         .after = maske)
 
-# out3 <- dat[ ,. (redskb = unique(redskb),
-#                  maske = unique(maske),
-#                  vgt = sum(hel, na.rm = T),
-#                  sort = toString(unique(sort)),
-#                  ltilst = toString(unique(ltilst)),
-#                  square_ret = toString(unique(square_ret))),
-#             by = .(fid, ldato, start_fngtid, slut_fngtid, match_alle, art)]
+if (length(unique(out$match_alle)) == 1 & TRUE %in% !is.na(dat$start_fngtid)){
+  
+  out3 <- dat[ ,. (art = "all",
+                   vgt = round(sum(hel, na.rm = T), digits = 2)), 
+               by = .(fid, match, start_fngtid, slut_fngtid, 
+                      start_br_pos, slut_br_pos, start_lg_pos, slut_lg_pos)]
+  
+  out3 <- out3[order(out3$start_fngtid), ]
+}
+
 
 
 
 #sort the listst
 out <- out[order(out$ldato), ]
 out2 <- out2[order(out2$ldato), ]
-#out3 <- out[order(out3$ldato), ]
+
 
 
 ```
@@ -194,7 +201,7 @@ if (!exists("txt")){
        kbl(escape = F, longtable = T, booktabs = T, linesep = "",
            row.names = F, caption = "Summeret data pr tur af givne fartøj",
            col.names = c("fartøj", "logbogs nr", "land dato", "afs tid", "ank tid",
-                         "opk nr", "farvand", "redskb", "maske", "art", "vgt (kg)")) %>%
+                         "land havn", "farvand", "redskb", "maske", "art", "vgt (kg)")) %>%
        row_spec(0, bold = TRUE) %>%
        kable_styling(latex_options = c("striped", "hold_position"), font_size = 8) %>%
        column_spec(1, width = "1cm") %>%
@@ -204,7 +211,7 @@ if (!exists("txt")){
 }
 ```
 
-
+\vspace*{1cm}
 ```{r print out2, echo=FALSE, cache = FALSE}
 
 #this is the second output if no problems with subsetting data
@@ -226,6 +233,29 @@ if (!exists("txt") & sce != 6){
 }
 ```
 
+\vspace*{1cm}
+```{r print bonus out3, echo=FALSE, cache = FALSE}
+#this outputs alternative subset of data, if errors with subsetting has occured
+if (exists("out3")){
+  cat("Landunger pr træk", "\n")
+  
+   out3 %>%
+       kbl(escape = F, longtable = T, booktabs = T, linesep = "", 
+           row.names = F, caption = "Fisketid og Position",
+           col.names = c("fartøj", "logbogs nr", "start tid", "slut tid", 
+                         "start bredegrad", "slut bredegrad", "start længdegrad", "slut længdergrad",
+                         "art", "vgt (kg)")) %>%
+       row_spec(0, bold = TRUE) %>%
+       kable_styling(latex_options = c("striped", "hold_position"), font_size = 8) %>%
+       column_spec(1, width = "1cm") %>%
+       column_spec(2:8, width = "1.5cm") %>%
+       column_spec(9:10, width = "1cm")
+
+}
+
+```
+
+\vspace*{1cm}
 ```{r print warnings, echo=FALSE, cache = FALSE}
 
 #this prints the error meassage if problems with subsetting data
@@ -250,7 +280,7 @@ if (exists("txt") & sce != 7){
        kbl(escape = F, longtable = T, booktabs = T, linesep = "", 
            row.names = F, caption = "Summeret data for alle ture af givne fartøj",
            col.names = c("fartøj", "logbogs nr", "land dato", "afs tid", "ank tid",
-                         "opk nr", "farvand", "redskb", "maske", "art", "vgt (kg)")) %>%
+                         "land havn", "farvand", "redskb", "maske", "art", "vgt (kg)")) %>%
        row_spec(0, bold = TRUE) %>%
        kable_styling(latex_options = c("striped", "hold_position"), font_size = 8) %>%
        column_spec(1, width = "1cm") %>%
@@ -258,5 +288,5 @@ if (exists("txt") & sce != 7){
        column_spec(6:11, width = "1cm")
 
 }
-
 ```
+

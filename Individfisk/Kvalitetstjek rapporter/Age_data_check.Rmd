@@ -31,21 +31,21 @@ p_load(sm, ggplot2, ggrepel, dbscan)
 
 ```{r set_parameters, include=FALSE}
 
-y1 <- @paramYear1
-y2 <- @paramYear2
-species <- c(@paramSpecies)
-areas <- c(@paramArea)
-cruise <- c(@paramCruise)
-Q <- c(@paramQuarter)
+# y1 <- @paramYear1
+# y2 <- @paramYear2
+# species <- c(@paramSpecies)
+# areas <- c(@paramArea)
+# cruise <- c(@paramCruise)
+# Q <- c(@paramQuarter)
 
 
 # Paramters to use in R
-# y1 <- 2021
-# y2 <- 2022
-# species <- c("TOR")
-# areas <- c(22, 23, 24, 25, 26)
-# cruise <- c("BITS-1", "IN-LYNG", "KASU-1", "MON")
-Q <- c(1, 2, 4)
+y1 <- 2021
+y2 <- 2022
+species <- c("SPE")
+areas <- c(20, 21, 22, "4A", "4B", "4C")
+cruise <- c("IBTS-1", "IBTS-2", "IN-3 PART", "IN-FISKER", "IN-HIRT", "KASU-1", "KASU-2", "SEAS")
+Q <- c(1, 2, 3, 4)
 
 if (TRUE %!in% (c(1, 2, 3, 4) %in% Q)){
 	Q <- c("")
@@ -54,6 +54,7 @@ if (TRUE %!in% (c(1, 2, 3, 4) %in% Q)){
 	qtrs <- Q
 	}
 ```
+
 
 ```{r get_data, include=FALSE}
 
@@ -406,7 +407,9 @@ if (nrow(age_fish) != 0){
            xlab = "Age",
            ylab = "Length [mm]",
            cex.main = 1.5,
-           cex.lab = 1.5)+
+           cex.lab = 1.5,
+           xaxt="n")+
+        axis(1,at=unique(data$age),labels=unique(data$age))+
         grid()+
         lines(sort(data$age), fitted(lm_fit)[order(data$age)], col='red', lwd=1.5)+
         points(data$age, data$length_mm, pch = 16, cex = 1, col = "blue")+
@@ -419,10 +422,13 @@ if (nrow(age_fish) != 0){
            xlab = "Age",
            ylab = "Length [mm]",
            cex.main = 1.5,
-           cex.lab = 1.5)+
+           cex.lab = 1.5,
+           xaxt="n")+
+        axis(1,at=unique(data$age),labels=unique(data$age))+
         grid()+
         points(data$age, data$length_mm, pch = 16, cex = 1, col = "blue")+
         points(outliers$age, outliers$length_mm, pch = 16, cex = 1, col = "red")  
+        
       }
       
       ### weight stuff
