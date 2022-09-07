@@ -55,9 +55,9 @@ cruise <- @paramCruise
 mappath <- 'europe_simple_wgs84'
  
 
-# year<- 2018
-# quarter <- 1
-# cruise <- 'MON'
+year<- 2022
+quarter <- 2
+cruise <- 'MON'
 # mappath <- "../Discardtjek/kort/europe_simple_wgs84"
 
 
@@ -457,6 +457,8 @@ gear_input[gear_input$dfuArea %like% "\\color","selectionDevice"] <-
         gear_input[gear_input$dfuArea %like% "\\color","selectionDevice"])
 
 mis_gear2 <- rbind(gear_input[gear_input$dfuArea %like% "\\color",],mis_gear)
+
+mis_gear2 <- mis_gear2[! mis_gear2$gearType %in% c('GTR','GNS','GND','GN','GTN', 'MSP', 'GNC'), ]
 
 if (nrow(mis_gear2)>0) {
 
