@@ -149,8 +149,6 @@ db_message <- sqlQuery(channel,
 
 close(channel)
 
-db_message <- subset(db_message, cruise %in% cruise)
-
 ref_sample <- distinct(read.csv(paste0(output_dir, "ref_table_BEFISKM2_function.csv"), sep = ";"), gearType, gearVal, STATTYPE, REDSKDIM, 
                        BEFISKM2_function)
 
@@ -733,21 +731,24 @@ Her vil der blive vist eventuelle fejl og advarsler fra ejsporten af togtet fra 
 
 ```{r db_messages, results='asis',echo=FALSE,message=FALSE,warning=FALSE,fig.pos='H', eval = T}
 
+db_message$year <- 0
+db_message$cruise <- ""
+db_message$trip <- ""
+db_message$station <- ""
+
+for (i in 1:nrow(db_message)){
+  origin <- strsplit(db_message$origin[i],split="->")
+  
+  db_message$year[i] <- as.numeric(origin[[1]][1])
+  db_message$cruise[i] <- origin[[1]][2]
+  db_message$trip[i] <- origin[[1]][3]
+  db_message$station[i] <- origin[[1]][4]
+}
+
+
+db_message <- db_message[db_message$cruise %in% cruise, ]
+  
 if (nrow(db_message)>0){
-  
-  db_message$year <- 0
-  db_message$cruise <- ""
-  db_message$trip <- ""
-  db_message$station <- ""
-  
-  for (i in 1:nrow(db_message)){
-    origin <- strsplit(db_message$origin[i],split="->")
-    
-    db_message$year[i] <- as.numeric(origin[[1]][1])
-    db_message$cruise[i] <- origin[[1]][2]
-    db_message$trip[i] <- origin[[1]][3]
-    db_message$station[i] <- origin[[1]][4]
-  }
   
   db_message$logTime <- as.character(db_message$logTime)
   
@@ -765,7 +766,7 @@ cat("\\subsection{Advarsler fra datawarehouset}")
   if (!is.null(nrow(warnings)) && nrow(warnings)>0){
 
   w <- warnings %>% 
-    dplyr::select(trip,station,recordType,description,logTime,transferErrorId) 
+    dplyr::select(year,trip,cruise,description,logTime,transferErrorId) 
   
   makeTable_db_m(w)
 
@@ -778,7 +779,7 @@ cat("\\subsection{Fejlmeddelelser fra datawarehouset}")
 if (!is.null(nrow(errors)) && nrow(errors)>0){
   
   er <- errors %>% 
-    dplyr::select(trip,station,recordType,description,logTime,transferErrorId) 
+    dplyr::select(year,trip,cruise,description,logTime,transferErrorId) 
   
   makeTable_db_m(er)
 } else{
