@@ -137,8 +137,8 @@ art_out <- c(@paramSpecies)
 # art_out <- art_out$speciesCode
 
 # cruise_all <- c("TBM")
-# v_cruise <- c("REYKJANES","Salling","Tobisskrabetogt LH.")
-# v_year <- c("2018","2017")
+# v_cruise <- c("Tobisskrabetogt AH")
+# v_year <- c("2021")
 # art_out <- c("TBM")
 
 ```
@@ -222,8 +222,8 @@ close(channel)
 
 # The sandeel dredge survey "Salling" in 2012 is a commercial
 # survey which we cannot use for scientific studies
-hh1_a <- hh1_a[!(hh1_a$year == 2012 & hh1_a$cruise == "Tobisskrabetogt S."),]
-hlca_a <- hlca_a[!(hlca_a$year == 2012 & hlca_a$cruise == "Tobisskrabetogt S."),]
+#hh1_a <- hh1_a[!(hh1_a$year == 2012 & hh1_a$cruise == "Tobisskrabetogt S."),]
+#hlca_a <- hlca_a[!(hlca_a$year == 2012 & hlca_a$cruise == "Tobisskrabetogt S."),]
 
 hlca_a[hlca_a$sexCode == "T" & !is.na(hlca_a$sexCode), "sexCode"] <- "H"
 
@@ -687,7 +687,7 @@ ca$PlusGr = '-9'
 # Maturity --------------------------------------------------------------------
 
 # No Maturity
-ca[!(ca$maturityIndexMethod %in% c("A","B","C","I","M")) |
+ca[!(ca$maturityIndexMethod %in% c("A","B","C","I", "N", "M")) |
      is.na(ca$maturityIndex),"Maturity"] <- "-9"
 
 ca[is.na(ca$maturityIndexMethod),"maturityIndexMethod"] <- "-9"
@@ -721,6 +721,21 @@ ca[ca$maturityIndexMethod == 'M' & ca$maturityIndex %in% c(2:3), "Maturity"] <- 
 ca[ca$maturityIndexMethod == 'M' & ca$maturityIndex == 4, "Maturity"] <- 63
 ca[ca$maturityIndexMethod == 'M' & ca$maturityIndex == 5, "Maturity"] <- 64
 ca[ca$maturityIndexMethod == 'M' & ca$maturityIndex == 6, "Maturity"] <- 65
+
+# Method N
+ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 21, "Maturity"] <- 2
+ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 22, "Maturity"] <- 2
+ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 31, "Maturity"] <- 3
+ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 32, "Maturity"] <- 3
+ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 41, "Maturity"] <- 4
+ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 42, "Maturity"] <- 4
+
+ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 1, "Maturity"] <- 61
+ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 2, "Maturity"] <- 62
+ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 3, "Maturity"] <- 63
+ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 4, "Maturity"] <- 64
+ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 5, "Maturity"] <- 65
+ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 6, "Maturity"] <- 66
 
 } else{
   ca <- cbind(ca,data.frame(SpecCodeType=character(),

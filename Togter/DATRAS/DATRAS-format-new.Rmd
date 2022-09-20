@@ -237,8 +237,8 @@ close(channel)
 
 # The sandeel dredge survey "Salling" in 2012 is a commercial
 # survey which we cannot use for scientific studies
-hh1_a <- hh1_a[!(hh1_a$year == 2012 & hh1_a$cruise == "Tobisskrabetogt S."),]
-hlca_a <- hlca_a[!(hlca_a$year == 2012 & hlca_a$cruise == "Tobisskrabetogt S."),]
+#hh1_a <- hh1_a[!(hh1_a$year == 2012 & hh1_a$cruise == "Tobisskrabetogt S."),]
+#hlca_a <- hlca_a[!(hlca_a$year == 2012 & hlca_a$cruise == "Tobisskrabetogt S."),]
 
 #hlca_a[hlca_a$sexCode == "T" & !is.na(hlca_a$sexCode), "sexCode"] <- "H"
 
@@ -868,7 +868,7 @@ ca$PlusGr = '-9'
 # Maturity --------------------------------------------------------------------
 
 # No Maturity
-ca[!(ca$maturityIndexMethod %in% c("A","B","C","I","M")) |
+ca[!(ca$maturityIndexMethod %in% c("A","B","C","I", "N", "M")) |
      is.na(ca$maturityIndex),"Maturity"] <- "-9"
 
 ca[is.na(ca$maturityIndexMethod),"maturityIndexMethod"] <- "-9"
