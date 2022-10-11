@@ -16,11 +16,17 @@ names(stock_ref)
 # Add rect when needed ----
 
 ## Sandeel ----
+### Coded added for the sandeel family (SAN) first, than add the two species later
+### Ammodytes tobianus (ABZ)
+### Ammodytes marinus (QLH)
 
 
 san_1 <- data.frame(
   sppFAO = "SAN",
   stock = "san.sa.1r",
+  area = "SA.1",
+  description = "Sandeel (Ammodytes spp.) in Divisions 4.b and 4.c  Sandeel Area 1r (central and southern North Sea  Dogger Bank)",
+  updated = "2022-10-11",
   rect = c(
     "31F0",
     "31F1",
@@ -87,6 +93,9 @@ san_1 <- data.frame(
 san_2 <- data.frame(
   sppFAO = "SAN",
   stock = "san.sa.2r",
+  area = "SA.2r",
+  description = "Sandeel (Ammodytes spp.) in Divisions 4.b and 4.c  and Subdivision 20  Sandeel Area 2r (Skagerrak central and southern North Sea)",
+  updated = "2022-10-11",
   rect = c(
     "35F7",
     "35F8",
@@ -124,6 +133,9 @@ san_2 <- data.frame(
 san_3 <- data.frame(
   sppFAO = "SAN",
   stock = "san.sa.3r",
+  area = "SA.3r",
+  description = "Sandeel (Ammodytes spp.) in Divisions 4.a and 4.b  and Subdivision 20  Sandeel Area 3r (Skagerrak  northern and central North Sea)",
+  updated = "2022-10-11",
   rect = c(
     "41F1",
     "41F2",
@@ -170,6 +182,9 @@ san_3 <- data.frame(
 san_4 <- data.frame(
   sppFAO = "SAN",
   stock = "san.sa.4",
+  area = "SA.4",
+  description = "Sandeel (Ammodytes spp.) in Divisions 4.a and 4.b  and Subdivision 20  Sandeel Area 3r (Skagerrak  northern and central North Sea)",
+  updated = "2022-10-11",
   rect = c(
     "38E8",
     "38E9",
@@ -213,6 +228,9 @@ san_4 <- data.frame(
 san_5 <- data.frame(
   sppFAO = "SAN",
   stock = "san.sa.5r",
+  area = "SA.5r",
+  description = "Sandeel (Ammodytes spp.) in Division 4.a  Sandeel Area 5r (northern North Sea  Viking and Bergen banks)",
+  updated = "2022-10-11",
   rect =  c(
     "47F1",
     "47F2",
@@ -253,6 +271,9 @@ san_5 <- data.frame(
 san_6 <- data.frame(
   sppFAO = "SAN",
   stock = "san.sa.6",
+  area = "SA.6",
+  description = "Sandeel (Ammodytes spp.) in Subdivisions 20-22  Sandeel Area 6 (Kattegat)",
+  updated = "2022-10-11",
   rect = c(
     "41G0",
     "41G1",
@@ -270,6 +291,9 @@ san_6 <- data.frame(
 san_7 <- data.frame(
   sppFAO = "SAN",
   stock = "san.sa.7r",
+  area = "SA.7r",
+  description = "Sandeel (Ammodytes spp.) in Division 4.a  Sandeel Area 7r (northern North Sea  Shetland)",
+  updated = "2022-10-11",
   rect = c(
     "47E6",
     "47E7",
@@ -304,11 +328,22 @@ san_7 <- data.frame(
   )
 )
 
+# Relation for Ammodytes (SAN)
+
 san <- rbind(san_1, san_2, san_3, san_4, san_5, san_6, san_7)
+
+# Add lines for the two sandeel species
+### Ammodytes tobianus (ABZ)
+### Ammodytes marinus (QLH)
+
+abz <- mutate(san, sppFAO = "ABZ")
+qlh <- mutate(san, sppFAO = "QLH")
+
+san_all <- bind_rows(san, abz, qlh)
 
 ## Add rect to stock_ref ----
 
-stock_ref <- merge(stock_ref, san, all.x = T)
+stock_ref <- bind_rows(subset(stock_ref, substr(stock, 1, 3) != "san"), san_all)
 
 # Add quarter when needed ----
 
@@ -331,7 +366,7 @@ stock_ref <- merge(stock_ref, hom, all.x = T)
 
 ## clean up relation
 
-stock_ref <- rename(stock_ref, "speciesCode" = "sppFAO", "statisticalRectangle" = "rect")
+stock_ref <- rename(stock_ref, "icesCode" = "sppFAO", "statisticalRectangle" = "rect")
 
 stock_ref$updated <- Sys.Date()
 
