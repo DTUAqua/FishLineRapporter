@@ -336,10 +336,12 @@ san <- rbind(san_1, san_2, san_3, san_4, san_5, san_6, san_7)
 ### Ammodytes tobianus (ABZ)
 ### Ammodytes marinus (QLH)
 
-abz <- mutate(san, sppFAO = "ABZ")
-qlh <- mutate(san, sppFAO = "QLH")
+# abz <- mutate(san, sppFAO = "ABZ") # This has been fixed by changing icesCode in Fiskeline to SAN
+# qlh <- mutate(san, sppFAO = "QLH")
+# 
+# san_all <- bind_rows(san, abz, qlh)
 
-san_all <- bind_rows(san, abz, qlh)
+san_all <- san
 
 ## Add rect to stock_ref ----
 
