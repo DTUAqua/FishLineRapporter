@@ -834,15 +834,31 @@ saveRDS(final_data,
 
 ```{r save_output, echo=FALSE, warning=FALSE, message=FALSE, eval = T}
 
+if (length(year) > 1) {
 # Write csv
-cruise <- gsub(" ","_",cruise)
-write.csv(final_data,
-          file=paste("Biomasse_",
-                     format(Sys.time(), "%d%b%Y"),".csv",sep=""),
-          row.names=FALSE,fileEncoding = "UTF-8")
+write.csv2(final_data,
+          file=paste0("Biomasse_", species,"_",
+                     format(Sys.time(), "%Y_%m_%d_%H%M"),".csv"), sep="",
+          row.names=FALSE)
 
-write.csv(ref_species,
-          file=paste("ref_table_KORR_function_",
-                     format(Sys.time(), "%d%b%Y"), ".csv",sep=""),
-          row.names=FALSE,fileEncoding = "UTF-8")
+write.csv2(ref_species,
+          file=paste0("ref_table_KORR_function_", species,"_",
+                     format(Sys.time(), "%Y_%m_%d_%H%M"), ".csv") ,sep="",
+          row.names=FALSE)
+} else{
+  write.csv2(final_data,
+          file=paste0("Biomasse_", cruise, "_", species,"_",
+                     format(Sys.time(), "%Y_%m_%d_%H%M"),".csv"), sep="",
+          row.names=FALSE)
+
+write.csv2(ref_species,
+          file=paste0("ref_table_KORR_function_", cruise, "_", species,"_",
+                     format(Sys.time(), "%Y_%m_%d_%H%M"), ".csv") ,sep="",
+          row.names=FALSE)
+}
 ```
+
+
+
+
+
