@@ -441,26 +441,26 @@ data2 <- data1 %>%
   dplyr::summarise(TOTWGTSMA = 
                      sum(unique(TOTWGT[sizeSortingDFU=="SMÅ"]),na.rm=T),
                    TOTNUMSMA = 
-                     sum(TOTNUM[sizeSortingDFU=="SMÅ"],na.rm=T),
+                     sum(TOTNUM_ANI[sizeSortingDFU=="SMÅ"],na.rm=T),
                    LENMEANSMA = sum(SOP_Length[sizeSortingDFU=="SMÅ"],na.rm=T)/
-                     sum(TOTNUM[sizeSortingDFU=="SMÅ"],na.rm=T),
+                     sum(TOTNUM_ANI[sizeSortingDFU=="SMÅ"],na.rm=T),
                    LENMINSMA = 
                      min(Length_cm[sizeSortingDFU=="SMÅ"],na.rm=T),
                    
                    TOTWGTSTO = 
                      sum(unique(TOTWGT[sizeSortingDFU=="STO"]),na.rm=T),
                    TOTNUMSTO = 
-                     sum(TOTNUM[sizeSortingDFU=="STO"],na.rm=T),
+                     sum(TOTNUM_ANI[sizeSortingDFU=="STO"],na.rm=T),
                    LENMEANSTO = 
                      sum(SOP_Length[sizeSortingDFU=="STO"],na.rm=T)/
-                     sum(TOTNUM[sizeSortingDFU=="STO"],na.rm=T),
+                     sum(TOTNUM_ANI[sizeSortingDFU=="STO"],na.rm=T),
                    LENMINSTO = 
                      min(Length_cm[sizeSortingDFU=="STO"],na.rm=T),
                    
                    TOTWGT = sum(unique(TOTWGT),na.rm=T),
                    TOTNUM_ANI = sum(TOTNUM_ANI,na.rm=T),
                    LENMEAN = 
-                     sum(SOP_Length,na.rm=T)/sum(TOTNUM,na.rm=T),
+                     sum(SOP_Length,na.rm=T)/sum(TOTNUM_ANI,na.rm=T),
                    LENMIN = min(Length_cm,na.rm=T)) 
 
 
@@ -471,6 +471,7 @@ if (species=="SKL") {data2$LENMIN <- NULL; data2$LENMEAN <- NULL;}
 data2$TOTNUM <- data2$TOTNUM_ANI
 
 # Need to hear about field naming, before changing this
+# OBS STO/SMA
 
 # data2$TOTNUM[data2$TOTNUM_ANI == 0 &
 #                !(is.na(data2$TOTNUM_SP))] <-
