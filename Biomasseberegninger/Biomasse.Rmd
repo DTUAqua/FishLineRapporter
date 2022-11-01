@@ -63,15 +63,15 @@ year<- c(@paramYear) ; cruise <- c(@paramCruise);  species <- @paramSpecies
 version_name <- "v14"
 output_dir <- "Q:/mynd/kibi/fishLine/FishLineRapporter/Biomasseberegninger/output/"
 
-musOmrString_dir <- "Q:/mynd/kibi/fishLine/FishLineRapporter/Biomasseberegninger/referencer/"
+musOmrString_dir <- "Q:/mynd/kibi/fiskeline/FishLineRapporter/Biomasseberegninger/referencer/"
 musOmrString <- "Alle_muslingeområder_2019_region_erase2.shp"
 #species <- params$species
 
 #Parameters
 
-year <- c(1986, 1996, 1998, 1999)
-cruise <- c("BV LF BMS apr", "BV LF BMS maj", "BV LF BMS sept")
-species <- "BMS"
+year <- c(2013)
+cruise <- c("BV LF BMS april")
+species <- "SST"
 # year <- 2021; cruise <- "BV LB BMS okt"; species <- "BMS"
 # year <- 2020; cruise <- "BV LF BMS april"; species <- "BMS"
 # year <- 2011; cruise <- "BV LF OES mar"; species <- "OES"
@@ -149,10 +149,10 @@ db_message <- sqlQuery(channel,
 
 close(channel)
 
-ref_sample <- distinct(read.csv(paste0(output_dir, "ref_table_BEFISKM2_function.csv"), sep = ";"), gearType, gearVal, STATTYPE, REDSKDIM, 
+ref_sample <- distinct(read.csv(paste0(musOmrString_dir, "ref_table_BEFISKM2_function.csv"), sep = ";"), gearType, gearVal, STATTYPE, REDSKDIM, 
                        BEFISKM2_function)
 
-ref_species <- rename(distinct(read.csv(paste0(output_dir, "ref_table_KORR_function.csv")), stationType, speciesCode, 
+ref_species <- rename(distinct(read.csv(paste0(musOmrString_dir, "ref_table_KORR_function.csv")), stationType, speciesCode, 
                         KORR_function), STATTYPE = stationType)
 ```
 
@@ -834,7 +834,7 @@ saveRDS(final_data,
 
 ```{r save_output, echo=FALSE, warning=FALSE, message=FALSE, eval = T}
 
-if (length(year) > 1) {
+if (length(year) > 1 | length(cruise) > 1) {
 # Write csv
 write.csv2(final_data,
           file=paste0("Biomasse_", species,"_",
