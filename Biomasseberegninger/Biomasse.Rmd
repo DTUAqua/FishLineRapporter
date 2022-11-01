@@ -134,7 +134,7 @@ channel <- odbcConnect("FishLineDW")
 data <- sqlQuery(channel, paste("SELECT Sample.sampleId, Sample.year, Sample.cruise, Sample.trip, Sample.station, Sample.stationName, Sample.haulType, Sample.latPosStartText, Sample.lonPosStartText, Sample.latPosEndText, Sample.lonPosEndText, Sample.latPosStartDec,
                   Sample.lonPosStartDec, Sample.latPosEndDec, Sample.lonPosEndDec, Sample.fishingtime, Sample.distancePositions, Sample.courseTrack, Sample.distanceBottom, Sample.haulSpeedBot * 0.514 AS haulSpeedBotMS, Sample.gearQuality,
                   SpeciesList.speciesCode, SpeciesList.dfuBase_Category, SpeciesList.weightStep0, SpeciesList.weightStep1, SpeciesList.weightStep2, SpeciesList.weightStep3, SpeciesList.raisingFactor, Animal.representative, Animal.individNum,
-                  Animal.length, Animal.number, Animal.weight, Animal.sizeSortingDFU, SpeciesList.speciesListId, Animal.animalId, Sample.gearType
+                  Animal.length, Animal.number, Animal.weight, Animal.sizeSortingDFU, SpeciesList.speciesListId, Animal.animalId, Sample.gearType, SpeciesList.number AS number_sp
 FROM     Animal RIGHT OUTER JOIN
                   SpeciesList ON Animal.speciesListId = SpeciesList.speciesListId RIGHT OUTER JOIN
                   Sample ON SpeciesList.sampleId = Sample.sampleId
@@ -164,7 +164,7 @@ channel <- odbcConnect("FishLineDW")
 data <- sqlQuery(channel, paste("SELECT Sample.sampleId, Sample.year, Sample.cruise, Sample.trip, Sample.station, Sample.stationName, Sample.haulType, Sample.latPosStartText, Sample.lonPosStartText, Sample.latPosEndText, Sample.lonPosEndText, Sample.latPosStartDec,
                   Sample.lonPosStartDec, Sample.latPosEndDec, Sample.lonPosEndDec, Sample.fishingtime, Sample.distancePositions, Sample.courseTrack, Sample.distanceBottom, Sample.haulSpeedBot * 0.514 AS haulSpeedBotMS, Sample.gearQuality,
                   SpeciesList.speciesCode, SpeciesList.dfuBase_Category, SpeciesList.weightStep0, SpeciesList.weightStep1, SpeciesList.weightStep2, SpeciesList.weightStep3, SpeciesList.raisingFactor, Animal.representative, Animal.individNum,
-                  Animal.length, Animal.number, Animal.weight, Animal.sizeSortingDFU, SpeciesList.speciesListId, Animal.animalId, Sample.gearType
+                  Animal.length, Animal.number, Animal.weight, Animal.sizeSortingDFU, SpeciesList.speciesListId, Animal.animalId, Sample.gearType, SpeciesList.number AS number_sp
 FROM     Animal RIGHT OUTER JOIN
                   SpeciesList ON Animal.speciesListId = SpeciesList.speciesListId RIGHT OUTER JOIN
                   Sample ON SpeciesList.sampleId = Sample.sampleId
@@ -191,12 +191,12 @@ channel <- odbcConnect("FishLineDW")
 data <- sqlQuery(channel, paste("SELECT Sample.sampleId, Sample.year, Sample.cruise, Sample.trip, Sample.station, Sample.stationName, Sample.haulType, Sample.latPosStartText, Sample.lonPosStartText, Sample.latPosEndText, Sample.lonPosEndText, Sample.latPosStartDec,
                   Sample.lonPosStartDec, Sample.latPosEndDec, Sample.lonPosEndDec, Sample.fishingtime, Sample.distancePositions, Sample.courseTrack, Sample.distanceBottom, Sample.haulSpeedBot * 0.514 AS haulSpeedBotMS, Sample.gearQuality,
                   SpeciesList.speciesCode, SpeciesList.dfuBase_Category, SpeciesList.weightStep0, SpeciesList.weightStep1, SpeciesList.weightStep2, SpeciesList.weightStep3, SpeciesList.raisingFactor, Animal.representative, Animal.individNum,
-                  Animal.length, Animal.number, Animal.weight, Animal.sizeSortingDFU, SpeciesList.speciesListId, Animal.animalId, Sample.gearType
+                  Animal.length, Animal.number, Animal.weight, Animal.sizeSortingDFU, SpeciesList.speciesListId, Animal.animalId, Sample.gearType, SpeciesList.number AS number_sp
 FROM     Animal RIGHT OUTER JOIN
                   SpeciesList ON Animal.speciesListId = SpeciesList.speciesListId RIGHT OUTER JOIN
                   Sample ON SpeciesList.sampleId = Sample.sampleId
                                  WHERE     Sample.year in ('", paste(year, collapse = "','"), "') AND
-                                           Sample.cruise in ('", paste(cruise, collapse = "','"), "')"), 
+                                           Sample.cruise in ('", paste(cruise, collapse = "','"), "')", sep = ""), 
                                            stringsAsFactors=FALSE)
 
 db_message <- sqlQuery(channel,
@@ -380,7 +380,12 @@ data$TOTWGT <- as.numeric(apply(data[,c("weightStep0","weightStep1","weightStep2
                                         1, function(x) min(x[1], x[2], x[3], x[4], na.rm=TRUE)))*data$raisingFactor
 
 # data$TotalWeight_kg2 <- rowSums(data[,c("Weight_kg_small","Weight_kg_STO")],na.rm=T)
-data$TOTNUM <- data$number*data$raisingFactor
+
+# Use number from animal if present, else use number from specieslist
+# The choice will be made in the end of this chunck, when TOTNUM is summed
+
+data$TOTNUM_ANI <- data$number*data$raisingFactor
+data$TOTNUM_SP <- data$number_sp*data$raisingFactor
 data$Length_cm <- data$length/10
 data$SOP_Length <- data$Length_cm*data$number*data$raisingFactor # Remove - this is not used
 
@@ -431,7 +436,8 @@ data2 <- data1 %>%
                   station, stationName, latPosStartText,lonPosStartText,
                   latPosStartDec, lonPosStartDec,latPosEndText,lonPosEndText,
                   latPosEndDec, lonPosEndDec, fishingtime, haulSpeedBotMS,
-                  REDSKDIM, BEFISKM2, areal_metode, DISMETH, speciesCode, FUNBEFISKM2) %>% 
+                  REDSKDIM, BEFISKM2, areal_metode, DISMETH, speciesCode, 
+                  FUNBEFISKM2, TOTNUM_SP) %>% 
   dplyr::summarise(TOTWGTSMA = 
                      sum(unique(TOTWGT[sizeSortingDFU=="SMÅ"]),na.rm=T),
                    TOTNUMSMA = 
@@ -452,7 +458,7 @@ data2 <- data1 %>%
                      min(Length_cm[sizeSortingDFU=="STO"],na.rm=T),
                    
                    TOTWGT = sum(unique(TOTWGT),na.rm=T),
-                   TOTNUM = sum(TOTNUM,na.rm=T),
+                   TOTNUM_ANI = sum(TOTNUM_ANI,na.rm=T),
                    LENMEAN = 
                      sum(SOP_Length,na.rm=T)/sum(TOTNUM,na.rm=T),
                    LENMIN = min(Length_cm,na.rm=T)) 
@@ -462,7 +468,15 @@ data2 <- data1 %>%
 if (species=="SST") {data2$LENMIN <- NULL; data2$LENMEAN <- NULL;}
 if (species=="SKL") {data2$LENMIN <- NULL; data2$LENMEAN <- NULL;}
 
+data2$TOTNUM <- data2$TOTNUM_ANI
 
+# Need to hear about field naming, before changing this
+
+# data2$TOTNUM[data2$TOTNUM_ANI == 0 &
+#                !(is.na(data2$TOTNUM_SP))] <-
+#   data2$TOTNUM_SP[data2$TOTNUM_ANI == 0 & !(is.na(data2$TOTNUM_SP))]
+
+data2 <- select(data2, -TOTNUM_ANI, -TOTNUM_SP)
 ```
 
 # Fangst_kg_m2 (FANGM2)
@@ -617,7 +631,7 @@ if (species=="BMS") {
   data4$KORROST<-NULL
   }
 if (species=="OES") {
-    data4$KORRBMS<-NULL;
+  data4$KORRBMS<-NULL;
   data4$KORRBMSSTO<-NULL;
   data4$KORRBMSSMÅ<-NULL;
   data4$KORRSST<-NULL;
@@ -626,7 +640,7 @@ if (species=="OES") {
   data4$KORROST<-NULL
   }
 if (species=="SST") {
-    data4$KORRBMS<-NULL;
+  data4$KORRBMS<-NULL;
   data4$KORRBMSSTO<-NULL;
   data4$KORRBMSSMÅ<-NULL;
   data4$KORROES<-NULL;
@@ -635,7 +649,7 @@ if (species=="SST") {
   data4$KORROST<-NULL
   }
 if (species=="SKL") {
-    data4$KORRBMS<-NULL;
+  data4$KORRBMS<-NULL;
   data4$KORRBMSSTO<-NULL;
   data4$KORRBMSSMÅ<-NULL;
   data4$KORRSST<-NULL;
@@ -644,7 +658,7 @@ if (species=="SKL") {
   data4$KORROST<-NULL
   }
 if (species=="HMS") {
-    data4$KORRBMS<-NULL;
+  data4$KORRBMS<-NULL;
   data4$KORRBMSSTO<-NULL;
   data4$KORRBMSSMÅ<-NULL;
   data4$KORRSST<-NULL;
