@@ -69,9 +69,9 @@ musOmrString <- "Alle_muslingeområder_2019_region_erase2.shp"
 
 #Parameters
 
-year <- c(2013)
-cruise <- c("BV LF BMS april")
-species <- "SST"
+year <- c(1999)
+cruise <- c("BV LF BMS maj")
+species <- "BMS"
 # year <- 2021; cruise <- "BV LB BMS okt"; species <- "BMS"
 # year <- 2020; cruise <- "BV LF BMS april"; species <- "BMS"
 # year <- 2011; cruise <- "BV LF OES mar"; species <- "OES"
@@ -437,7 +437,7 @@ data2 <- data1 %>%
                   latPosStartDec, lonPosStartDec,latPosEndText,lonPosEndText,
                   latPosEndDec, lonPosEndDec, fishingtime, haulSpeedBotMS,
                   REDSKDIM, BEFISKM2, areal_metode, DISMETH, speciesCode, 
-                  FUNBEFISKM2, TOTNUM_SP) %>% 
+                  FUNBEFISKM2) %>% 
   dplyr::summarise(TOTWGTSMA = 
                      sum(unique(TOTWGT[sizeSortingDFU=="SMÅ"]),na.rm=T),
                    TOTNUMSMA = 
@@ -477,7 +477,7 @@ data2$TOTNUM <- data2$TOTNUM_ANI
 #                !(is.na(data2$TOTNUM_SP))] <-
 #   data2$TOTNUM_SP[data2$TOTNUM_ANI == 0 & !(is.na(data2$TOTNUM_SP))]
 
-data2 <- select(data2, -TOTNUM_ANI, -TOTNUM_SP)
+data2 <- select(data2, -TOTNUM_ANI)
 ```
 
 # Fangst_kg_m2 (FANGM2)
@@ -614,6 +614,10 @@ data2[is.na(data2$mark),"mark"] <- 2
 data3 <- data2[with(data2, order(sampleId,mark)), ]
 
 dat_spp <- subset(data3, speciesCode %in% species)
+
+# ### only one line pr haul ###
+# dat_spp <- dat_spp[! (duplicated(dat_spp$station) & dat_spp$TOTWGT == 0), ]
+# ######
 
 dat_no_spp <- slice(arrange(group_by(subset(data3, !(sampleId %in% dat_spp$sampleId)), sampleId), sampleId, mark, speciesCode), 1)
 
@@ -850,30 +854,31 @@ saveRDS(final_data,
 ```{r save_output, echo=FALSE, warning=FALSE, message=FALSE, eval = T}
 
 if (length(year) > 1 | length(cruise) > 1) {
+
+ys <- range(year)
 # Write csv
-write.csv2(final_data,
-          file=paste0("Biomasse_", species,"_",
-                     format(Sys.time(), "%Y_%m_%d_%H%M"),".csv"), sep="",
-          row.names=FALSE)
+write.csv(final_data,
+          file=paste0("Biomasse_", species,"_", 
+          ys[1], "_", ys[2], "_",
+          format(Sys.time(), "%Y%m%d%H%M"), ".csv"),
+          row.names=FALSE,fileEncoding = "UTF-8")
 
-write.csv2(ref_species,
+write.csv(ref_species,
           file=paste0("ref_table_KORR_function_", species,"_",
-                     format(Sys.time(), "%Y_%m_%d_%H%M"), ".csv") ,sep="",
-          row.names=FALSE)
+          ys[1], "_", ys[2], "_", 
+          format(Sys.time(), "%Y%m%d%H%M"), ".csv"),
+          row.names=FALSE,fileEncoding = "UTF-8")
 } else{
-  write.csv2(final_data,
+  write.csv(final_data,
           file=paste0("Biomasse_", cruise, "_", species,"_",
-                     format(Sys.time(), "%Y_%m_%d_%H%M"),".csv"), sep="",
-          row.names=FALSE)
+          			 year, "_",
+                     format(Sys.time(), "%Y%m%d%H%M"), ".csv"),
+          row.names=FALSE,fileEncoding = "UTF-8")
 
-write.csv2(ref_species,
+write.csv(ref_species,
           file=paste0("ref_table_KORR_function_", cruise, "_", species,"_",
-                     format(Sys.time(), "%Y_%m_%d_%H%M"), ".csv") ,sep="",
-          row.names=FALSE)
+          			 year, "_",
+                     format(Sys.time(), "%Y%m%d%H%M"), ".csv"),
+          row.names=FALSE,fileEncoding = "UTF-8")
 }
 ```
-
-
-
-
-
