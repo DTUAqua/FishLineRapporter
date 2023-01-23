@@ -136,10 +136,10 @@ art_out <- c(@paramSpecies)
 # close(channel)
 # art_out <- art_out$speciesCode
 
-# cruise_all <- c("TBM")
-# v_cruise <- c("REYKJANES","Salling","Tobisskrabetogt LH.")
-# v_year <- c("2018","2017")
-# art_out <- c("TBM")
+cruise_all <- c("TBM")
+v_cruise <- c("Tobisskrabetogt AH")
+v_year <- c("2022")
+art_out <- c("TBM")
 
 ```
 
@@ -237,10 +237,10 @@ close(channel)
 
 # The sandeel dredge survey "Salling" in 2012 is a commercial
 # survey which we cannot use for scientific studies
-#hh1_a <- hh1_a[!(hh1_a$year == 2012 & hh1_a$cruise == "Tobisskrabetogt S."),]
-#hlca_a <- hlca_a[!(hlca_a$year == 2012 & hlca_a$cruise == "Tobisskrabetogt S."),]
+hh1_a <- hh1_a[!(hh1_a$year == 2012 & hh1_a$cruise == "Tobisskrabetogt S."),]
+hlca_a <- hlca_a[!(hlca_a$year == 2012 & hlca_a$cruise == "Tobisskrabetogt S."),]
 
-#hlca_a[hlca_a$sexCode == "T" & !is.na(hlca_a$sexCode), "sexCode"] <- "H"
+hlca_a[hlca_a$sexCode == "T" & !is.na(hlca_a$sexCode), "sexCode"] <- "H"
 
 # On IBTS-2 in 1996 we need to remove some test stations
 hlca_a <- hlca_a[!(hlca_a$station %like% '^OMR' | hlca_a$station == 'TEST'),]
@@ -905,12 +905,12 @@ ca[ca$maturityIndexMethod == 'M' & ca$maturityIndex == 6, "Maturity"] <- 65
 
 
 # method N (ldie - added den 26-11-2020)
-ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 21, "Maturity"] <- 2
-ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 22, "Maturity"] <- 2
-ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 31, "Maturity"] <- 3
-ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 32, "Maturity"] <- 3
-ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 41, "Maturity"] <- 4
-ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 42, "Maturity"] <- 4
+ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 21, "Maturity"] <- 62
+ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 22, "Maturity"] <- 62
+ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 31, "Maturity"] <- 63
+ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 32, "Maturity"] <- 63
+ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 41, "Maturity"] <- 64
+ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 42, "Maturity"] <- 64
 
 ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 1, "Maturity"] <- 61
 ca[ca$maturityIndexMethod == 'N' & ca$maturityIndex == 2, "Maturity"] <- 62
