@@ -752,6 +752,7 @@ Her vil der blive vist eventuelle fejl og advarsler fra ejsporten af togtet fra 
 
 if (nrow(db_message) == 0) {
   cat("\\subsection{Fejlmeddelelser fra datawarehouset}")
+  cat("Der har ikke været registreret advarsler fra datawarehouset\n")
 } else{
 
 db_message$year <- 0
