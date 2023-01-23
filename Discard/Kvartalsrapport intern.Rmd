@@ -56,9 +56,9 @@ mappath <- 'europe_simple_wgs84'
  
 
 year<- 2022
-quarter <- 2
+quarter <- 3
 cruise <- 'MON'
-# mappath <- "../Discardtjek/kort/europe_simple_wgs84"
+mappath <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/CoastLines/EuropeWGS84"
 
 
 ```
@@ -1240,6 +1240,7 @@ if (nrow(with_individNum[with_individNum$year==year &
         for (i in sort(spec_AL)) {
             db_spec0 <- dataset[dataset$speciesCode==i,]
             
+            #print(i)
             # db_spec1 <- db_spec0[db_spec0$year==year,]
             # db_spec_db <- db_spec0[db_spec0$year!=year,]
             
@@ -1390,9 +1391,9 @@ if (nrow(with_individNum[with_individNum$year==year &
               #                         "p{0.4in}","p{0.4in}"),
               #         lines.page=5000)
 
-              }
+              
               detach(package:Hmisc)
-
+        }
 
 
         } else{cat(sprintf("\\newline Der er ikke aflæst arter fra %s i %s %s endnu. ",

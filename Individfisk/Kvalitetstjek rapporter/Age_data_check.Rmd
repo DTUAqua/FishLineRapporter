@@ -31,21 +31,21 @@ p_load(sm, ggplot2, ggrepel, dbscan)
 
 ```{r set_parameters, include=FALSE}
 
-# y1 <- @paramYear1
-# y2 <- @paramYear2
-# species <- c(@paramSpecies)
-# areas <- c(@paramArea)
-# cruise <- c(@paramCruise)
-# Q <- c(@paramQuarter)
+y1 <- @paramYear1
+y2 <- @paramYear2
+species <- c(@paramSpecies)
+areas <- c(@paramArea)
+cruise <- c(@paramCruise)
+Q <- c(@paramQuarter)
 
 
 # Paramters to use in R
-y1 <- 2021
-y2 <- 2022
-species <- c("SPE")
-areas <- c(20, 21, 22, "4A", "4B", "4C")
-cruise <- c("IBTS-1", "IBTS-2", "IN-3 PART", "IN-FISKER", "IN-HIRT", "KASU-1", "KASU-2", "SEAS")
-Q <- c(1, 2, 3, 4)
+# y1 <- 2021
+# y2 <- 2022
+# species <- c("SPE")
+# areas <- c(20, 21, 22, "4A", "4B", "4C")
+# cruise <- c("IBTS-1", "IBTS-2", "IN-3 PART", "IN-FISKER", "IN-HIRT", "KASU-1", "KASU-2", "SEAS")
+# Q <- c(1, 2, 3, 4)
 
 if (TRUE %!in% (c(1, 2, 3, 4) %in% Q)){
 	Q <- c("")
