@@ -44,14 +44,14 @@ art_out <- unlist(strsplit(gsub(" ","",@paramSpecies, ",",fixed=TRUE), ","))
 
 v_fid <- str_replace_all(v_fid, fixed(" "), "")
 
-#param_filter <- c("Fartøj_og_Landingsdato") # Fartøj, Fartøj_og_Landingsdato, Logbogs_nr
+param_filter <- c("Fartøj_og_Landingsdato") # Fartøj, Fartøj_og_Landingsdato, Logbogs_nr
 #v_ldato <- c("2020-08-26")
 #v_year <- c("2020")
-v_fid <- c("KE321")
-#art_out <- c("NAN")
-FirstDate <-c("2020-07-25")
-LastDate <-c("2020-07-27")
-v_match <- c("0002906716")
+v_fid <- c("AS260")
+art_out <- c("NAN")
+FirstDate <-c("2022-09-20")
+LastDate <-c("2022-09-28")
+#v_match <- c("0002906716")
 
 
 ```
