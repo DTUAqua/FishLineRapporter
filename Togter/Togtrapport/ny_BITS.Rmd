@@ -28,32 +28,43 @@ p_load(data.table, mapplots, maptools, shapefiles, ggplot2, lubridate,
 
 ```
 
-```{r set_parameters, include=FALSE}
+```{r set_parameters, include=FALSE, error = TRUE}
 
-# year <- @paramYear # mandatory
-# cruise <- @paramCruise # mandatory
-# exDate <- @paramExDate
-# weather <- @paramWeather
-# gear <- @paramGear
-# oxygen <- @paramOxygen
+  year <- @paramYear # mandatory
+  cruise <- @paramCruise # mandatory
+  exDate <- @paramExDate
+  weather <- @paramWeather
+  gear <- @paramGear
+  oxygen <- @paramOxygen
+  cruise_no <- @paramCruise_no
+ 
+  stations <- readRDS(paste0("<dfad-path>/logbog_", cruise, "_", year, ".rds")) 
+  
+  invisible(coast <- read.shapefile('europe'))
+  invisible(dk_eez <- read.shapefile('eez_dk_LandAndSea_2019'))
 
-year <- 2021
-cruise <- "BITS-1"
-exDate <- "No exchange"
-weather <-""
-gear <- ""
-oxygen <- ""
-cruise_no <- 2
-weather <- ifelse(weather == "", "No remarks on the Weather conditions")
-gear <-ifelse(gear == "", "No further remarks on the Gear performance")
-oxygen <- ifelse(oxygen == "", "No remarks on the Oxygen conditions")
+  
+  # year <- 2021
+  # cruise <- "BITS-2"
+  # exDate <- "2022-11-04"
+  # weather <-""
+  # gear <- ""
+  # oxygen <- ""
+  # cruise_no <- 2
+  # 
+  # stations <- readRDS(paste0("Q:/dfad/users/jostou/home/FishLineRapporter/Togter/Togtrapport/logbog_", cruise, "_", year, ".rds"))
+  # 
+  # #get shapefiles for the map
+  # invisible(coast <- read.shapefile('Q:/gis/Dynamisk/GEOdata/BasicLayers/CoastLines/Europe/europe'))
+  # invisible(dk_eez <- read.shapefile('Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/EEZ/LandAndSea/eez_dk_LandAndSea_2019'))
 
-#get shapefiles for the map
-invisible(coast <- read.shapefile('Q:/gis/Dynamisk/GEOdata/BasicLayers/CoastLines/Europe/europe'))
-invisible(dk_eez <- read.shapefile('Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/EEZ/LandAndSea/eez_dk_LandAndSea_2019'))
 
-# invisible(coast <- read.shapefile('europe'))
-# invisible(dk_eez <- read.shapefile('eez_dk_LandAndSea_2019'))
+
+weather <- ifelse(weather == "", "No remarks on the Weather conditions", weather)
+gear <-ifelse(gear == "", "No further remarks on the Gear performance", gear)
+oxygen <- ifelse(oxygen == "", "No remarks on the Oxygen conditions", oxygen)
+exDate <- ifelse(exDate == "", "No exchange", exDate)
+
 ```
 
 
@@ -125,64 +136,12 @@ ages <- sqlQuery(channel, paste("SELECT    animalId, year, cruise, trip, tripTyp
 close(channel)
 
 
-server <- "10.55.102.161"
-db_name<- "DanaDB_DW"
-username <- "sa"
-MyPassword <- "dfudfu"
-connectionString <- paste0("DRIVER={SQL Server}; server=",server,"; database=",db_name,"; uid=",username,"; pwd=",MyPassword, sep="")
-
-channel <-  odbcDriverConnect(connection=connectionString)
-
-cruise_info <- sqlQuery(channel, paste("SELECT  cruiseID, shipCode, cruiseYear, cruiseNo, cruiseDays,
-                                                cruiseLeader, assistCruiseLeader, captain, startDate,
-                                                endDate, institute
-                                    FROM        CruiseInformation
-                                    WHERE       (cruiseYear = (",year,"))
-                                                   ",sep=""))
-cruiseID <- cruise_info$cruiseID
-
-stations <- sqlQuery(channel, paste("SELECT     gearDataID, cruiseID, gearNo, haulNo, stationNo, gearCode, status,
-                                                timeStart, posLatStartDec as lat, posLonStartDec as lon,
-                                                botDepStart, speedWatStart, speedBotStart, navSysStart,
-                                                squareStart, gearDistLog, gearDistPos, gearDur, wireLength,
-                                                gearDepth,  windDir, windSpeed, seaHeaviness, seaCurrent
-                                    FROM        GearData
-                                    WHERE       (cruiseID IN ('", paste(cruiseID,collapse = "','"),"'))
-                                                   ",sep=""))
-
-close(channel)
-
-# cruise_info <- readRDS("C:/Users/jostou/Desktop/cruise_info.rds")
-# stations <- readRDS("C:/Users/jostou/Desktop/stations.rds")
-
-cruiseID <- unique(stations[stations$timeStart %in% samples$haul_start, "cruiseID"])
-stations <- stations[stations$cruiseID == cruiseID, ]
-cruise_info <- cruise_info[cruise_info$cruiseID == cruiseID, ]
-
-db_name<- "DanaDB"
-connectionString <- paste0("DRIVER={SQL Server}; server=",server,"; database=",db_name,"; uid=",username,"; pwd=",MyPassword, sep="")
-
-channel <-  odbcDriverConnect(connection=connectionString)
-
-wind1 <- sqlQuery(channel, paste("SELECT    cruiseID, sampleID, logTime, posLatDec as lat, posLonDec as lon
-                                    FROM    SampleLog
-                                    WHERE   cruiseID = (",cruiseID,")
-                                                   ",sep=""))
-sampleID <- unique(wind1$sampleID)
-
-wind2 <- sqlQuery(channel, paste("SELECT    sampleID, ParamCode, Result
-                                    FROM    ShipData
-                                    WHERE   (sampleID IN ('", paste(sampleID,collapse = "','"),"')) AND
-                                            (ShipData.ParamCode IN ('windDirCor', 'windSpCor'))
-                                                   ",sep=""))
-
-close(channel)
 ```
 
 ```{r format_for_front_page, include=FALSE}
 
 #here the information is formatted to be inserted directly into the later latex part.
-ship <- ifelse(cruise %like% "KASU", "Havfisken", "DANA")
+ship <- "DANA"
 
 start_date <- as.Date(trips$dateStart)
 end_date <- as.Date(trips$dateEnd)
@@ -190,11 +149,8 @@ end_date <- as.Date(trips$dateEnd)
 start_time <- format(trips$dateStart, "%H-%M")
 end_time <- format(trips$dateEnd, "%H-%M")
 
-cruises <- cruises[order(cruises$cruiseId), ]
-#cruise_no <- which(cruises$cruise == cruise)
-
 quarter <- unique(samples$quarter)
-titl <- ifelse(cruise %like% "KASU", "BITS/KASU", "BITS")
+titl <- ifelse(cruise %like% "BITS", "BITS", "cruise")
 ```
 
 \thispagestyle{empty}
@@ -399,24 +355,6 @@ notes about circumstances (unusual gear performance, special catches, non-confor
 survey. The haul summary below is the overview from this logbook
 
 \subsection{Weather Conditions}
-```{r format_wind, include=FALSE}
-wind1$date <-  format(wind1$logTime, format = "%Y-%m-%d")
-wind1$hour <-  format(wind1$logTime, format = "%Y-%m-%d %H")
-
-setDT(wind2)
-wind3 <- dcast(wind2, sampleID ~ ParamCode, value.var=c("Result") , fun = mean)
-
-wind <- merge(wind3, wind1, by = "sampleID")
-wind <- wind[wind$date > (start_date -2) & wind$date < (end_date  + 2)]
-
-setDT(wind)
-wind_day <- wind[ ,. (avrg = mean(windSpCor)), 
-                  by = (date)]
-
-L15wind_days <- nrow(wind_day[wind_day$avrg > 15, ])
-```
-Wind speed and direction are presented in the end of the report in Figure 5. The   
-number of days with an average wind speed larger than 15 m/s where `r L15wind_days`.
 
 `r weather`
 
@@ -434,21 +372,24 @@ is logged to verify that the observed trawl geometry values are within the defin
 \subsection{Stations}
 
 An overview of he Trawl and Bongo stations are shown in figure 1, 2 and 3, followed by a haul summary of all gears used onboard. 
+
 \subsubsection{Haul Summary}
 ```{r format hauls, echo=FALSE, results='asis'}
-stations$gearCode <- trimws(stations$gearCode) #trim whitespace
+stations$Redskab <- trimws(stations$Redskab) #trim whitespace
 
 n_valid <- nrow(samples[samples$gearQuality == "V", ])
 n_no_oxy <- nrow(samples[samples$haulType == "N",  ])
 n_invalid <- nrow(samples[samples$gearQuality == "I", ])
 n_planed <- nrow(samples) - n_invalid
 
-n_ctd <- nrow(stations[stations$gearCode=="SEA" & stations$status!="Fail",])
-n_bongo <- nrow(stations[stations$gearCode=="BONGO" & stations$status!="Fail",])
-n_wp2 <- nrow(stations[stations$gearCode=="WP2" & stations$status!="Fail",])
-n_apt <- nrow(stations[stations$gearCode=="apt" & stations$status!="Fail",])
+n_ctd <- nrow(stations[stations$Redskab == "SEA" & stations$Status != "Fail",])
+n_bongo <- nrow(stations[stations$Redskab == "BONGO" & stations$Status != "Fail",])
+n_wp2 <- nrow(stations[stations$Redskab == "WP2" & stations$Status != "Fail",])
+n_apt <- nrow(stations[stations$Redskab == "apt" & stations$Status != "Fail",])
 
-bongo <- stations[!is.na(stations$status) & stations$gearCode=="BONGO" & stations$status != "Fail", ]
+
+bongo <- stations[!is.na(stations$Status) & stations$Redskab == "BONGO" & stations$Status != "Fail", ]
+
 ```
 
 \begin{table}[H]
@@ -474,23 +415,42 @@ Other activity &                     &   \\
 \subsubsection{Station Map}
 ```{r arrow_plot, echo=FALSE, results='asis', cache=FALSE, message=FALSE, warning=FALSE, fig.width=10, fig.height=10}
 
+a <- data.frame(Starttid = samples$haul_start, lon = samples$lonPosStartDec, lat = samples$latPosStartDec)
+a$Redskab <- "Trawl"
+
+
 #define the map outline
-ylim <- c(54,56.5)
-xlim <- c(14, max(samples$lonPosStartDec))
+#setting coordinates for aspect ration:
+asp <- 1/1
 
-a <- data.frame(timeStart = samples$haul_start, lon = samples$lonPosStartDec, lat = samples$latPosStartDec)
-a$gearCode <- "Trawl"
+xlim <- c(floor(min(a$lon)),ceiling(max(a$lon)))
 
-if(exDate != "No exchange"){
-b <- data.frame(timeStart = as.POSIXct(exDate), lon = 14.69, lat = 55.10, gearCode = "Harb")
+y_l <- ((xlim[2] - xlim[1])/asp)/2
+y_max <- ceiling(max(a$lat)/0.5)*0.5
+
+if (y_max - y_l < min(a$lat)){
+  
+  ylim <- c(y_max - y_l, y_max)
+  
 } else {
-  b <- c()
+  
+  ylim <- c(floor(min(a$lat)/0.5)*0.5,ceiling(max(a$lat)/0.5)*0.5)
+  xlim <- c(floor(min(a$lon)),ceiling(max(a$lon)))
+  
 }
 
-q <- rbind(a, b, bongo[, c("timeStart", "lon", "lat", "gearCode")])
 
-q$gearCode <- as.numeric(as.factor(q$gearCode))
-q <- q[order(q$timeStart), ]
+
+if(exDate != "No exchange"){
+b <- data.frame(Starttid = as.POSIXct(exDate), lon = 14.69, lat = 55.10, Redskab = "Harb")
+} else {
+  b <- data.frame(Starttid = NA, lon = NA, lat = NA, Redskab = "Harb")
+}
+
+q <- rbind(a, b, bongo[, c("Starttid", "lon", "lat", "Redskab")])
+
+q$Redskab <- as.numeric(as.factor(q$Redskab))
+q <- q[order(q$Starttid), ]
 
 q$lon2 <- c(q$lon[-1], 12.59)
 q$lat2 <- c(q$lat[-1], 55.69)
@@ -499,9 +459,9 @@ p1 <- basemap(xlim, ylim, main = paste0(titl, " ",  quarter, "Q ", year))+
   draw.shape(coast, col="cornsilk")+
   draw.shape(dk_eez, col="transparent", border = "red")+
   draw.rect()+
-  points(q$lon, q$lat, col= 1 + q$gearCode, pch = 16, cex = 0.75)
-  legend("bottomright", legend=c("Trawl ", "Bongo"),
-         col=c("green", "red"), pch = 16, cex=1.5, bg='white')
+  points(q$lon, q$lat, col= 1 + q$Redskab, pch = 16, cex = 1.5)
+  legend("bottomright", legend=c("Bongo", "Trawl ", "Harbour"),
+         col= 1 + unique(q$Redskab), pch = 16, cex=1.5, bg='white')
   arrows(q$lon, q$lat, q$lon2, q$lat2, length = 0.075)
 ```
 Figure 1. Survey map with the route drawn in.
@@ -532,10 +492,9 @@ Figure 2. Survey map with trawl stations. Indicated is the status of the station
 
 ```{r bongo_plot, echo=FALSE, results='asis', cache=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=12}                            
 #make BONGO map
-bongo <- stations[stations$gearCode=="BONGO" & stations$status != "Fail", ]
-invalid <- stations[stations$gearCode=="BONGO" & stations$status =="Fail",]
-wp2 <- stations[stations$gearCode=="WP2" & stations$status!="Fail",]
-apt <- stations[stations$gearCode=="appi" & stations$status!="Fail",] 
+invalid <- stations[stations$Redskab == "BONGO" & stations$Status == "Fail",]
+wp2 <- stations[stations$Redskab == "WP2" & stations$Status !="Fail",]
+apt <- stations[(stations$Redskab =="apt" | stations$Redskab == "appi") & stations$Status !="Fail",] 
 
 p2 <- basemap(xlim, ylim, main = paste0(titl, " ",  quarter, "Q ", year))+
               draw.shape(coast, col="cornsilk")+
@@ -685,38 +644,7 @@ for (i in area[1:length(area)]) {
   
 }
 ```
-\newpage
-\section{Wind Plot}
-```{r wind plot, echo=FALSE, results='asis'}
-wind_h <- wind[ ,. (spd = mean(windSpCor), dir = mean(windDirCor)), 
-                  by = .(hour)]
 
-
-wind_h$hour <- gsub('-', '', wind_h$hour)
-wind_h$hour <- as.POSIXct(wind_h$hour, format="%Y%m%d %H")
-
-p1 <- ggplot(wind_h, aes(x=hour, y=spd, group=1)) +
-        geom_line() +
-        theme_bw() +
-        theme(panel.grid.major = element_blank(), 
-              axis.text.x=element_blank(),
-              axis.title.x=element_blank())+
-        scale_x_datetime(date_breaks = "2 day", date_labels = "%d/%m")+
-        labs(y = "Wind speed (m/s)")
-
-p2 <- ggplot(wind_h, aes(x=hour, y=dir, group=1)) +
-        geom_line() +
-        theme_bw() +
-        theme(panel.grid.major = element_blank())+
-        scale_x_datetime(date_breaks = "2 day", date_labels = "%d/%m")+
-        labs(x = "Day", y = expression(paste("Wind direction (", {}*degree, ")") ))
-
-grid.arrange(p1, p2)
-
-
-```
-
-Figure 5, shows the Wind speed and wind direction along the cruise track
 
 
 
