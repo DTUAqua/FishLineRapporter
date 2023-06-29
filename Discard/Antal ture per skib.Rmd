@@ -95,4 +95,3 @@ V_today <- format(Sys.Date(),"%d%m%y")
 write.csv(data2, paste0("DiscardTurePerSkib_",V_today,".csv"), row.names = FALSE, quote = FALSE)
 
 ```
-

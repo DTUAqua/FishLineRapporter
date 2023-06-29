@@ -138,4 +138,3 @@ for (i in sort(unique(tripSumQuarter$Kvartal))) {
 detach(package:Hmisc)
 
 ```
-

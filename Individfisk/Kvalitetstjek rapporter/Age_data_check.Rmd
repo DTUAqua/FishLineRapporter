@@ -31,21 +31,21 @@ p_load(sm, ggplot2, ggrepel, dbscan)
 
 ```{r set_parameters, include=FALSE}
 
-y1 <- @paramYear1
-y2 <- @paramYear2
-species <- c(@paramSpecies)
-areas <- c(@paramArea)
-cruise <- c(@paramCruise)
-Q <- c(@paramQuarter)
+# y1 <- @paramYear1
+# y2 <- @paramYear2
+# species <- c(@paramSpecies)
+# areas <- c(@paramArea)
+# cruise <- c(@paramCruise)
+# Q <- c(@paramQuarter)
 
 
 # Paramters to use in R
-# y1 <- 2021
-# y2 <- 2022
-# species <- c("SPE")
-# areas <- c(20, 21, 22, "4A", "4B", "4C")
-# cruise <- c("IBTS-1", "IBTS-2", "IN-3 PART", "IN-FISKER", "IN-HIRT", "KASU-1", "KASU-2", "SEAS")
-# Q <- c(1, 2, 3, 4)
+y1 <- 2021
+y2 <- 2022
+species <- c("TOR")
+areas <- c(20, 21, 22, 24, 25, "4A", "4B", "4C")
+cruise <- c("BITS-2")
+Q <- c(1, 2, 3, 4)
 
 if (TRUE %!in% (c(1, 2, 3, 4) %in% Q)){
 	Q <- c("")
@@ -135,7 +135,7 @@ write.csv(age_fish, paste0("age_fish_", format(Sys.Date(), "%d%m%y"), ".csv"),
 
 
 #get rid of records where the otolith could not be read, to make analysis esier
-age_fish <- age_fish[!is.na(age_fish$age), ]
+age_fish <- age_fish[!is.na(age_fish$age) & !is.na(age_fish$length_mm), ]
 
 if ("" %in% Q) {
   age_fish$quarter <- "All"
@@ -253,6 +253,7 @@ if (nrow(age_fish) != 0){
   sex_plot <- sex_plot[sex_plot$sexCode %in% count[count$Freq > 1, "Var1"], ]
   
   sex_plot$sexCode <- as.factor(sex_plot$sexCode)
+  sex_plot <- sex_plot[!is.na(sex_plot$sexCode), ]
   ##make the frequency plot with sm::sm.density.compare (using "with" for easy data extraction)
   with(sex_plot, {
     # Length frequency plot, pr sex.
@@ -392,6 +393,12 @@ if (nrow(age_fish) != 0){
           
           #bind the outliers, but exclude rows that has already been found, as to avoid duplicates
           outliers <- rbind(lofs, points2[points2$ids %!in% lofs$ids, ])
+          
+          #exclude outliers that are inbtween points not deemed outliers
+          not_outliers <- a[! a$animalId %in% outliers$animalId, ]
+          outliers <- outliers[outliers$length > max(not_outliers$length) |
+                               outliers$length < min(not_outliers$length), ]
+        
           } else outliers <- c()
       }
       temp<-lapply(1:length(ID), fun) #funktion to get data and run the loop/function
