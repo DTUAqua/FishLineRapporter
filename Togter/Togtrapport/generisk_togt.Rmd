@@ -1,0 +1,549 @@
+---
+fontsize: 11pt
+geometry: top=2cm, bottom=2cm, left=1.5cm, right=1.5cm,headsep=1cm
+header-includes:
+- \usepackage[utf8]{inputenc}
+- \usepackage{fancyhdr}
+- \pagestyle{fancy}
+- \fancyfoot{}
+- \usepackage{ragged2e}
+- \linespread{1.15}
+- \usepackage{float}
+output: pdf_document
+fig_caption: yes
+keep_tex: yes
+---
+
+```{r set_libraries, include=FALSE, warning=FALSE}
+#Libraries used in the r code
+if (!require(pacman)){
+  install.packages("pacman", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(pacman)
+}
+p_load(kableExtra, sqldf, RODBC, dplyr)
+
+#special for this script
+p_load(data.table, mapplots, shapefiles, maptools, ggplot2, plyr, sm, ggrepel, dbscan)
+
+```
+
+```{r set_parameters, include=FALSE}
+year <- @paramYear
+cruise <- c(@paramCruise)
+trip <- @paramTrip
+weather <- @paramWeather
+gear <- @paramGear
+oxygen <- @paramOxygen
+
+invisible(coast <- read.shapefile('europe'))
+invisible(dk_eez <- read.shapefile('eez_dk_LandAndSea_2019'))
+
+# Paramters to use in R
+# year <- 2022
+# cruise <- "Torsk"
+# trip <- c(1)
+# weather <-""
+# gear <- ""
+# oxygen <- "" 
+
+# #get shapefiles for the map
+# invisible(coast <- read.shapefile('Q:/gis/Dynamisk/GEOdata/BasicLayers/CoastLines/Europe/europe'))
+# invisible(dk_eez <- read.shapefile('Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/EEZ/LandAndSea/eez_dk_LandAndSea_2019'))
+
+#format input
+weather <- ifelse(weather == "", "No Remarks on the Weather conditions")
+gear <-ifelse(gear == "", "No remarks on the Gear performance")
+oxygen <- ifelse(oxygen == "", "No remarks on the Oxygen conditions")
+
+## #species of intrest
+species <- c("BRS", "RSP", "SIL", "TNG", "TOR", "TBM")
+```
+
+```{r get_data, include=FALSE}
+
+#get data from fishline data base
+
+channel <- odbcConnect("FishLineDW")
+
+trips<-sqlQuery(channel,  paste("SELECT    
+       [year] 
+      ,[trip]
+      ,[dateStart]
+      ,[dateEnd]
+      ,[cruise]
+      ,[platform1]
+  FROM      Trip
+  WHERE     year IN ('",paste0(year,collapse="','"), "') AND
+            cruise IN ('",paste0(cruise,collapse="','"), "') AND
+            trip IN ('",paste0(trip,collapse="','"), "')
+  " ,sep = ""))
+
+samples<-sqlQuery(channel, paste("SELECT    
+       [sampleId]
+      ,[tripId]
+      ,[year]
+      ,[cruise]
+      ,[trip]
+      ,[tripType]
+      ,[station]
+      ,[stationName]
+      ,[gearQuality]
+      ,[quarterGearStart]
+      ,[dateGearStart]
+      ,[dateGearEnd]
+      ,[fishingtime]
+      ,[latPosStartDec]
+      ,[lonPosStartDec]
+      ,[latPosEndDec]
+      ,[lonPosEndDec]
+      ,[distancePositions]
+      ,[gearType]
+      ,[windSpeed]
+      ,[remark]
+  FROM      Sample
+  WHERE     year IN ('",paste0(year,collapse="','"), "') AND
+            cruise IN ('",paste0(cruise,collapse="','"), "') AND
+            trip IN ('",paste0(trip,collapse="','"), "') 
+  " ,sep = ""))
+
+sp_lst <- sqlQuery(channel, paste("SELECT
+       [year]
+      ,[cruise]
+      ,[trip]
+      ,[station]
+      ,[speciesCode]
+      ,[landingCategory]
+      ,[weightSubSample]
+      ,[weightTotal]
+      ,[numberSubSample]
+      ,[numberTotal]
+   FROM      SpeciesListRaised
+   WHERE     year IN ('",paste0(year,collapse="','"), "') AND 
+             cruise IN ('",paste0(cruise,collapse="','"), "') AND
+             trip IN ('",paste0(trip,collapse="','"), "') 
+   ", sep = ""))
+
+anim_lst <- sqlQuery(channel, paste("SELECT  
+       [year]
+      ,[cruise]
+      ,[trip]
+      ,[station]
+      ,[speciesCode]
+      ,[length]
+      ,[lengthMeasureUnit]
+      ,[numberSumSamplePerLength]
+      ,[numberTotalPerLength]
+      ,[weightMean]
+   FROM      AnimalRaised
+   WHERE     (speciesCode IN ('", paste(species,collapse = "','"),"')) AND
+             year IN ('",paste0(year,collapse="','"), "') AND 
+             cruise IN ('",paste0(cruise,collapse="','"), "') AND
+             trip IN ('",paste0(trip,collapse="','"), "')
+                                			       ", sep = ""))
+
+names <- sqlQuery(channel, paste("SELECT   
+     [speciesCode] 
+    ,[dkName]
+    ,[latin]
+  FROM   L_Species"
+  ,sep = ""))
+
+age <- sqlQuery(channel, paste("SELECT   
+       [animalId]
+      ,[year]
+      ,[cruise]
+      ,[trip]
+      ,[station]
+      ,[speciesCode]
+      ,[sexCode]
+      ,[number]
+      ,[length]
+      ,[age]
+      ,[genetics]
+  FROM     Age
+  WHERE    year IN ('",paste0(year,collapse="','"), "') AND 
+           cruise IN ('",paste0(cruise,collapse="','"), "') AND
+           trip IN ('",paste0(trip,collapse="','"), "') 
+           ORDER BY dateGearStart
+  ", sep = ""))
+
+animal <- sqlQuery(channel, paste("SELECT     
+       [animalId]
+      ,[year]
+      ,[cruise]
+      ,[trip]
+      ,[station]
+      ,[speciesCode]
+      ,[number]
+      ,[length]
+      ,[weight]
+    FROM     animal
+    WHERE    year IN ('",paste0(year,collapse="','"), "') AND 
+             cruise IN ('",paste0(cruise,collapse="','"), "') AND
+             trip IN ('",paste0(trip,collapse="','"), "') AND
+             (individNum != 0)
+             ORDER BY dateGearStart
+    ", sep = ""))
+
+close(channel)
+
+
+```
+
+```{r format_for_front_page, include=FALSE}
+
+#here the information is formatted to be inserted directly into the later latex part.
+ntur <- paste0(nrow(trips[trips$trip %in% trip]), " of ", nrow(trips))
+ship <- toString(trips$platform1)
+
+start_date <- as.Date(trips$dateStart)
+end_date <- as.Date(trips$dateEnd)
+
+start_time <- format(trips$dateStart, "%H-%M")
+end_time <- format(trips$dateEnd, "%H-%M")
+
+quarter <- unique(samples$quarterGearStart)
+titl <- ifelse(cruise %like% "KASU", "BITS/KASU", cruise)
+
+```
+
+\thispagestyle{empty}
+
+\vspace*{-2.5cm}
+
+\begin{figure}[H]
+        \flushright
+        \includegraphics[width=3cm]{logo.png}
+\end{figure}
+
+\vspace*{0.5cm}
+
+
+\textcolor{gray}{\huge DTU Aqua - Cruise report}
+
+\vspace*{4.5cm}
+
+\textbf{\Huge `r titl` - `r quarter`Q - `r year`}\
+\vspace*{0.2cm}
+\textit{\textbf{\large Trawl Survey}}\
+\vspace*{1cm}
+
+\textbf{\Huge `r ship`}
+
+\vspace*{0.2cm}
+
+\textbf{\Huge Denmark}
+
+\vspace*{0.5cm}
+
+\textbf{\large From `r start_date` to `r end_date`}
+
+
+\vfill
+
+\begin{figure}[H]
+        \flushleft
+        \includegraphics[width=8cm]{aqua_uk.png}
+\end{figure}
+
+\vspace{-3.1cm}
+\begin{flushright}
+DTU Aqua\\
+Kemitorvet, Building 202\\
+2800 Kgs. Lyngby\\
+Denmark
+\end{flushright}
+
+
+\newpage
+\setcounter{page}{1}
+<!-- define header and fodder start-->
+\fancypagestyle{companypagestyle}{
+    \fancyhf{}
+    \fancyfoot[L]{
+    \parbox[b]{\dimexpr\linewidth\relax}{\vspace{0.8cm}
+    {\color{red}\rule{\dimexpr\linewidth\relax}{0.4pt}}\\
+    {\footnotesize \color{gray} www.aqua.dtu.dk \hfill DTU AQUA, Kemitorvet, Building 202\\[-0.15cm]
+           +45 3588 3300 \hfill 2800 Kgs. Lyngby, Denmark}}
+    }
+    \fancyfoot[R]{
+    \parbox[b]{0cm}{}
+    }
+}
+\pagenumbering{arabic}
+\pagestyle{companypagestyle}
+
+\lhead{\footnotesize \color{gray}  CRUISE REPORT, `r titl` `r quarter`Q `r year`}
+\rhead{\footnotesize \color{gray} PAGE \thepage\ OF \pageref{LastPage}}
+
+
+<!-- define header and fodder end -->
+
+\tableofcontents
+\newpage
+
+\section{Cruise Summary}
+
+\subsection{General Information}
+
+\begin{table}[H]
+\resizebox{0.5\columnwidth}{!}{%
+\begin{tabular}{lll}
+\toprule
+Cruise           &  & `r titl`              \\
+Research Vessel  &  & `r ship`              \\
+Year and Quarter &  & `r quarter`Q `r year` \\ 
+Country          &  & Denmark              \\ \bottomrule
+\end{tabular}
+}
+\end{table}
+
+\subsection{Location and Time}
+
+\begin{table}[H]
+\resizebox{0.5\columnwidth}{!}{%
+\begin{tabular}{lll}
+\toprule
+                        & Date            & Time            \\ \hline
+Departure               & `r start_date` & `r start_time` \\
+Arrival                 & `r end_date`   & `r end_time`   \\ \bottomrule
+\end{tabular}
+}
+\end{table}
+
+\subsection{Participants}
+```{r format_crew list, echo=FALSE, results='asis'}
+#read in the uploaded csv file with participants and output it to the report
+participants <- read.csv2("participants.csv") 
+
+if (2 %in% participants$Leg){ 
+ind1 <- range(which(participants$Leg == 1))
+ind2 <- range(which(participants$Leg == 2))
+
+participants[1:3] %>%
+         kbl(escape = F, longtable = T, booktabs = T, linesep = "", row.names = F,    
+             col.names = c("Name", "Institute", "Function tasks"), align = "l") %>%
+         row_spec(0, bold = TRUE) %>%
+         kable_styling(latex_options = c("striped", "hold_position")) %>%
+         column_spec(1:3, width = "5cm") %>%
+         pack_rows("Leg 1", ind1[1], ind1[2], latex_gap_space = "2em") %>%
+         pack_rows("Leg 2", ind2[1], ind2[2], latex_gap_space = "2em")
+
+} else{
+  ind1 <- range(which(participants$Leg == 1))
+  participants[1:4] %>%
+         kbl(escape = F, longtable = T, booktabs = T, linesep = "", row.names = F,    
+             col.names = c("Name", "Institute", "Function tasks", "Leg"), align = "l") %>%
+         row_spec(0, bold = TRUE) %>%
+         kable_styling(latex_options = c("striped", "hold_position")) %>%
+         column_spec(1:4, width = "4cm") %>%
+         pack_rows("Leg 1", ind1[1], ind1[2], latex_gap_space = "2em")
+}
+```
+
+\section{Objectives}
+
+\begin{itemize}
+    \item To describe the existence of fish in the waters surrounding Denmark based on their occurrence in scientific trawl./ At beskrive udbredelsen af fisk i farvandende omrking Danmark ved brug af videnskabeligt trawl.
+    
+    \item To collect biological data regarding age, weight and maturity from subsamples of the catch from selected species./ At indsamle biologisk materiale vedr. alder, vægt og modenhed fra stikprøver fra fangsten af udvalgte arter.
+    
+    \item Recording of hydrographic data with CTD./Opsamling af hydrografidata med CTD.
+\end{itemize}
+
+
+\section{This Survey}
+During the cruise, apart from recording a complete set of factual
+information concerning haul information, gear performance, catch
+results, hydrographic information etc., the cruise leader keeps a
+logbook taking notes about circumstances (unusual gear performance,
+special catches, non-conformities etc. during the survey. The haul
+summary below is the overview from this logbook.
+\subsection{Stations}
+
+`r nrow(samples)` hauls were conducted during the survey. The positions off all hauls are presented in the map in Fig. 1.
+
+\subsection{Weather Conditions}
+`r weather`
+
+\subsection{Gear performance}
+`r gear`
+
+\subsection{Oxygen Conditions}
+`r oxygen`
+
+\newpage
+\subsection{Station Map}
+```{r station_plot, echo=FALSE, results='asis', cache=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=12}
+
+#define the map outline
+#setting coordinates for aspect ration:
+asp <- 1/1
+
+xlim <- c(floor(min(samples$lonPosStartDec)),ceiling(max(samples$lonPosStartDec)))
+
+y_l <- ((xlim[2] - xlim[1])/asp)/2
+y_max <- ceiling(max(samples$latPosStartDec)/0.5)*0.5
+
+if (y_max - y_l < min(samples$latPosStartDec)){
+  
+  ylim <- c(y_max - y_l, y_max)
+  
+} else {
+  
+  ylim <- c(floor(min(samples$latPosStartDec)/0.5)*0.5,ceiling(max(samples$latPosStartDec)/0.5)*0.5)
+  xlim <- c(floor(min(samples$lonPosStartDec)),ceiling(max(samples$lonPosStartDec)))
+  
+}
+
+samples <- samples[order(samples$dateGearStart), ]
+samples$st_no <- 1:nrow(samples)
+valid <- samples[samples$gearQuality == "V", ]
+invalid <- samples[samples$gearQuality != "V", ]
+
+#make the plot using the mapplots pakage
+p1 <- basemap(xlim, ylim, main = paste0(cruise, "-", year, " tur ", ntur))+
+              draw.shape(coast, col="cornsilk")+
+              draw.shape(dk_eez, col="transparent", border = "red")+
+              draw.rect()+
+              points(invalid$lonPosStartDec, invalid$latPosStartDec, col="black", 
+                     pch = 15 + samples$trip, cex = 1.5)
+              points(valid$lonPosStartDec, valid$latPosStartDec, col="green", 
+                     pch = 15 + samples$trip, cex = 1.2)
+              pointLabel(x=samples$lonPosStartDec,  y= samples$latPosStartDec,
+                         labels=as.character(samples$st_no),
+                         cex=1,offset=-1, allowSmallOverlap = FALSE)
+              legend("bottomright", legend= c("Valid ", "Invalid"),
+                  col=c("green", "black"), pch = 16, cex=1.5, bg='white')
+             
+              
+```
+Figur 1. Plot af stationer.
+\newpage
+\subsection{Catch Overview}
+```{r format_catch list, echo=FALSE, results='asis'}
+#format information to directly be inputed to latex table
+
+species2 <- c("Total Catch", species)
+fun <- function(jj) {
+  
+  sp <- species2[jj]
+  
+  if (sp == "Total Catch"){
+    sps <- unique(sp_lst$speciesCode)
+  } else {
+    sps <- sp
+  }
+    
+  w_s <- as.character(round(sum(sp_lst[sp_lst$speciesCode %in% sps, "weightSubSample"]), digits = 1))
+  w_t <- as.character(round(sum(sp_lst[sp_lst$speciesCode  %in% sps, "weightTotal"]), digits = 1))
+  
+  n_s <- as.character(round(sum(sp_lst[sp_lst$speciesCode  %in% sps, "numberSubSample"]), digits = 0))
+  n_t <- as.character(round(sum(sp_lst[sp_lst$speciesCode  %in% sps, "numberTotal"]), digits = 0))
+  
+  sam <- nrow(animal[animal$speciesCode %in% sps, ])
+  gen <- nrow(age[age$speciesCode %in% sps & age$genetics == 1, ])
+  
+  out <- cbind(sp, w_s, w_t, n_s, n_t, sam, gen)
+}
+temp<-lapply(1:length(species2), fun) #function to get data and run the loop/function
+sp_overview <- data.frame(do.call("rbind", temp))
+
+ print(sp_overview %>%
+         kbl(escape = F, longtable = T, caption = "Sample Overview", 
+             booktabs = T, linesep = "", row.names = F,    
+             col.names = c(" ", "Sub sampled [kg]", "Total [kg]", "Sub sampled [Nr.]", "Total [Nr.]",
+                           "Individuals collected", "Genetics Sampled"), align = "l") %>%
+         row_spec(0, bold = TRUE) %>%
+         kable_styling(latex_options = c("striped", "hold_position")) %>%
+         pack_rows("selected species", 2, 7, latex_gap_space = "1.5em") %>%
+         column_spec(1, width = "3.5cm") %>%
+         column_spec(2:7, width = "2.2cm")
+       )
+
+```
+
+\newpage
+\subsubsection{Length destribution}
+```{r COD length frequency,echo=FALSE, results='asis', cache=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=7}
+
+for (jjj in species) {
+  
+  dat <- setDT(anim_lst[anim_lst$speciesCode == jjj, ])  
+
+  if (nrow(dat) == 0)
+    next
+  
+  #create headder
+  cat(paste0("\n\n### ",  jjj, "\n"))
+
+  # get the frequency of age by length
+  freq <- dat[ ,. (frequency = sum(numberTotalPerLength)),
+               by = (length)]
+
+  x_range <- round_any(seq(range(freq$length)[1], range(freq$length)[2], length.out = 5), 10)
+  # Stacked barplot with multiple groups
+  p2 <- ggplot(freq, aes(x=length, y=frequency)) +
+          geom_bar(stat="identity")+
+          theme_bw() +
+          labs(x = "Længde [mm]", y = "Frekvens [antal")+
+          ggtitle(paste0("Længdefrekvens af ", jjj))+
+          theme(plot.title = element_text(hjust = 0.5))+
+          scale_x_continuous(breaks=x_range)+
+          theme(axis.title = element_text(size=16),
+                plot.title = element_text(size=16),
+                axis.text.x = element_text(angle = 45, hjust=1, size=14),
+                axis.text.y = element_text(size=14))
+
+  plot(p2)
+}
+```
+
+
+\newpage
+\subsection{Species Cought}
+\setcounter{table}{0}
+The total catch per species for the while cruise is presented in the table below.
+ \vspace{0.2cm}
+ 
+```{r format_species list, echo=FALSE, results='asis'}
+
+#aggregate the raised species list, to make an overview of species couhgt 
+setDT(sp_lst)
+sp <- sp_lst[ ,. (number = round(sum(numberTotal, na.rm = T), digits = 0), 
+                  weight = round(sum(weightTotal, na.rm = T), digits = 1)),
+              by = .(speciesCode, trip)]
+
+
+sp[sp$number == 0, "number"] <- NA
+
+sp2 <- merge(names, sp, by = "speciesCode")
+
+#exclude the litter rows
+sp2 <- sp2[!sp2$speciesCode %in% c("AF1", "AF2", "AF3", "AF4", "AF5"), ]
+
+#make table in loop, one table pr trip
+for (i in trip) {
+  
+  dat <- sp2[sp2$trip == i, ]
+  
+  #format which column we would like, and their order 
+  dat <- dat[ , c("latin", "dkName", "number", "weight")]
+  
+  print(dat %>%
+         kbl(escape = F, longtable = T, booktabs = T, linesep = "", 
+             row.names = F, caption = paste0("Arter fanget på tur ", i),   
+             col.names = c("Latinsk navn", "Dansk navn", "Antal", "Vægt (kg)")
+             , align = "lllrr") %>%
+         row_spec(0, bold = TRUE) %>%
+         kable_styling(latex_options = c("striped", "hold_position")) %>%
+         column_spec(1, width = "4.5cm") %>%
+         column_spec(2, width = "4cm") %>%
+         column_spec(3:4, width = "2cm"))
+
+ 
+  
+  
+}
+```
+ 
