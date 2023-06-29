@@ -1,0 +1,203 @@
+---
+fontsize: 11pt
+geometry: top=2cm, bottom=2cm, left=1.5cm, right=1.5cm,headsep=1cm
+header-includes:
+- \usepackage[utf8]{inputenc}
+- \usepackage{fancyhdr}
+- \pagestyle{fancy}
+- \fancyfoot{}
+- \usepackage{ragged2e}
+- \linespread{1.15}
+- \usepackage{float}
+- \usepackage{lastpage}
+output: pdf_document
+---
+
+```{r set_libraries, include=FALSE, warning=FALSE}
+
+#Libraries used in the r code
+if (!require(pacman)){
+  install.packages("pacman", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(pacman)
+}
+p_load(kableExtra, sqldf, RODBC, dplyr)
+
+#special for this script
+p_load(data.table, sm, ggplot2, ggrepel, dbscan)
+
+'%!in%' <- function(x,y)!('%in%'(x,y)) #a "NOT in" statement
+
+```
+
+```{r set_parameters, include=FALSE}
+# 
+yr <- c(@paramYear)
+species <- @paramSpecies
+eventId <- @paramEventId
+
+# yr <- c(2022)
+# species <- c("BLH")
+# eventId <- "24"
+
+```
+
+```{r get_data, include=FALSE}
+
+channel <- odbcConnect("FishLine")
+
+AQ <- sqlQuery(channel, paste("SELECT
+       [L_OtolithReadingRemarkID] as otolithReadingRemarkId
+      ,[otolithReadingRemark] AS AQ
+  FROM  L_OtolithReadingRemark
+  ", sep = ""))
+
+sample <- sqlQuery(channel, paste("SELECT         
+       [sdSampleId]
+      ,[sdEventId]
+      ,[fishLengthMM]
+      ,[sexCode]
+      ,[animalId]
+  FROM   SDSample
+  WHERE  (sdEventId = ",eventId,")
+  ", sep = ""))
+
+file <- sqlQuery(channel, paste("SELECT         
+       [sdFileId]
+      ,[sdSampleId]
+      ,[fileName]
+      ,[path]
+      ,[scale]
+      ,[imageWidth]
+      ,[imageHeight]
+  FROM   SDFile
+  WHERE  sdSampleId IN (",paste(sample$sdSampleId,collapse = ","),")
+  ", sep = ""))
+
+annot <- sqlQuery(channel, paste("SELECT         
+       [sdAnnotationId]
+      ,[sdFileId]
+      ,[createdByUserName] AS ageReadName
+      ,[isApproved]
+      ,[isReadOnly]
+      ,[createdTime]
+      ,[modifiedTime]
+      ,[sdAnalysisParameterId]
+      ,[otolithReadingRemarkId]
+      ,[edgeStructure]
+      ,[age]
+      ,[comment]
+  FROM   SDAnnotation
+  WHERE  sdFileId IN (",paste(file$sdFileId,collapse = ","),") AND
+         isFixed = ",0,"
+  ", sep = ""))
+
+
+close(channel)
+
+###
+df1 <- merge(sample, file, by = "sdSampleId", all.x = T)
+df2 <- merge(df1, annot, by = "sdFileId", all.x = T)
+
+df2[is.na(df2$otolithReadingRemarkId), "otolithReadingRemarkId"] <- 15
+df3 <- merge(df2, AQ, by = "otolithReadingRemarkId") 
+
+df3$otolithReadingRemarkId <- NULL
+df3$sdFileId <- NULL
+df3$sdSampleId <- NULL
+df3$comment <- gsub(df3$comment, pattern = "\\.|,|;", replacement = " ")
+  
+
+animals <- unique(df2$animalId)
+  
+channel <- odbcConnect("FishLineDW")
+age <- sqlQuery(channel, paste("SELECT   animalId, individNum, year, 
+                                                dateGearStart AS catch_date, quarterGearStart AS quarter,
+                                                cruise, trip, station, 
+                                                speciesCode, sexCode,
+                                                age AS age_FishLine, agePlusGroup, 
+                                                otolithWeight, otolithReadingRemark AS AQ_FishLine,
+                                                hatchMonth, hatchMonthRemark,
+                                                ageReadName AS ageReadName_FishLine, 
+                                                hatchMonthReaderName,
+                                                remark AS remark_Age
+                                       FROM     Age
+                                       WHERE    (animalId IN ('", paste(animals,collapse = "','"),"'))
+                                    	 ORDER BY dateGearStart
+                                  			        ", sep = ""))
+  
+  animal <- sqlQuery(channel, paste("SELECT     animalId, year,
+                                                cruise, trip, station, dfuArea AS area, speciesCode, 
+                                                weight, length AS fishLengthMM,
+                                                remark AS remark_Animal
+                                       FROM     animal
+                                       WHERE    (animalId IN ('", paste(animals,collapse = "','"),"'))
+                                    	 ORDER BY dateGearStart
+                                       	        ", sep = ""))
+  
+  
+  close(channel)
+  
+  fishline <- merge(age, animal, by = c("animalId" ,"year", "cruise","trip", "station", "speciesCode"))
+  
+  fishline$comment_FishLine <- paste0(fishline$remark_Age, " - ", fishline$remark_Animal)
+  fishline$comment_FishLine <- gsub(fishline$comment_FishLine, pattern = "\\.|,|;|NA", replacement = " ")
+  fishline$remark_Age <- NULL
+  fishline$remark_Animal <- NULL
+  
+  out <- merge(df3, fishline, by = c("animalId", "fishLengthMM", "sexCode"))
+  
+  names(out)[names(out) == "AQ"] <- "AQ_SD"
+  names(out)[names(out) == "age"] <- "age_SD"
+  names(out)[names(out) == "ageReadName"] <- "ageReadName_SD"
+  names(out)[names(out) == "comment"] <- "comment_SD"
+  
+  #relocate columns for costom output...
+  out <- out %>% relocate(c(sdEventId, speciesCode, 
+                            area, year, cruise, trip, station, individNum, 
+                            quarter, catch_date, fishLengthMM,
+                            weight,  sexCode,
+                            fileName, path, scale, imageWidth, imageHeight, otolithWeight,
+                            sdAnalysisParameterId, sdAnnotationId, 
+                            isReadOnly, createdTime, modifiedTime, isApproved, 
+                            ageReadName_SD, age_SD, AQ_SD, edgeStructure,
+                            ageReadName_FishLine, age_FishLine, AQ_FishLine, 
+                            hatchMonth, hatchMonthReaderName, hatchMonthRemark,
+                            comment_SD, comment_FishLine), 
+                        .after = animalId)
+
+ 
+  write.csv(out, paste0("all_data_event_", eventId, format(Sys.Date(), "%d%m%y"), ".csv"),
+              quote = FALSE, row.names = FALSE, na = '') 
+  
+  #wide format
+  setDT(df3)
+  #get rid of one user with more than one created age for the same fish, choose the latest
+  df4 <- unique(df3[order(-createdTime)], by=c("animalId", "ageReadName"))
+
+  dat <- dcast(df4, animalId ~ ageReadName, value.var = c("age", "AQ", "edgeStructure", "comment"))
+
+  dat <- merge(fishline[, c("animalId", "year", "cruise", "trip", "station", "individNum",
+                       "AQ_FishLine", "ageReadName_FishLine", "comment_FishLine",  "age_FishLine")], dat, by = "animalId")
+  
+  
+  write.csv(dat, paste0("age_data_event_", eventId, format(Sys.Date(), "%d%m%y"), ".csv"),
+              quote = FALSE, row.names = FALSE, na = '') 
+
+
+
+```
+\thispagestyle{empty}
+
+\huge Output of event data to .csv
+
+\vspace*{4.5cm}
+
+\textcolor{gray}{\LARGE  The following was used as input}\
+
+\textcolor{gray}{\LARGE  years: `r yr`}\
+
+\textcolor{gray}{\LARGE  Species: `r species`}\
+
+\textcolor{gray}{\LARGE  Event: `r eventId`}\
+
+

@@ -1,0 +1,499 @@
+---
+fontsize: 11pt
+geometry: top=2cm, bottom=2cm, left=1.5cm, right=1.5cm,headsep=1cm
+header-includes:
+- \usepackage[utf8]{inputenc}
+- \usepackage{fancyhdr}
+- \pagestyle{fancy}
+- \fancyfoot{}
+- \usepackage{ragged2e}
+- \linespread{1.15}
+- \usepackage{float}
+output: pdf_document
+fig_caption: yes
+keep_tex: yes
+---
+
+```{r set_libraries, include=FALSE, warning=FALSE}
+
+#Libraries used in the r code
+if (!require(pacman)){
+  install.packages("pacman", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(pacman)
+}
+p_load(kableExtra, sqldf, RODBC, dplyr)
+
+#special for this script
+p_load(plyr, data.table)
+
+```
+
+
+```{r set_parameters, include=FALSE}
+
+yr <- c(@paramYear)
+species <- @paramSpecies
+eventId <- @paramEvent
+expert <- @paramExpert
+trainee <- @paramTrainee
+
+# yr <- c(2022)
+# species <- c("BLH")
+# eventId <- "24"
+# expert <- "hr"
+# trainee <- "gho"
+```
+
+
+```{r get_data, include=FALSE}
+
+channel <- odbcConnect("FishLine")
+
+AQ <- sqlQuery(channel, paste("SELECT
+       [L_OtolithReadingRemarkID] as otolithReadingRemarkId
+      ,[otolithReadingRemark] AS AQ
+  FROM  L_OtolithReadingRemark
+  ", sep = ""))
+
+event <- sqlQuery(channel, paste("SELECT         
+       CONCAT(sdEventId,' - ',name) as ids
+  FROM   SDEvent
+  WHERE  sdEventId = (",eventId,")
+  ", sep = ""))
+
+sample <- sqlQuery(channel, paste("SELECT         
+       [sdSampleId]
+      ,[sdEventId]
+      ,[animalId]
+      ,[catchDate]
+      ,[fishLengthMM]
+      ,[sexCode]
+  FROM   SDSample
+  WHERE  (sdEventId = ",eventId,")
+  ", sep = ""))
+
+file <- sqlQuery(channel, paste("SELECT         
+       [sdFileId]
+      ,[sdSampleId]
+      ,[fileName]
+      ,[path]
+      ,[scale]
+      ,[imageWidth]
+      ,[imageHeight]
+  FROM   SDFile
+  WHERE  sdSampleId IN (",paste(sample$sdSampleId,collapse = ","),")
+  ", sep = ""))
+
+annot <- sqlQuery(channel, paste("SELECT         
+       [sdAnnotationId]
+      ,[sdFileId]
+      ,[createdByUserName]
+      ,[isApproved]
+      ,[isFixed]
+      ,[isReadOnly]
+      ,[createdTime]
+      ,[modifiedTime]
+      ,[sdAnalysisParameterId]
+      ,[otolithReadingRemarkId]
+      ,[edgeStructure]
+      ,[age]
+      ,[comment]
+  FROM   SDAnnotation
+  WHERE  sdFileId IN (",paste(file$sdFileId,collapse = ","),") AND
+         createdByUserName IN ('",expert,"' , '",trainee,"') AND
+         isFixed = ",0,"
+  ", sep = ""))
+
+close(channel)
+
+
+###
+df1 <- merge(sample, file, by = "sdSampleId", all.x = T)
+df2 <- merge(df1, annot, by = "sdFileId", all.x = T)
+
+df2[is.na(df2$otolithReadingRemarkId), "otolithReadingRemarkId"] <- 15
+df3 <- merge(df2, AQ, by = "otolithReadingRemarkId") 
+
+df3$comment <- gsub(df3$comment, pattern = "\\.|,|;", replacement = " ")
+
+setDT(df3)
+#get rid of one user with more than one created age for the same fish, choose the latest
+df4 <- unique(df3[order(-createdTime)], by=c("animalId", "createdByUserName"))
+
+not_included <- c(names(df3)[! names(df3) %in% c("createdTime", "modifiedTime", "sdAnnotationId", "isApproved", "otolithReadingRemarkId")])
+out <- df4[, ..not_included]
+
+out <- dcast(out, ...~ createdByUserName, value.var = c("age", "AQ", "edgeStructure", "comment"))
+
+write.csv(out, paste0(eventId, "_TwoReader_data_", format(Sys.Date(), "%d%m%y"), ".csv"),
+            quote = FALSE, row.names = FALSE, na = '')
+
+```
+
+
+```{r make_tables, include=FALSE}
+dat <- dcast(df4, animalId + catchDate + fishLengthMM + sexCode ~ createdByUserName, value.var = c("age", "AQ"))
+
+names(dat) <- gsub(expert, "expert", names(dat))
+names(dat) <- gsub(trainee, "trainee", names(dat))
+
+dat <- data.frame(dat)
+ages <- c(0:max(dat$age_trainee, dat$age_expert))
+#table 1
+fun <- function(j) {
+  
+  i = ages[j]
+  
+  no_qc <- nrow(dat[!is.na(dat$QC) & dat$QC == i, ])
+  
+  no_exp <- nrow(dat[dat$age_expert == i,])
+  no_trn <- nrow(dat[dat$age_trainee == i,])
+  
+  no_agr <- nrow(dat[dat$age_trainee == i & dat$age_expert == i, ])
+  
+  pct_agr <- (no_agr/no_exp)*100  
+  
+  a <- dat[dat$age_expert == i, ]
+  ape <- sum(abs(((a$age_trainee/a$age_expert)*100)-100))/no_exp
+  
+  l_exp <- mean(dat[dat$age_expert == i, "fishLengthMM"])
+  l_trn <- mean(dat[dat$age_trainee == i, "fishLengthMM"])
+  
+  av_trn_age <- mean(dat[dat$age_expert == i, "age_trainee"])
+  sd_trn_age <- sd(dat[dat$age_expert == i, "age_trainee"])
+  
+  cv_trn <- 0.5 * sd_trn_age/av_trn_age
+  conf <- 1.96 *(sd_trn_age/sqrt(no_exp))
+  
+  conf_lo <- av_trn_age - conf
+  conf_up <- av_trn_age + conf
+  
+  bias <- av_trn_age - i
+  
+  
+  #gather info
+  out <- data.frame(age = i, no_exp, no_trn, no_agr, pct_agr, ape, l_exp, 
+                    l_trn, av_trn_age, sd_trn_age, cv_trn, bias)
+}
+temp<-lapply(1:length(ages), fun)
+tbl1<-do.call("rbind", temp)
+
+tbl1 <- tbl1 %>% mutate_all(function(x) ifelse(is.nan(x), NA, x))
+
+#table 2
+aged <- sum(tbl1$no_exp)
+agre <- sum(tbl1$no_agr)
+disgr <- aged - agre
+avrg_age <- mean(dat$age_expert) 
+
+bias <- sum((tbl1$no_exp*tbl1$bias)/aged, na.rm = T)
+cv <- sum((tbl1$no_exp*tbl1$cv_trn)/aged, na.rm = T)
+
+ape <- sum(abs(((dat$age_trainee/dat$age_expert)*100)-100))/aged
+
+pct_agre <- (agre/aged)*100
+
+tbl2 <- data.frame(aged = aged, agre = agre, disgr = disgr, pct_agre = pct_agre, 
+                   avrg_age = avrg_age, bias = bias, cv = cv, ape = ape)
+
+
+
+#table 4
+dat$month <- month(dat$catchDate)
+dat$Q = ceiling(as.numeric(dat$month) / 3)
+dat$agr <- ifelse(dat$age_expert == dat$age_trainee, 1, 0)
+
+tbl4 <- matrix(, 3, 4)
+for(row in 1:nrow(tbl4)) {
+  for(col in 1:ncol(tbl4)) {
+    
+    a <- dat[dat$Q == col, ]
+    
+    b <- c(length(a$age_expert), sum(a$agr), length(a$age_expert) - sum(a$agr))
+    
+    tbl4[row, col] <- b[row]
+    
+  }
+}
+
+tbl4 <- data.frame(Quarter = c("No_Aged", "No_Agreed", "No_disagreed"), tbl4)
+names(tbl4) <- c("Quarter", "Q1", "Q2", "Q3", "Q4")
+
+
+#table 5
+tbl5 <- matrix(, length(ages), length(ages))
+
+for(row in 1:nrow(tbl5)) {
+  for(col in 1:ncol(tbl5)) {
+    
+    tbl5[row, col] <- nrow(dat[dat$age_expert == row-1 & dat$age_trainee == col-1, ])
+    
+  }
+}
+arem <- tbl5 #for later use
+tbl5[tbl5 == 0] <- NA
+
+tbl5 <- rbind(tbl5, colSums(tbl5, na.rm = T))
+
+tbl5 <- data.frame(age = c(ages, "Tot"), tbl5)
+names(tbl5) <- c("Age", paste0(ages))
+
+tbl5$tot <- rowSums(tbl5[-1], na.rm = T)
+
+
+#tbl10
+tbl10 <- arem/rowSums(arem)
+
+tbl10[is.nan(tbl10)] <- NA
+tbl10[tbl10 == 0] <- NA
+
+tbl10 <- data.frame(age = c(ages), tbl10)
+names(tbl10) <- c("Age", paste0(ages))
+
+
+# table 8
+diff_age <- dat$age_trainee - dat$age_expert
+
+xx <- data.frame(table(diff_age))
+zz <- data.frame(t(xx$Freq))
+names(zz) <- paste0(xx$diff_age)
+
+max <- max(abs(diff_age))
+if (max > 5){
+diff <- c(-max:max)
+} else {
+  diff <- c(-5:5)
+}
+tbl <- data.frame(t(rep(NA, length(diff))))
+names(tbl) <- paste0(diff)
+
+tbl8 <- rbind.fill(tbl[-1, ], zz)
+
+tbl8 <- cbind(data.frame(Age_fifference = "No."), tbl8)
+
+
+```
+
+
+\thispagestyle{empty}
+
+\vspace*{1cm}
+
+\textbf{\huge Two Reader AquaDots Report}
+
+\vspace*{1.5cm}
+\textbf{\large Event `r event[1, ]`}
+
+\vspace*{0.2cm}
+This event consists of `r species` otoliths from the areas `r unique(sample$DFUArea)` in the period 
+`r range(sample$catchDate)[1]` to `r range(sample$catchDate)[2]`. 
+
+\vspace*{0.2cm}
+For this event `r tbl2$aged` otoliths where read.
+
+
+\vspace*{1.5cm}
+
+\textcolor{gray}{\large Input Information:}\
+\begin{itemize}
+  \item \textcolor{gray}{\large Year: `r yr`}
+  \item \textcolor{gray}{\large Year: `r species`}
+  \item \textcolor{gray}{\large Event: `r event[1, ]`}
+  \item \textcolor{gray}{\large Expert: `r expert`}
+  \item \textcolor{gray}{\large Trainee: `r trainee`}
+\end{itemize}
+\vspace*{2cm}
+
+\newpage
+
+\tableofcontents
+
+\newpage
+
+\section{Age Reading Results}
+
+The table here summarize the the event, with ages and number read by the trainee and the expert. Together with simple summary statistics.     
+
+```{r table_1, echo=FALSE, results='asis'}
+
+tbl1_out <- signif(tbl1, 3)
+
+tbl1_out %>%
+  mutate_all(function(x) ifelse(is.na(x), "", x)) %>%
+         kbl(escape = F, longtable = T, booktabs = T, linesep = "", row.names = F,
+             caption = "Age reading results by age group",
+             col.names = c("Age", "No. Exp", "No. Trn", "No. Agr", "pct Agr",
+                           "APE", "Exp", "Trn", "Avrg Age", "ST. DEV", "CV", "Bias"), align = "l") %>%
+         add_header_above(c(" " = 6, "length at age" = 2, " " = 4)) %>%
+         row_spec(0, bold = FALSE) %>%
+         kable_styling(latex_options = c("striped", "hold_position"), font_size = 10, position = "center") %>%
+         column_spec(1:12, width = "1cm")
+
+
+
+
+```
+
+\newpage
+
+\section{Trainee vs Expert Results}
+
+Here is shown how well the trainee agrees with the expert
+
+\subsection{Overall Bias}
+```{r table_2, echo=FALSE, results='asis'}
+
+tbl2_out <- signif(tbl2, 3)
+
+tbl2_out %>%
+     kbl(escape = F, longtable = T, booktabs = T, linesep = "", row.names = F,
+         caption = "Trainee vs Expert Results",
+         col.names = c("No. Aged", "No. Agreed", "No. Disagree", "pct Agree",
+                           "avrg Age", "Bias", "CV", "APE"), align = "l") %>%
+         row_spec(0, bold = FALSE) %>%
+         kable_styling(latex_options = c("striped", "hold_position"), font_size = 10) %>%
+         column_spec(1:8, width = "1.5cm")
+
+
+
+
+```
+
+\subsection{Disagreement by Quarter}
+```{r table_4, echo=FALSE, results='asis'}
+
+tbl4_out <- tbl4
+
+tbl4_out$Quarter <- gsub("_", "\\\\_", tbl4_out$Quarter)
+
+tbl4_out %>%
+     kbl(escape = F, longtable = T, booktabs = T, linesep = "", row.names = F,
+         caption = "Numbers by quarter",
+             align = "l") %>%
+         row_spec(0, bold = FALSE) %>%
+         kable_styling(latex_options = c("striped", "hold_position"), font_size = 10) %>%
+         column_spec(1, width = "2cm")%>%
+         column_spec(2:5, width = "1.5cm")
+
+
+
+
+```
+
+\subsection{Disagreement by ages}
+
+This table shows the age difference from trainee to the the expert. If the expert has read age "2" and the trainee age 0, the "age difference would be "-2" 
+\renewcommand{\arraystretch}{1}
+```{r table_8, echo=FALSE, results='asis'}
+
+tbl8_out <- tbl8
+
+tbl8_out[is.na(tbl8_out)] <- 0
+
+tbl8_out %>%
+     kbl(escape = F, longtable = T, booktabs = F, row.names = F, 
+         caption = "Trainee reader differences from expert reader",
+             col.names = c("Age Difference", names(tbl8)[-1]), align = "l") %>%
+         row_spec(0, bold = FALSE) %>%
+         kable_styling(latex_options = c("striped", "hold_position"), font_size = 10) %>%
+         column_spec(1, width = "2cm")
+
+
+
+
+```
+
+\newpage
+
+\section{Trainee vs expert comparison matrix}
+Green shaded area is agreement, blue represents under-ageing and brown represents over-ageing by the trainee
+
+\definecolor{beaublue}{rgb}{0.74, 0.83, 0.9}
+\definecolor{beige}{rgb}{0.96, 0.96, 0.86}
+\definecolor{emerald}{rgb}{0.31, 0.78, 0.47}
+\renewcommand{\arraystretch}{2}
+```{r table_5, echo=FALSE, results='asis'}
+tbl5_out <- tbl5
+
+tbl5_out[is.na(tbl5_out)] <- ""
+
+
+for (k in 1:(ncol(tbl5_out)-3)) {
+  tbl5_out[1:k,k+2] <- cell_spec(tbl5_out[1:k,k+2], bold=T, 
+                                 background = "beige")
+}
+
+for (k in 2:(ncol(tbl5_out)-2)) {
+  tbl5_out[((k+1):nrow(tbl5))-1,k] <- cell_spec(tbl5_out[((k+1):nrow(tbl5))-1,k],
+                                                bold=T, background = "beaublue")
+}
+
+
+for (k in 1:(ncol(tbl5_out)-2)) {
+  tbl5_out[k,k+1] <- cell_spec(tbl5_out[k, k+1], bold=T, background = "emerald")
+}
+
+
+
+
+tbl5_out %>%
+         kbl(escape = F, longtable = F, booktabs = F, row.names = F, align = "c") %>%
+         kable_styling(latex_options = c("hold_position"), font_size = 10) %>%
+         add_header_above(c(" ", "Trainee age" = ncol(tbl5_out)-1)) %>%
+         column_spec(1:ncol(tbl5_out), width = "0.75cm")
+
+
+```
+
+\newpage
+
+\section{Age Reading Error Matrix}
+Trainee vs expert reader (Age Reading Error Matrix)
+
+\definecolor{lightgray}{rgb}{0.83, 0.83, 0.83}
+\renewcommand{\arraystretch}{2}
+```{r table_10, echo=FALSE, results='asis'}
+tbl10_out <- signif(tbl10, 3)
+
+tbl10_out[is.na(tbl10_out)] <- ""
+
+
+for (k in 1:(ncol(tbl10_out)-2)) {
+  tbl10_out[k,k+1] <- cell_spec(tbl10_out[k, k+1], bold=T, background = "lightgray")
+}
+
+
+
+
+tbl10_out %>%
+         kbl(escape = F, longtable = F, booktabs = F, row.names = F, align = "c") %>%
+         kable_styling(latex_options = c("hold_position"), font_size = 10) %>%
+         add_header_above(c(" ", "Trainee age" = ncol(tbl10_out)-1)) %>%
+         column_spec(1:ncol(tbl10_out), width = "0.75cm")
+
+
+```
+\renewcommand{\arraystretch}{1}
+\newpage
+
+\section{Table of Disagreed readings}
+
+```{r disagree table, echo=FALSE, results='asis'}
+
+disagr <- dat[dat$agr == 0, 
+              c("animalId", "age_expert", "age_trainee", "AQ_expert", "AQ_trainee", "fishLengthMM", "sexCode")]
+
+disagr$AQ_expert <- gsub("_", " ", disagr$AQ_expert)
+disagr$AQ_trainee<- gsub("_", " ", disagr$AQ_trainee)
+
+disagr %>%
+  kbl(escape = F, longtable = T, booktabs = T, linesep = "", row.names = F,
+             caption = "Table of individuals where trainee and expert is in deisagreement",
+             col.names = c("Id", "Age Exp", "Age Trn", "AQ Exp", "AQ Trn", "Length", "Sex"), align = "l") %>%
+         row_spec(0, bold = FALSE) %>%
+         kable_styling(latex_options = c("striped", "hold_position"), font_size = 10) %>%
+         column_spec(1:7, width = "2cm")
+```
+
+
+

@@ -582,7 +582,7 @@ if (nrow(age_fish) != 0){
                              "station", "area", "sexCode", "length_mm", "age", "otolithReadingRemark")] #state the variable that should be
   
   weight_outliers <- outliers[outliers$type == "weight", 
-                             c("sdEventId", "speciesCode", "animalId", "sdAnnotationId", "cruise", "catchDate",
+                             c("sdEventId", "animalId", "sdAnnotationId", "cruise", "catchDate",
                              "station", "area", "sexCode", "length_mm", "weight")] #state the variable that should be
   ## make a table of outliers found above, if any.
   if (nrow(data.frame(age_outliers)) > 0){
@@ -638,11 +638,6 @@ if (nrow(age_fish) != 0){
   }
 }  
 ```
-
-
-
-
-
 
 
 
