@@ -30,30 +30,33 @@ p_load(data.table, mapplots, shapefiles, maptools, ggplot2, plyr)
 
 ```{r set_parameters, include=FALSE}
 
-# year <- @paramYear # mandatory
-# cruise <- @paramCruise # mandatory
-# exDate <- @paramExDate
-# weather <- @paramWeather
-# gear <- @paramGear
-# oxygen <- @paramOxygen
+year <- @paramYear # mandatory
+cruise <- @paramCruise # mandatory
+cruise_no <- @paramCruise_no
+exDate <- @paramExDate
+weather <- @paramWeather
+gear <- @paramGear
+oxygen <- @paramOxygen
+planned <- @paramPlanedHauls
 
-year <- 2021
-cruise <- "Torsk"
-exDate <- "2020-11-06"
-weather <-""
-gear <- ""
-oxygen <- ""
+# year <- 2022
+# cruise <- "KASU-2"
+# exDate <- "2020-11-06"
+# planned <- 56
+# weather <-""
+# gear <- ""
+# oxygen <- ""
 
-weather <- ifelse(weather == "", "No Remarks on the Weather conditions")
-gear <-ifelse(gear == "", "No remarks on the Gear performance")
-oxygen <- ifelse(oxygen == "", "No remarks on the Oxygen conditions")
+weather <- ifelse(weather == "", "No Remarks on the Weather conditions", weather)
+gear <-ifelse(gear == "", "No remarks on the Gear performance", gear)
+oxygen <- ifelse(oxygen == "", "No remarks on the Oxygen conditions", oxygen)
 
 #get shapefiles for the map
-invisible(coast <- read.shapefile('Q:/gis/Dynamisk/GEOdata/BasicLayers/CoastLines/Europe/europe'))
-invisible(dk_eez <- read.shapefile('Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/EEZ/LandAndSea/eez_dk_LandAndSea_2019'))
+# invisible(coast <- read.shapefile('Q:/gis/Dynamisk/GEOdata/BasicLayers/CoastLines/Europe/europe'))
+# invisible(dk_eez <- read.shapefile('Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/EEZ/LandAndSea/eez_dk_LandAndSea_2019'))
 
-# invisible(coast <- read.shapefile('europe'))
-# invisible(dk_eez <- read.shapefile('eez_dk_LandAndSea_2019'))
+invisible(coast <- read.shapefile('europe'))
+invisible(dk_eez <- read.shapefile('eez_dk_LandAndSea_2019'))
 ```
 
 ```{r get_data, include=FALSE}
@@ -101,7 +104,7 @@ sp_lst <- sqlQuery(channel, paste("SELECT    year, cruise, trip, tripType, stati
                                   	  	     cruise = ('",cruise,"') 
                                 			       ", sep = ""))
 
-cod_lst <- sqlQuery(channel, paste("SELECT   year, cruise, trip, tripType, station, dfuArea, 
+cod_lst <- sqlQuery(channel, paste("SELECT    year, cruise, trip, tripType, station, dfuArea, 
                                              speciesCode, length, numberTotalPerLength
                                    FROM      AnimalRaised
                                    WHERE     year = (",year,") AND
@@ -113,21 +116,15 @@ names <- sqlQuery(channel, paste("SELECT   speciesCode, ukName, dkName, latin
                                     FROM   L_Species"
                                            ,sep = ""))
 
-ages <- sqlQuery(channel, paste("SELECT    animalId, year, cruise, trip, tripType, station, dfuArea, 
-                                          speciesCode, age, genetics
-                                FROM      Age
-                                WHERE     year = (",year,") AND
-                              	  	      cruise = ('",cruise,"')
-                              		        ", sep = ""))
-
 close(channel)
+
 
 ```
 
 ```{r format_for_front_page, include=FALSE}
 
 #here the information is formatted to be inserted directly into the later latex part.
-ship <- "Havfisken"
+ship <- ifelse(cruise %like% "KASU", "Havfisken", "DANA")
 
 start_date <- as.Date(trips$dateStart)
 end_date <- as.Date(trips$dateEnd)
@@ -136,10 +133,9 @@ start_time <- format(trips$dateStart, "%H-%M")
 end_time <- format(trips$dateEnd, "%H-%M")
 
 cruises <- cruises[order(cruises$cruiseId), ]
-cruise_no <- which(cruises$cruise == cruise)
 
 quarter <- unique(samples$quarter)
-titl <- ifelse(cruise %like% "KASU", "BITS/KASU", cruise)
+titl <- ifelse(cruise %like% "KASU", "BITS/KASU", "BITS")
 ```
 
 \thispagestyle{empty}
@@ -254,11 +250,10 @@ Staff and crew Exchange & `r exDate`      &               \\ \bottomrule
 #read in the uploaded csv file with participants and output it to the report
 participants <- read.csv2("participants.csv") 
 
-if (2 %in% participants$Leg){ 
 ind1 <- range(which(participants$Leg == 1))
 ind2 <- range(which(participants$Leg == 2))
 
-participants[2:4] %>%
+participants[1:3] %>%
          kbl(escape = F, longtable = T, booktabs = T, linesep = "", row.names = F,    
              col.names = c("Name", "Institute", "Function tasks"), align = "l") %>%
          row_spec(0, bold = TRUE) %>%
@@ -266,16 +261,6 @@ participants[2:4] %>%
          column_spec(1:3, width = "5cm") %>%
          pack_rows("Leg 1", ind1[1], ind1[2], latex_gap_space = "2em") %>%
          pack_rows("Leg 2", ind2[1], ind2[2], latex_gap_space = "2em")
-
-} else
-  ind1 <- range(which(participants$Leg == 1))
-  participants[2:4] %>%
-         kbl(escape = F, longtable = T, booktabs = T, linesep = "", row.names = F,    
-             col.names = c("Name", "Institute", "Function tasks"), align = "l") %>%
-         row_spec(0, bold = TRUE) %>%
-         kable_styling(latex_options = c("striped", "hold_position")) %>%
-         column_spec(1:3, width = "5cm") %>%
-         pack_rows("Leg 1", ind1[1], ind1[2], latex_gap_space = "2em")
 
 
 ```
@@ -301,7 +286,7 @@ special catches, non-conformities etc. during the survey. The haul
 summary below is the overview from this logbook.
 \subsection{Stations}
 
-`r nrow(samples)` hauls were conducted during the survey. The positions off all hauls are presented in the map in Fig. 1.
+`r planned` hauls where planned, and of these, `r nrow(samples)` hauls were conducted during the survey. The positions off all hauls are presented in the map in Fig. 1.
 
 \subsection{Weather Conditions}
 `r weather`
@@ -317,42 +302,57 @@ summary below is the overview from this logbook.
 ```{r station_plot, echo=FALSE, results='asis', cache=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=12}
 
 #define the map outline
-#setting coordinates for aspect ration:
-asp <- 1/1
+if (titl == "BITS/KASU"){
+ylim <- c(54,57.8)
+xlim <- c(9.5,13.5)
 
-xlim <- c(floor(min(samples$lonPosStartDec)),ceiling(max(samples$lonPosStartDec)))
-
-y_l <- ((xlim[2] - xlim[1])/asp)/2
-y_max <- ceiling(max(samples$latPosStartDec)/0.5)*0.5
-
-if (y_max - y_l < min(samples$latPosStartDec)){
-  
-  ylim <- c(y_max - y_l, y_max)
-  
-} else {
-  
-  ylim <- c(floor(min(samples$latPosStartDec)/0.5)*0.5,ceiling(max(samples$latPosStartDec)/0.5)*0.5)
-  xlim <- c(floor(min(samples$lonPosStartDec)),ceiling(max(samples$lonPosStartDec)))
-  
 }
 
-
+samples <- samples[order(samples$haul_start), ]
+samples$st_no <- 1:nrow(samples)
+valid <- samples[samples$gearQuality == "V", ]
 invalid <- samples[samples$gearQuality != "V", ]
 
 #make the plot using the mapplots pakage
-p1 <- basemap(xlim, ylim, main = paste0(titl, " ",  quarter, "Q ", year))+
+p1 <- basemap(xlim, ylim, main = paste0(titl, "-", quarter, "Q ", year))+
               draw.shape(coast, col="cornsilk")+
               draw.shape(dk_eez, col="transparent", border = "red")+
               draw.rect()+
-              points(samples$lonPosStartDec, samples$latPosStartDec, col="green", pch = 16, cex = 1.5)
-              points(invalid$lonPosStartDec, invalid$latPosStartDec, col="black", pch = 16, cex = 1.5)
+              points(invalid$lonPosStartDec, invalid$latPosStartDec, col="black", 
+                     pch = 15 + samples$trip, cex = 1.5)
+              points(valid$lonPosStartDec, valid$latPosStartDec, col="green", 
+                     pch = 15 + samples$trip, cex = 1.2)
               pointLabel(x=samples$lonPosStartDec,  y= samples$latPosStartDec,
-                         labels=as.character(samples$stationName),
+                         labels=as.character(samples$st_no),
                          cex=1,offset=-1, allowSmallOverlap = FALSE)
-              legend("bottomright", legend=c(paste0("Valid ", unique(samples$gearType)), "Invalid"),
+              legend("bottomright", legend= c("Valid ", "Invalid"),
                   col=c("green", "black"), pch = 16, cex=1.5, bg='white')
 ```
 Figure 1. Survey map with trawl stations.
+
+\newpage
+\subsection{Stations list}
+
+
+```{r station_lst, echo=FALSE, results='asis', cache=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=12}
+
+st <- samples[ , c("st_no", "haul_start", "haul_end")]
+
+st$start_pos <- paste0(round(samples$latPosStartDec, 3), " , ", round(samples$lonPosStartDec,3))
+st$end_pos <-paste0(round(samples$latPosEndDec, 3), " , ", round(samples$lonPosEndDec,3))
+
+print(st %>%
+       kbl(escape = F, longtable = T, booktabs = T, linesep = "", 
+           row.names = F, caption = paste0("Stations list"),   
+           col.names = c("Station No", "Start time", "End time", "Start pos", "End pos")
+           , align = "lllll") %>%
+       row_spec(0, bold = TRUE) %>%
+       kable_styling(latex_options = c("striped", "hold_position")) %>%
+       column_spec(1, width = "2cm") %>%
+       column_spec(2:5, width = "3.5cm"))
+
+```
+
 \newpage
 \section{Catch}
 
@@ -373,21 +373,6 @@ sole_n <- as.character(round(sum(sp_lst[sp_lst$speciesCode == "TNG", "numberTota
 
 area <- unique(sp_lst$dfuArea)
 a <- chartr("123456789", "ABCDEFGHI", c(1:length(area)))
-
-
-# format age info for table
-age <- ages[!is.na(ages$age), ]
-age_t <- nrow(age)
-age_cod <- nrow(age[age$speciesCode == "TOR", ])
-age_plaice <- nrow(age[age$speciesCode == "RSP", ])
-age_sole <- nrow(age[age$speciesCode == "TNG", ])
-
-gen <- ages[ages$genetics == 1, ]
-gen_t <- nrow(gen)
-gen_cod <- nrow(gen[gen$speciesCode == "TOR", ])
-gen_plaice <- nrow(gen[gen$speciesCode == "RSP", ])
-gen_sole <- nrow(gen[gen$speciesCode == "TNG", ])
-
 ```
 
 \subsection{Overview}
@@ -396,21 +381,17 @@ The total catch of all species, cod, plaice and sole are presented below. follow
  \vspace{0.2cm}
 
 \begin{table}[H]
-\begin{center}
-\resizebox{0.9\columnwidth}{!}{%
-\begin{tabular}{lrrrr}
+\resizebox{0.5\columnwidth}{!}{%
+\begin{tabular}{lrr}
 \toprule
-            & Weight (kg)  & Number       & Aged            & Genetics sampled    \\ \midrule
-Total Catch & `r total_w`  & `r total_n`  & `r age_t`       & `r gen_t`           \\
-Cod         & `r cod_w`    & `r cod_n`    & `r age_cod`     & `r gen_cod`         \\
-Plaice      & `r plaice_w` & `r plaice_n` & `r age_plaice`  & `r gen_plaice`      \\
-Sole        & `r sole_w`   & `r sole_n`   & `r age_sole`    & `r gen_sole`        \\ \bottomrule
+            & Weight (kg)   & Number        \\ \midrule
+Total Catch & `r total_w`  & `r total_n`  \\
+Cod         & `r cod_w`    & `r cod_n`    \\
+Plaice      & `r plaice_w` & `r plaice_n` \\
+Sole        & `r sole_w`   & `r sole_n`   \\ \bottomrule
 \end{tabular}
 }
-\end{center}
 \end{table}
-
-\vspace*{0.5cm}
 
 ```{r COD length frequency,echo=FALSE, results='asis', cache=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=7}
 jj = 0
@@ -490,11 +471,4 @@ for (i in area[1:length(area)]) {
   
 }
 ```
-
-
-
-
-
-
-
 

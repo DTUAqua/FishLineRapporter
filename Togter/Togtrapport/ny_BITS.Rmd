@@ -269,7 +269,7 @@ if (2 %in% participants$Leg){
 ind1 <- range(which(participants$Leg == 1))
 ind2 <- range(which(participants$Leg == 2))
 
-participants[2:4] %>%
+participants[1:3] %>%
          kbl(escape = F, longtable = T, booktabs = T, linesep = "", row.names = F,    
              col.names = c("Name", "Institute", "Function tasks"), align = "l") %>%
          row_spec(0, bold = TRUE) %>%
@@ -278,15 +278,16 @@ participants[2:4] %>%
          pack_rows("Leg 1", ind1[1], ind1[2], latex_gap_space = "2em") %>%
          pack_rows("Leg 2", ind2[1], ind2[2], latex_gap_space = "2em")
 
-} else
+} else{
   ind1 <- range(which(participants$Leg == 1))
-  participants[2:4] %>%
+  participants[1:3] %>%
          kbl(escape = F, longtable = T, booktabs = T, linesep = "", row.names = F,    
              col.names = c("Name", "Institute", "Function tasks"), align = "l") %>%
          row_spec(0, bold = TRUE) %>%
          kable_styling(latex_options = c("striped", "hold_position")) %>%
          column_spec(1:3, width = "5cm") %>%
          pack_rows("Leg 1", ind1[1], ind1[2], latex_gap_space = "2em")
+}
 
 ```
 
