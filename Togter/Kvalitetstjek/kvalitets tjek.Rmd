@@ -1,0 +1,677 @@
+---
+fontsize: 11pt
+geometry: top=2cm, bottom=2cm, left=1.5cm, right=1.5cm,headsep=1cm
+header-includes:
+- \usepackage[utf8]{inputenc}
+- \usepackage{fancyhdr}
+- \pagestyle{fancy}
+- \fancyfoot{}
+- \usepackage{ragged2e}
+- \linespread{1.15}
+- \usepackage{float}
+output: pdf_document
+fig_caption: yes
+keep_tex: yes
+---
+
+```{r set_libraries, include=FALSE, warning=FALSE}
+#Libraries used in the r code
+if (!require(pacman)){
+  install.packages("pacman", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(pacman)
+}
+p_load(kableExtra, sqldf, RODBC, dplyr)
+
+#special for this script
+p_load(data.table, mapplots, shapefiles, maptools, ggplot2, plyr, sm, ggrepel, dbscan)
+
+```
+
+```{r set_parameters, include=FALSE}
+year <- @paramYear
+cruise <- c(@paramCruise)
+trip <- @paramTrip
+
+invisible(coast <- read.shapefile('europe'))
+invisible(dk_eez <- read.shapefile('eez_dk_LandAndSea_2019'))
+
+# Paramters to use in R
+# year <- 2022
+# cruise <- "BITS-2"
+# trip <- c(1)
+# 
+# #get shapefiles for the map
+# invisible(coast <- read.shapefile('Q:/gis/Dynamisk/GEOdata/BasicLayers/CoastLines/Europe/europe'))
+# invisible(dk_eez <- read.shapefile('Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/EEZ/LandAndSea/eez_dk_LandAndSea_2019'))
+# 
+
+
+## #species of intrest
+species <- c("BRS", "RSP", "SIL", "TNG", "TOR", "TBM")
+```
+
+```{r get_data, include=FALSE}
+
+#get data from fishline data base
+
+channel <- odbcConnect("FishLineDW")
+
+trips<-sqlQuery(channel,  paste("SELECT    
+       [year] 
+      ,[trip]
+      ,[cruise]
+      ,[platform1]
+  FROM      Trip
+  WHERE     year IN ('",paste0(year,collapse="','"), "') AND
+            cruise IN ('",paste0(cruise,collapse="','"), "') AND
+            trip IN ('",paste0(trip,collapse="','"), "')
+  " ,sep = ""))
+
+samples<-sqlQuery(channel, paste("SELECT    
+       [sampleId]
+      ,[tripId]
+      ,[year]
+      ,[cruise]
+      ,[trip]
+      ,[tripType]
+      ,[station]
+      ,[stationName]
+      ,[gearQuality]
+      ,[dateGearStart]
+      ,[dateGearEnd]
+      ,[fishingtime]
+      ,[latPosStartDec]
+      ,[lonPosStartDec]
+      ,[latPosEndDec]
+      ,[lonPosEndDec]
+      ,[distancePositions]
+      ,[gearType]
+      ,[windSpeed]
+      ,[remark]
+  FROM      Sample
+  WHERE     year IN ('",paste0(year,collapse="','"), "') AND
+            cruise IN ('",paste0(cruise,collapse="','"), "') AND
+            trip IN ('",paste0(trip,collapse="','"), "') 
+  " ,sep = ""))
+
+sp_lst <- sqlQuery(channel, paste("SELECT
+       [year]
+      ,[cruise]
+      ,[trip]
+      ,[station]
+      ,[speciesCode]
+      ,[landingCategory]
+      ,[weightSubSample]
+      ,[weightTotal]
+      ,[numberSubSample]
+      ,[numberTotal]
+   FROM      SpeciesListRaised
+   WHERE     year IN ('",paste0(year,collapse="','"), "') AND 
+             cruise IN ('",paste0(cruise,collapse="','"), "') AND
+             trip IN ('",paste0(trip,collapse="','"), "') 
+   ", sep = ""))
+
+anim_lst <- sqlQuery(channel, paste("SELECT  
+       [year]
+      ,[cruise]
+      ,[trip]
+      ,[station]
+      ,[speciesCode]
+      ,[length]
+      ,[lengthMeasureUnit]
+      ,[numberSumSamplePerLength]
+      ,[numberTotalPerLength]
+      ,[weightMean]
+   FROM      AnimalRaised
+   WHERE     (speciesCode IN ('", paste(species,collapse = "','"),"')) AND
+             year IN ('",paste0(year,collapse="','"), "') AND 
+             cruise IN ('",paste0(cruise,collapse="','"), "') AND
+             trip IN ('",paste0(trip,collapse="','"), "')
+                                			       ", sep = ""))
+
+names <- sqlQuery(channel, paste("SELECT   
+     [speciesCode] 
+    ,[dkName]
+    ,[latin]
+  FROM   L_Species"
+  ,sep = ""))
+
+age <- sqlQuery(channel, paste("SELECT   
+       [animalId]
+      ,[year]
+      ,[cruise]
+      ,[trip]
+      ,[station]
+      ,[speciesCode]
+      ,[sexCode]
+      ,[number]
+      ,[length]
+      ,[age]
+      ,[genetics]
+  FROM     Age
+  WHERE    year IN ('",paste0(year,collapse="','"), "') AND 
+           cruise IN ('",paste0(cruise,collapse="','"), "') AND
+           trip IN ('",paste0(trip,collapse="','"), "') 
+           ORDER BY dateGearStart
+  ", sep = ""))
+
+animal <- sqlQuery(channel, paste("SELECT     
+       [animalId]
+      ,[year]
+      ,[cruise]
+      ,[trip]
+      ,[station]
+      ,[speciesCode]
+      ,[number]
+      ,[length]
+      ,[weight]
+    FROM     animal
+    WHERE    year IN ('",paste0(year,collapse="','"), "') AND 
+             cruise IN ('",paste0(cruise,collapse="','"), "') AND
+             trip IN ('",paste0(trip,collapse="','"), "') AND
+             (individNum != 0)
+             ORDER BY dateGearStart
+    ", sep = ""))
+
+close(channel)
+
+
+```
+
+```{r format_for_front_page, include=FALSE}
+
+#here the information is formatted to be inserted directly into the later latex part.
+ntur <- paste0(nrow(trips[trips$trip %in% trip]), " af ", nrow(trips))
+skib <- toString(trips$platform1)
+
+
+```
+
+\thispagestyle{empty}
+
+\vspace*{1cm} 
+
+\textbf{\huge Data Kvalitets tjek af togtet `r cruise`, i `r year`}
+
+\vspace{1cm}   
+
+\textbf{\LARGE  Antal Ture Valgt: `r ntur`}\
+\textbf{\LARGE  Skib(e): `r skib`}\
+
+\vspace{2cm}
+
+\textcolor{gray}{\LARGE  The following was used as input}\
+
+\textcolor{gray}{\LARGE  years: `r unique(year)`}\
+
+\textcolor{gray}{\LARGE  cruise: `r unique(cruise)`}\
+
+\textcolor{gray}{\LARGE  Trip: `r unique(trip)`}\
+
+
+\newpage
+
+\tableofcontents
+
+\newpage
+
+\section{Stationer}
+
+Denne section giver et overblik over antallet af stationer, hvor de er og tjekker for inkonsistens i træk tid, distance og hastighed. 
+
+\subsection{Kort over tsationer}
+
+```{r station_plot, echo=FALSE, results='asis', cache=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=12}
+
+#define the map outline
+#setting coordinates for aspect ration:
+asp <- 1/1
+
+xlim <- c(floor(min(samples$lonPosStartDec)),ceiling(max(samples$lonPosStartDec)))
+
+y_l <- ((xlim[2] - xlim[1])/asp)/2
+y_max <- ceiling(max(samples$latPosStartDec)/0.5)*0.5
+
+if (y_max - y_l < min(samples$latPosStartDec)){
+  
+  ylim <- c(y_max - y_l, y_max)
+  
+} else {
+  
+  ylim <- c(floor(min(samples$latPosStartDec)/0.5)*0.5,ceiling(max(samples$latPosStartDec)/0.5)*0.5)
+  xlim <- c(floor(min(samples$lonPosStartDec)),ceiling(max(samples$lonPosStartDec)))
+  
+}
+
+
+valid <- samples[samples$gearQuality == "V", ]
+invalid <- samples[samples$gearQuality != "V", ]
+
+#make the plot using the mapplots pakage
+p1 <- basemap(xlim, ylim, main = paste0(cruise, "-", year, " tur ", ntur))+
+              draw.shape(coast, col="cornsilk")+
+              draw.shape(dk_eez, col="transparent", border = "red")+
+              draw.rect()+
+              points(invalid$lonPosStartDec, invalid$latPosStartDec, col="black", 
+                     pch = 15 + samples$trip, cex = 1.5)
+              points(valid$lonPosStartDec, valid$latPosStartDec, col="green", 
+                     pch = 15 + samples$trip, cex = 1.2)
+              pointLabel(x=samples$lonPosStartDec,  y= samples$latPosStartDec,
+                         labels=as.character(samples$station),
+                         cex=1,offset=-1, allowSmallOverlap = FALSE)
+              legend("bottomright", legend= c("Valid ", "Invalid"),
+                  col=c("green", "black"), pch = 16, cex=1.5, bg='white')
+             
+              
+```
+Figur 1. Plot af stationer.
+\newpage
+\subsection{Tjek af stations data}
+```{r station_outlier, echo=FALSE, results='asis', cache=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=6}
+
+samples$knob = samples$distancePositions/(samples$fishingtime/60)
+dat <- samples[ samples$gearQuality == "V", ]
+
+lst <- c("fishingtime", "distancePositions", "knob")
+
+fun <- function(j) {
+  
+  i <- lst[j]
+  
+  ## Calculate the mean and sd
+  dat$var <- dat[, i]
+  smean <- mean(dat$var, na.rm = TRUE)
+  sds <-  sd(dat$var, na.rm = TRUE)
+  
+  ## Identify the cells with value greater than cutoff * sd (column wise)
+  dat$outlier <- ifelse(dat$var >  smean + (2 * sds) | dat$var <  smean - (3 * sds), "Yes", "No")
+  
+  ## lav pæne titler
+  ii <- gsub("fishingtime", "Fiske tid [min]", i)
+  ii <- gsub("distancePositions", "Træk distance [Nm]", ii)
+  ii <- gsub("knob", "Træk Hastighed [kn]", ii)
+  
+  #create headder
+  cat(paste0("\n\n### ", ii, "\n"))
+  
+  p1 <- ggplot(dat, aes(x = as.factor(sampleId), y = var, color = outlier)) +
+  geom_point()+
+  theme_bw()+
+  ylab(ii)+
+  xlab("Station")+  
+  scale_color_manual(name='Outlier',
+                     breaks=c('Yes', 'No'),
+                     values=c('Yes'='red', 'No'='blue'))+
+  theme(axis.text = element_text(size=14),
+        legend.text = element_text(size=14),
+        axis.text.x=element_blank())
+  
+  #plot the plot
+  plot(p1)
+  
+  #get the outliers for later table
+  out <- dat[dat$outlier == "Yes", ]
+  
+  if (nrow(out) > 0)
+  out$type <- ii
+  
+  #state the output for the function
+  out
+  
+} 
+temp<-lapply(1:length(lst), fun) #function to get data and run the loop/function
+outliers<-data.frame(do.call("rbind", temp))
+             
+ 
+```
+
+
+\newpage
+\subsection{Tabel af Outliers}
+```{r ,echo=FALSE, results='asis', cache=FALSE, message=FALSE, warning=FALSE}
+
+## make a table of outliers found above, if any.
+if (nrow(outliers) > 0){
+  
+  setDT(outliers)
+  out_outliers <- outliers[,. (type = toString(unique(type))),
+                           by = .(year, cruise, trip, station)]
+
+  
+  print(out_outliers %>%
+         kbl(escape = F, longtable = T, caption = "Age outliers", 
+             booktabs = T, linesep = "", row.names = F,    
+             col.names = c("År", "Togt", "Tur", "Station", "Outlier Type"), align = "l") %>%
+         row_spec(0, bold = TRUE) %>%
+         kable_styling(latex_options = c("striped", "hold_position")) %>%
+         column_spec(1:4, width = "1.5cm") %>%
+         column_spec(5, width = "10cm")
+       )
+  
+} else {
+  
+  text<-c("Ingen outliers fundet på trækniveau")
+  #Make table
+  print(text %>% 
+      cell_spec(color = "green", font_size = 15, bold = T) %>%
+      kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+      kable_styling(latex_options = c("hold_position")) 
+  )
+}  
+
+```
+
+\newpage
+\section{Fangst Oversigt}
+Denne section giver et overblik over hvor meget der er fanget totalt samt tal og længde frikvenser for udvalgte arter.
+
+\subsection{Fangst Tabel}
+```{r format_catch list, echo=FALSE, results='asis'}
+#format information to directly be inputed to latex table
+
+species2 <- c("Total Fangst", species)
+fun <- function(jj) {
+  
+  sp <- species2[jj]
+  
+  if (sp == "Total Fangst"){
+    sps <- unique(sp_lst$speciesCode)
+  } else {
+    sps <- sp
+  }
+    
+  w_s <- as.character(round(sum(sp_lst[sp_lst$speciesCode %in% sps, "weightSubSample"]), digits = 1))
+  w_t <- as.character(round(sum(sp_lst[sp_lst$speciesCode  %in% sps, "weightTotal"]), digits = 1))
+  
+  n_s <- as.character(round(sum(sp_lst[sp_lst$speciesCode  %in% sps, "numberSubSample"]), digits = 0))
+  n_t <- as.character(round(sum(sp_lst[sp_lst$speciesCode  %in% sps, "numberTotal"]), digits = 0))
+  
+  aged <- nrow(age[age$speciesCode %in% sps & !is.na(age$age), ])
+  gen <- nrow(age[age$speciesCode %in% sps & age$genetics == 1, ])
+  
+  out <- cbind(sp, w_s, w_t, n_s, n_t, aged, gen)
+}
+temp<-lapply(1:length(species2), fun) #function to get data and run the loop/function
+sp_overview <- data.frame(do.call("rbind", temp))
+
+ print(sp_overview %>%
+         kbl(escape = F, longtable = T, caption = "Sample Overview", 
+             booktabs = T, linesep = "", row.names = F,    
+             col.names = c(" ", "Sub sampled [kg]", "Total [kg]", "Sub sampled [antal]", "Total [antal]",
+                           "Aldret", "Genetik indsamlet"), align = "l") %>%
+         row_spec(0, bold = TRUE) %>%
+         kable_styling(latex_options = c("striped", "hold_position")) %>%
+         pack_rows("Udvalgte Arter", 2, 7, latex_gap_space = "1.5em") %>%
+         column_spec(1, width = "3.5cm") %>%
+         column_spec(2:7, width = "2.2cm")
+       )
+
+```
+\newpage
+\subsection{Længde Frekvens}
+```{r COD length frequency,echo=FALSE, results='asis', cache=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=7}
+
+species2 <- sort(unique(anim_lst$speciesCode))
+for (jjj in species2) {
+  
+  dat <- setDT(anim_lst[anim_lst$speciesCode == jjj, ])  
+
+  if (nrow(dat) == 0)
+    next
+  
+  #create headder
+  cat(paste0("\n\n### ",  jjj, "\n"))
+  # get the frequency of age by length
+  freq <- dat[ ,. (frequency = sum(numberTotalPerLength)),
+               by = (length)]
+
+  x_range <- round_any(seq(range(freq$length)[1], range(freq$length)[2], length.out = 5), 10)
+  # Stacked barplot with multiple groups
+  p2 <- ggplot(freq, aes(x=length, y=frequency)) +
+          geom_bar(stat="identity")+
+          theme_bw() +
+          labs(x = "Længde [mm]", y = "Frekvens [antal")+
+          ggtitle(paste0("Længdefrekvens af ", jjj))+
+          theme(plot.title = element_text(hjust = 0.5))+
+          scale_x_continuous(breaks=x_range)+
+          theme(axis.title = element_text(size=16),
+                plot.title = element_text(size=16),
+                axis.text.x = element_text(angle = 45, hjust=1, size=14),
+                axis.text.y = element_text(size=14))
+
+  plot(p2)
+}
+```
+\newpage
+\subsection{Artsliste}
+Her er oversigten over alle arter fanget på togtet, samt den totale vægt og det estimerede totale antal.
+```{r format_species list, echo=FALSE, results='asis'}
+
+#aggregate the raised species list, to make an overview of species couhgt 
+setDT(sp_lst)
+sp <- sp_lst[ ,. (number = round(sum(numberTotal, na.rm = T), digits = 0), 
+                  weight = round(sum(weightTotal, na.rm = T), digits = 1)),
+              by = .(speciesCode, trip)]
+
+
+sp[sp$number == 0, "number"] <- NA
+
+sp2 <- merge(names, sp, by = "speciesCode")
+
+#exclude the litter rows
+sp2 <- sp2[!sp2$speciesCode %in% c("AF1", "AF2", "AF3", "AF4", "AF5"), ]
+
+#make table in loop, one table pr trip
+for (i in trip) {
+  
+  dat <- sp2[sp2$trip == i, ]
+  
+  #format which column we would like, and their order 
+  dat <- dat[ , c("latin", "dkName", "number", "weight")]
+  
+  print(dat %>%
+         kbl(escape = F, longtable = T, booktabs = T, linesep = "", 
+             row.names = F, caption = paste0("Arter fanget på tur ", i),   
+             col.names = c("Latinsk navn", "Dansk navn", "Antal", "Vægt (kg)")
+             , align = "lllrr") %>%
+         row_spec(0, bold = TRUE) %>%
+         kable_styling(latex_options = c("striped", "hold_position")) %>%
+         column_spec(1, width = "4.5cm") %>%
+         column_spec(2, width = "4cm") %>%
+         column_spec(3:4, width = "2cm"))
+
+ 
+  
+  
+}
+```
+\newpage
+\section{Enkeltfisk}
+
+Denne section viser længde vægt forholdet samt mulige inkonsistencer.
+```{r ,echo=FALSE, results='asis', cache=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=7}  
+## subsection data again to plot frequency by species by area, (same subset over again due to report structure)
+##this time with fuction, as to collect outlier data
+
+species3 <- sort(unique(animal$speciesCode))
+fun <- function(k) {
+  
+  sp <- species3[k]
+  #create headder
+  cat(paste0("\n\n## ", sp, "\n")) 
+  ##subset by species
+  
+  sp_len <- animal[animal$speciesCode == sp & 
+                     !is.na(animal$length) & !is.na(animal$weight), ]
+  sp_age <- age[age$speciesCode == sp & !is.na(age$age), ]
+  
+  ## legth weight
+  
+  #outliers
+  mod1 <- lm(log(weight) ~ log(length), data = sp_len)
+  sp_len$res <- abs(rstandard(mod1))
+  
+  ## Identify the cells with residuals greater than .... industry standard 3, but here 9
+  out_len <- sp_len[sp_len$res >  9, ]
+  
+  plot(sp_len$length, sp_len$weight, pch = 16, cex = 1, col = "blue",
+        main = paste(paste0("Længde Vægt ", sp)),
+          xlab = "Længde [mm]",
+          ylab = "Vægt (kg)",
+          cex.main = 1.5,
+          cex.lab = 1.5)+
+         points(out_len$length, out_len$weight, pch = 16, cex = 1, col = "red")
+  
+  
+  
+  if (nrow(sp_age) > 0) {
+    
+    ID <- unique(sp_age$age)
+    fun <- function(kk) {
+      a <- sp_age[sp_age$age == ID[kk], ]
+          
+      if (nrow(a) >= 2){
+          
+        a$ids <- c(1:nrow(a))
+          
+        #Local Outlier Factor Score    
+        a$lofs <- lof(a[, c("length", "age")], minPts = 2)
+          
+        lofs <- a[a$lofs > 1 & a$lofs != Inf, ]
+          
+        ## Calculate the mean and sd
+        smean <- mean(a$length, na.rm = TRUE)
+        sds <-  sd(a$length, na.rm = TRUE)
+        ## Identify the cells with value greater than cutoff * sd (column wise)
+        points <- a[a$length <  smean + (2 * sds) & a$length >  smean - (2 * sds), ]
+          
+        ## exclude points from lof, which are too close to the mean to be outliers
+        lofs <- lofs[! lofs$ids %in% points$ids, ]
+          
+        ## outliers that is far from the mean, but have more than one occurence, so does not get picked up by lof
+        points2 <- a[a$length  >  smean + (3.5 * sds) | a$length <  smean - (3.5 * sds), ]
+          
+        #bind the outliers, but exclude rows that has already been found, as to avoid duplicates
+        outliers <- rbind(lofs, points2[! points2$ids %in% lofs$ids, ])
+        
+        #exclude outliers that are inbtween points not deemed outliers
+        not_outliers <- a[! a$animalId %in% outliers$animalId, ]
+        outliers <- outliers[outliers$length > max(not_outliers$length) |
+                              outliers$length < min(not_outliers$length), ]
+        
+        } else outliers <- c()
+    }
+    temp<-lapply(1:length(ID), fun) #funktion to get data and run the loop/function
+    out_age<-data.frame(do.call("rbind", temp)) #make data frame from the temp file
+      
+    ## Plot the data, by species by area, with outliers in red, and trend line in red
+    plot(sp_age$age, sp_age$length, col = "white",
+         main = paste(paste0("Længde Alder ", sp)),
+         xlab = "Age",
+         ylab = "Length [mm]",
+         cex.main = 1.5,
+         cex.lab = 1.5,
+         xaxt="n")+
+      axis(1,at=unique(sp_age$age),labels=unique(sp_age$age))+
+      grid()+
+      points(sp_age$age, sp_age$length, pch = 16, cex = 1, col = "blue")+
+      points(out_age$age, out_age$length, pch = 16, cex = 1, col = "red")
+  
+  } else{
+    text<-c(paste0("Ingen ", sp, " Alderet"))
+    #Make table
+    print(text %>% 
+        cell_spec(color = "green", font_size = 15, bold = T) %>%
+        kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+        kable_styling(latex_options = c("hold_position"))
+    )
+    out_age <- data.frame(animalId = NA, type = NA)
+  }
+  
+  if (nrow(out_len) > 0)
+  out_len$type <- "len"
+  
+  if (nrow(out_age) > 0)
+  out_age$type <- "age"
+  
+  out <- rbind.fill(out_len, out_age)
+  
+  if(nrow(out) > 0){
+  outliers2 <- out[, c("animalId", "type")]
+  }else{
+     outliers2 <- c()
+  }
+}
+temp<-lapply(1:length(species3), fun) #function to get data and run the loop/function
+outliers2<-data.frame(do.call("rbind", temp))
+
+```
+
+
+\newpage
+\subsection{Tabel af Outliers}
+```{r ,echo=FALSE, results='asis', cache=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=7}
+
+weight_outliers <- animal[animal$animalId %in% outliers2[outliers2$type == "len", "animalId"],
+                            c("animalId", "speciesCode", "year", "cruise", "station", "trip",
+                                         "length", "weight")] #state the variable that should be
+
+age_outliers <- age[age$animalId %in% outliers2[outliers2$type == "age", "animalId"], 
+                         c("animalId", "speciesCode", "year", "cruise", "station", "trip",
+                                         "length", "age")] #state the variable that should be
+## make a table of outliers found above, if any.
+
+if (nrow(data.frame(weight_outliers)) > 0){
+  
+  print(weight_outliers %>%
+         kbl(escape = F, longtable = T, caption = "Weight outliers", 
+             booktabs = T, linesep = "", row.names = F,    
+             col.names = c("AnimalId", "Art", "År", "Togt", "Station", "Tur", 
+                           "Længde", "Vægt"), align = "l") %>%
+         row_spec(0, bold = TRUE) %>%
+         kable_styling(latex_options = c("striped", "hold_position")) %>%
+         column_spec(1, width = "1.5cm") %>%
+         column_spec(2:6, width = "1.2cm") %>%
+         column_spec(7:8, width = "2cm")
+  )
+    
+} else {
+    
+  text<-c("No Detected Weight Outliers")
+  #Make table
+  print(text %>% 
+      cell_spec(color = "green", font_size = 15, bold = T) %>%
+      kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+      kable_styling(latex_options = c("hold_position")) 
+  )
+}
+
+if (nrow(data.frame(age_outliers)) > 0){
+  
+ print(age_outliers %>%
+         kbl(escape = F, longtable = T, caption = "Age outliers", 
+             booktabs = T, linesep = "", row.names = F,    
+             col.names = c("AnimalId", "Art", "År", "Togt", "Station", "Tur", 
+                           "Længde", "Alder"), align = "l") %>%
+         row_spec(0, bold = TRUE) %>%
+         kable_styling(latex_options = c("striped", "hold_position")) %>%
+         column_spec(1, width = "1.5cm") %>%
+         column_spec(2:6, width = "1.2cm") %>%
+         column_spec(7:8, width = "2cm")
+ )
+} else {
+    
+    text<-c("No Detected Age Outliers")
+    #Make table
+    print(text %>% 
+        cell_spec(color = "green", font_size = 15, bold = T) %>%
+        kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+        kable_styling(latex_options = c("hold_position")) 
+    )
+}  
+  
+```
+
+
+
+
