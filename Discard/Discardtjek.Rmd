@@ -45,11 +45,11 @@ output:
 ```{r define_input, echo=FALSE}
 
 ## Parameters
-#year<- 2021
-#cruise <- "MON"
-#trip <- "2943"
-#coast_string <- "kort/europe_simple_wgs84"
-#ices_areas_string <- "kort/ICES_areas"
+# year<- 2021
+# cruise <- "MON"
+# trip <- "2943"
+# coast_string <- "kort/europe_simple_wgs84"
+# ices_areas_string <- "kort/ICES_areas"
 
 year<- @paramYear
 cruise <- @paramCruise
@@ -63,103 +63,15 @@ ices_areas_string <- "ICES_areas"
 ```{r set_libraries, include=FALSE}
 
 #Libraries
-if (!require(sqldf)) {
-  install.packages("sqldf", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(sqldf)
+if (!require(pacman)) {
+  install.packages("pacman", repos="http://ftp.ussg.iu.edu/CRAN/")
+  library(pacman)
 }
-if (!require(RODBC)) {
-  install.packages("RODBC", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(RODBC)
-}
-if (!require(plyr)) {
-  install.packages("plyr", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(plyr)
-}
-if (!require(dplyr)) {
-  install.packages("dplyr", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(dplyr)
-}
-if (!require(xtable)) {
-  install.packages("xtable", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(xtable)
-}
-if (!require(ggmap)) {
-  install.packages("ggmap", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(ggmap)
-}
-if (!require(gplots)) {
-  install.packages("gplots", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(gplots)
-}
-if (!require(grid)) {
-  install.packages("grid", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(grid)
-}
-if (!require(reshape)) {
-  install.packages("reshape", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(reshape)
-} 
-if (!require(reshape2)) {
-  install.packages("reshape2", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(reshape2)
-}
-if (!require(ggrepel)) {
-  install.packages("ggrepel", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(ggrepel)
-}
-if (!require(knitr)) {
-  install.packages("knitr", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(knitr)
-}
-if (!require(gridExtra)) {
-  install.packages("gridExtra", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(gridExtra)
-}
-if (!require(stringr)) {
-  install.packages("stringr", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(stringr)
-}
-if (!require(data.table)) {
-  install.packages("data.table", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(data.table)
-}
-if (!require(maps)) {
-  install.packages("maps", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(maps)
-}
-if (!require(tidyr)) {
-  install.packages("tidyr", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(tidyr)
-}
-# if (!require(marmap)) {
-#  install.packages("marmap", repos="http://ftp.ussg.iu.edu/CRAN/")
-#  library(marmap)
-#}
- if (!require(rgdal)) {
-  install.packages("rgdal", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(rgdal)
-}
- if (!require(maptools)) {
-  install.packages("maptools", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(maptools)
-}
-# if (!require(rasterVis)) {
-#  install.packages("rasterVis", repos="http://ftp.ussg.iu.edu/CRAN/")
-#  library(rasterVis)
-#}
- if (!require(shapefiles)) {
-  install.packages("shapefiles", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(shapefiles)
-}
- if (!require(mapplots)) {
-  install.packages("mapplots", repos="http://ftp.ussg.iu.edu/CRAN/")
-  library(mapplots)
-}
+p_load(sqldf, RODBC, plyr, dplyr, xtable, ggmap, gplots, grid, reshape, reshape2, ggrepel, knitr, gridExtra, stringr, data.table, maps, tidyr, rgdal, maptools, shapefiles, mapplots, kableExtra, sf)
+
 ```
 
 ```{r functions, include=FALSE}
-
-
 
 round2 = function(x) trunc(x+0.5);
 sumNA = function(x) sum(x,na.rm=T);
@@ -168,8 +80,6 @@ gg_color_hue <- function(n) {
   hues = seq(15, 375, length = n + 1)
   hcl(h = hues, l = 65, c = 100)[1:n]
 }
-
-
 
 ```
 
@@ -210,7 +120,7 @@ query3
 
 query4<-paste("SELECT   Sample.station, Sample.dateGearStart, Sample.dateGearEnd, Sample.fishingtime, Sample.latPosStartDec AS lat, Sample.lonPosStartDec AS lon, Sample.latPosEndDec AS latEnd, Sample.lonPosEndDec AS lonEnd,
                         Sample.catchRegistration,Sample.distanceBottom,Sample.distancePositions,Sample.haulSpeedBot, sample.haulSpeedWat,Sample.speciesRegistration,Sample.gearType,Sample.selectionDevice,Sample.meshSize, 
-                        Sample.dfuArea, Sample.statisticalRectangle, Sample.quarterGearStart
+                        Sample.dfuArea, Sample.statisticalRectangle, Sample.quarterGearStart, sample.gearQuality
               FROM Sample
               WHERE     (Sample.year=",year," and Sample.trip = '",trip,"' and Sample.cruise='",cruise,"')"
               ,sep = "")
@@ -605,15 +515,141 @@ gearSpeeds <- allstations %>%
 # 
 # ggplot(allstations, aes(x=gearType, y = maxSpeed))+geom_boxplot()+geom_jitter(width=.2)+coord_flip()
 
+
+
+
 ```
     
+```{r, include=FALSE}
 
+#### points on land
+pts_start <- data4[, c("station", "lon", "lat")] %>% 
+        sf::st_as_sf(coords = c("lon","lat")) %>% 
+        sf::st_set_crs(4326)
 
+pts_end <- data4[, c("station", "lonEnd", "latEnd")] %>% 
+        sf::st_as_sf(coords = c("lonEnd","latEnd")) %>% 
+        sf::st_set_crs(4326)
+
+pts <- rbind(pts_start, pts_end)
+
+tracks <- pts %>% group_by(station) %>%
+  summarize(geometry = st_union(geometry)) %>% 
+  st_cast("LINESTRING") %>%
+  st_as_sf()
+
+coast <- st_read(paste0(coast_string, ".shp"))
+overlap <- st_overlaps(tracks, coast)
+
+```
+
+```{r, echo=FALSE, results='asis'}
+if (unique(lengths(overlap)) != 0){
+  
+  "Dele af Turen Ligger på Land, Tjek Start og Slut Coordinaterne" %>% 
+      cell_spec(color = "red", font_size = 15, bold = T) %>%
+      kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+      kable_styling(latex_options = c("hold_position")) 
+}
+
+```
 
 \newpage
 
 
-\subsection{Vægtestimering per station}
+\subsection{Stations Oplysninger}
+
+```{r, echo=FALSE, results='asis'}
+
+stations <- data4[ , c("station", "dateGearStart", "fishingtime", "gearType", "selectionDevice", "meshSize", "gearQuality" )]
+
+stations %>%
+         kbl(escape = F, longtable = T, booktabs = T, linesep = "", row.names = F,    
+             col.names = c("station", "Start tid", "Fiske tid", "gear type", "selections panel", "net størelse", "gaer validitet"), align = "l") %>%
+         row_spec(0, bold = TRUE) %>%
+         kable_styling(latex_options = c("striped", "hold_position")) %>%
+         column_spec(1:7, width = "2cm")
+         
+if ("" %in% stations$gearQuality | TRUE %in% is.na(stations$gearQuality)){
+  
+  "Gear Validitet Ikke Udfyldt Korrekt" %>% 
+      cell_spec(color = "red", font_size = 15, bold = T) %>%
+      kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+      kable_styling(latex_options = c("hold_position")) 
+  
+}
+```
+    
+\section{Tilbagemeldinger fra Fiskeline}
+
+```{r data_errors, results='asis',echo=FALSE,message=FALSE,warning=FALSE,fig.pos='H'}
+
+
+
+
+# cat("\\newline")
+
+errorQuery <- paste0("SELECT [transferErrorId],[errorType],[cruiseId],[origin],
+                      [recordType],[recordTypeId],[description],[logTime]
+  FROM [ErrorLog]
+  where origin like '",year,"%",cruise,"%",trip,"%'")
+
+
+channel <- odbcConnect("FishLineDW")
+dbErrors <- sqlQuery(channel, paste(errorQuery))
+close(channel)
+
+if (nrow(dbErrors)>0){
+
+    cat("I tabellen nedenfor ses de seneste fejl fra Fiskeline-databasen. Fejlene
+        kan indikere fejlindtastninger. Databasen opdateres hver nat. Der kan 
+        derfor vise sig fejlmeddelelser lang tid efter at turen blev indtastet,
+        hvis ikke der er foretaget ændringer siden indtastningen. ")  
+  
+    dbErrors2 <- dbErrors %>% 
+        separate(origin, sep = "->", into = c("year","cruise","trip","station")) %>%
+        mutate(
+          # year = str_split(origin, pattern = "->",simplify = T)[,1],
+          #      cruise  = str_split(origin, pattern = "->",simplify = T)[,2],
+          #      trip = str_split(origin, pattern = "->",simplify = T)[,3],
+          #      station = str_split(origin, pattern = "->",simplify = T)[,4],
+               Dato = format(logTime,"%Y/%m/%d")) %>% 
+        arrange(transferErrorId) %>% 
+        dplyr::select(c(12,2,7,10,8,1))  
+
+    names(dbErrors2) <-c("Dato","Type","Station","Beskrivelse","RecordType","FejlId")
+    
+    library(Hmisc)
+        mylatex <- function (...) {
+          o <- capture.output(latex(...))
+          o <- grep('^%', o, inv=T, value=T)
+          cat(o, sep='\n')
+        }
+
+        mylatex(dbErrors2,
+                file='',
+                col.just = c(rep("l|",3),"p{45mm}",rep("|l",2)),
+                booktabs = F,
+                rowname=NULL,
+                rowlabel="",
+                where='H',
+                longtable=TRUE,
+                size="footnotesize",
+                lines.page=4000)
+
+    detach(package:Hmisc)
+# cat("}")
+# cat("\\end{table}")
+        } else{
+          cat("Fiskeline-databasen har ikke registreret nogen fejl, når den behandlede indtastningerne om turen.")
+          }
+
+
+```
+
+\newpage
+
+\section{Vægtestimering per station}
 
 
 
@@ -1110,7 +1146,7 @@ detach(package:Hmisc)
 
 
 ```{r registration2, results='asis',echo=FALSE,message=FALSE,warning=FALSE,fig.pos='H'}
-sample_errorsQ<-sprintf("SELECT s.sampleId, s.tripId, s.year, s.cruise, s.trip, s.tripType, s.station, s.gearQuality, s.dfuArea, s.catchRegistration, s.speciesRegistration, s.remark as stationRemark, t.remark as tripRemark, s.gearQuality
+sample_errorsQ<-sprintf("SELECT s.sampleId, s.tripId, s.year, s.cruise, s.trip, s.tripType, s.station, s.gearQuality, s.dfuArea, s.catchRegistration, s.speciesRegistration, s.remark as stationRemark, t.remark as tripRemark
                FROM  Sample as s
 			   left join trip as t
 			   on (s.year=t.year and
@@ -1191,6 +1227,7 @@ fq <- rbind(fejl,question)
 
 
 ```
+
 ```{r errors, results='asis',echo=FALSE,message=FALSE,warning=FALSE,fig.pos='H'}
 types0 <- 
   data.frame(type = c(rep("Fejl",3),rep("Spørgsmål",4)),
@@ -1645,7 +1682,11 @@ close(channel)
 
 ```
 
+
+
 \newpage
+
+
 
 
 
@@ -1810,71 +1851,3 @@ if (nrow(db_diff)>0) {
             største afvigelser for nogen af de indfangede arter.")}
 ```
 
-\newpage
-
-\subsection{Tilbagemeldinger fra Fiskeline}
-
-```{r data_errors, results='asis',echo=FALSE,message=FALSE,warning=FALSE,fig.pos='H'}
-
-
-
-
-# cat("\\newline")
-
-errorQuery <- paste0("SELECT [transferErrorId],[errorType],[cruiseId],[origin],
-                      [recordType],[recordTypeId],[description],[logTime]
-  FROM [ErrorLog]
-  where origin like '",year,"%",cruise,"%",trip,"%'")
-
-
-channel <- odbcConnect("FishLineDW")
-dbErrors <- sqlQuery(channel, paste(errorQuery))
-close(channel)
-
-if (nrow(dbErrors)>0){
-
-    cat("I tabellen nedenfor ses de seneste fejl fra Fiskeline-databasen. Fejlene
-        kan indikere fejlindtastninger. Databasen opdateres hver nat. Der kan 
-        derfor vise sig fejlmeddelelser lang tid efter at turen blev indtastet,
-        hvis ikke der er foretaget ændringer siden indtastningen. ")  
-  
-    dbErrors2 <- dbErrors %>% 
-        separate(origin, sep = "->", into = c("year","cruise","trip","station")) %>%
-        mutate(
-          # year = str_split(origin, pattern = "->",simplify = T)[,1],
-          #      cruise  = str_split(origin, pattern = "->",simplify = T)[,2],
-          #      trip = str_split(origin, pattern = "->",simplify = T)[,3],
-          #      station = str_split(origin, pattern = "->",simplify = T)[,4],
-               Dato = format(logTime,"%Y/%m/%d")) %>% 
-        arrange(transferErrorId) %>% 
-        dplyr::select(c(12,2,7,10,8,1))  
-
-    names(dbErrors2) <-c("Dato","Type","Station","Beskrivelse","RecordType","FejlId")
-    
-    library(Hmisc)
-        mylatex <- function (...) {
-          o <- capture.output(latex(...))
-          o <- grep('^%', o, inv=T, value=T)
-          cat(o, sep='\n')
-        }
-
-        mylatex(dbErrors2,
-                file='',
-                col.just = c(rep("l|",3),"p{45mm}",rep("|l",2)),
-                booktabs = F,
-                rowname=NULL,
-                rowlabel="",
-                where='H',
-                longtable=TRUE,
-                size="footnotesize",
-                lines.page=4000)
-
-    detach(package:Hmisc)
-# cat("}")
-# cat("\\end{table}")
-        } else{
-          cat("Fiskeline-databasen har ikke registreret nogen fejl, når den behandlede indtastningerne om turen.")
-          }
-
-
-```
