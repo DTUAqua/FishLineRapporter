@@ -40,11 +40,11 @@ p_load(sm, ggplot2, ggrepel, dbscan)
 
 
 # Paramters to use in R
-y1 <- 2021
+y1 <- 2022
 y2 <- 2022
 species <- c("TOR")
-areas <- c(20, 21, 22, 24, 25, "4A", "4B", "4C")
-cruise <- c("BITS-2")
+areas <- c(21, 22, 23)
+cruise <- c("KASU-2")
 Q <- c(1, 2, 3, 4)
 
 if (TRUE %!in% (c(1, 2, 3, 4) %in% Q)){
@@ -70,7 +70,7 @@ age <- sqlQuery(channel, paste("SELECT   animalId, individNum, year,
                                               ageReadId, ageReadName, 
                                               hatchMonthReaderId, hatchMonthReaderName,
                                               genetics, geneticStock, remark AS reamrk_age
-                                     FROM     Age
+                                     FROM     fishlineDW.dbo.Age
                                      WHERE    (speciesCode IN ('", paste(species,collapse = "','"),"')) AND 
                                   	  	      (dfuArea IN ('", paste(areas,collapse = "','"),"')) AND 
                                               (year between ",y1," and ",y2," ) AND
@@ -105,6 +105,7 @@ speciesList <- sqlQuery(channel, paste("SELECT    year,
                                               (cruise IN ('", paste(cruise,collapse = "','"),"'))
                                      ORDER BY dateGearStart
                                 			        ", sep = ""))
+
 close(channel)
 
 age <- age[!(is.na(age$otolithReadingRemark) & is.na(age$age)), ]

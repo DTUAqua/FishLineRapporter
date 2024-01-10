@@ -339,7 +339,7 @@ if (nrow(outliers) > 0){
 
   
   print(out_outliers %>%
-         kbl(escape = F, longtable = T, caption = "Age outliers", 
+         kbl(escape = F, longtable = T, caption = "Trip outliers", 
              booktabs = T, linesep = "", row.names = F,    
              col.names = c("År", "Togt", "Tur", "Station", "Outlier Type"), align = "l") %>%
          row_spec(0, bold = TRUE) %>%

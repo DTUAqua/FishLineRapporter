@@ -53,8 +53,7 @@ ldat <- c(@paramLdat)
 ```{r import_data, echo=FALSE, cache = FALSE}
 
 #dfad <- readRDS("<dfad-path>/dfad.rds")
-dfad <- readRDS("dfad.rds")
-#dfad <- readRDS("Q:/dfad/users/jostou/home/FishLineRapporter/DFADs søgning/dfad.rds")
+dfad <- readRDS("//fishline.dtuaqua.dk/dfad-share/dfad.rds")
 
 havn <-  haven::read_sas("Q:/mynd/SAS Library/FD_Format/lplads.sas7bdat")   
 names(havn)[1:2] <- c("lplads", "lhavn")

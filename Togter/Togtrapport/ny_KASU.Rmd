@@ -472,3 +472,49 @@ for (i in area[1:length(area)]) {
 }
 ```
 
+\newpage
+\subsection{Species pr station}
+The total catch per species per station (see station map).
+ \vspace{0.2cm}
+ 
+```{r format_species list, echo=FALSE, results='asis'}
+
+#aggregate the raised species list, to make an overview of species couhgt 
+setDT(sp_lst)
+
+sp <- sp_lst[ ,. (number = round(sum(numberTotal, na.rm = T), digits = 0), 
+                  weight = round(sum(weightTotal, na.rm = T), digits = 1)),
+              by = .(station, speciesCode, dfuArea)]
+
+
+sp[sp$number == 0, "number"] <- NA
+
+#exclude the litter rows
+sp <- sp[!sp$speciesCode %in% c("AF1", "AF2", "AF3", "AF4", "AF5"), ]
+
+#make table in loop, one table pr area
+area <- unique(sp2$dfuArea)
+
+for (i in area[1:length(area)]) {
+  
+  dat <- sp2[sp2$dfuArea == i, ]
+  
+  #format which column we would like, and their order 
+  dat <- dat[ , c("latin", "ukName", "dkName", "number", "weight")]
+  
+  print(dat %>%
+         kbl(escape = F, longtable = T, booktabs = T, linesep = "", 
+             row.names = F, caption = paste0("Species Caught in area ", i),   
+             col.names = c("Latin name", "English name", "Danish name", "Number", "Weight (kg)")
+             , align = "lllrr") %>%
+         row_spec(0, bold = TRUE) %>%
+         kable_styling(latex_options = c("striped", "hold_position")) %>%
+         column_spec(1, width = "4.5cm") %>%
+         column_spec(2:3, width = "4cm") %>%
+         column_spec(4:5, width = "2cm"))
+
+ 
+  
+  
+}
+```

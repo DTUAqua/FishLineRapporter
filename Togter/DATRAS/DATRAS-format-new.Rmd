@@ -118,9 +118,9 @@ v_cruise <- c(@paramCruise2)
 v_year <- c(@paramYear)
 art_out <- c(@paramSpecies)
 
-# cruise_all <- c("BITS")
-# v_cruise <- c("BITS-2")
-# v_year <- c("2012")
+cruise_all <- c("BITS")
+v_cruise <- c("BITS-1")
+v_year <- c("2022")
 # # # art_out <- c("TBM")
 # channel <- odbcConnect("FishLineDW")
 # art_out <- sqlQuery(channel, sprintf("SELECT slr.speciesCode
@@ -1051,13 +1051,11 @@ hhhlca3_1[in_ejRep, "TotalNo"] <- -9
 hhhlca3_1[in_ejRep, "CatIdentifier"] <- -9
 hhhlca3_1[in_ejRep, "NoMeas"] <- -9
 hhhlca3_1[in_ejRep, "subFactor"] <- -9
-hhhlca3_1[in_ejRep, "subWgt"] <- -9
+hhhlca3_1[in_ejRep, "SubWgt"] <- -9
 hhhlca3_1[in_ejRep, "CatCatchWgt"] <- -9
 hhhlca3_1[in_ejRep, "LngtCode_HL"] <- -9
 hhhlca3_1[in_ejRep, "Length_HL"] <- -9
 hhhlca3_1[in_ejRep, "HlNoAtLngt"] <- -9
-
-hhhlca3_1[in_ejRep, "LenMeasType"] <- -9
 hhhlca3_1[in_ejRep, "DevStage"] <- -9
 
 # added by ldie/jepol den 24-03-2020
@@ -1282,10 +1280,10 @@ DATA_HL <- data.frame(
   "SpecVal" = hhhlca3$SpecVal[in_HL], "Sex" = hhhlca3$Sex[in_HL],
   "TotalNo" = hhhlca3$TotalNo[in_HL], "CatIdentifier" = hhhlca3$CatIdentifier[in_HL],
   "NoMeas" = hhhlca3$NoMeas[in_HL], "SubFactor" = hhhlca3$subFactor[in_HL],
-  "SubWgt" = hhhlca3$subWgt[in_HL], "CatCatchWgt" = hhhlca3$CatCatchWgt[in_HL],
+  "SubWgt" = hhhlca3$SubWgt[in_HL], "CatCatchWgt" = hhhlca3$CatCatchWgt[in_HL],
   "LngtCode" = hhhlca3$LngtCode[in_HL], "LngtClass" = hhhlca3$Length_HL[in_HL],
   "HLNoAtLngt" = hhhlca3$HlNoAtLngt[in_HL], "DevStage" = hhhlca3$DevStage[in_HL], 
-  "LenMeasType" = hhhlca$LenMeasType[in_HL],
+  "LenMeasType" = hhhlca3$LenMeasType[in_HL],
   stringsAsFactors = FALSE)
 
 

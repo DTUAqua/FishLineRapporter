@@ -192,9 +192,9 @@ if (nrow(l_fish) > 0) {
                 draw.shape(dk_eez, col="transparent", border = "red")+
                 draw.rect()+
                 points(samples$lonPosStartDec, samples$latPosStartDec, col="green", pch = 16, cex = 1.5)
-                pointLabel(x=samples$lonPosStartDec,  y= samples$latPosStartDec,
-                           labels=as.character(samples$cruise),
-                           cex=1,offset=-1, allowSmallOverlap = FALSE)
+                # pointLabel(x=samples$lonPosStartDec,  y= samples$latPosStartDec,
+                #            labels=as.character(samples$cruise),
+                #            cex=1,offset=-1, allowSmallOverlap = FALSE)
 }
 
               
