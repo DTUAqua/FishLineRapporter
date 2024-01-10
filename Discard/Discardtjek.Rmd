@@ -45,10 +45,10 @@ output:
 ```{r define_input, echo=FALSE}
 
 ## Parameters
-# year<- 2021
+# year<- 2022
 # cruise <- "MON"
-# trip <- "2943"
-# coast_string <- "kort/europe_simple_wgs84"
+# trip <- "2984"
+# coast_string <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/CoastLines/Europe/europe_simple_wgs84"
 # ices_areas_string <- "kort/ICES_areas"
 
 year<- @paramYear
@@ -438,10 +438,12 @@ Observatør: `r observator`
 \textbf{Total antal:} & `r nrow(data4)`&\\ 
 \textbf{Antal oparbejdede stationer:} & `r nrow(data4_cl[data4_cl$catchRegistration=="ALL" & data4_cl$speciesRegistration=="ALL",])` 
                                             (`r data4_cl[data4_cl$catchRegistration=="ALL" & data4_cl$speciesRegistration=="ALL",]$statCatch`)  &\\
+
 \textbf{Antal delvist oparbejdede stationer:} & `r nrow(data4_cl[data4_cl$catchRegistration %in% c("DIS","LAN") |
                                                 data4_cl$speciesRegistration!="ALL" & data4_cl$catchRegistration=="ALL",])`  
                                             (`r data4_cl[data4_cl$catchRegistration %in% c("DIS","LAN") |
                                                 data4_cl$speciesRegistration!="ALL" & data4_cl$catchRegistration=="ALL",]$statCatch`) & \\
+
 \textbf{Antal ikke oparbejdede stationer:} & `r nrow(data4_cl[data4_cl$catchRegistration=="NON",])` 
                                             (`r data4_cl[data4_cl$catchRegistration=="NON",]$statCatch`) & \\
 \textbf{Oparbejdningsniveau ikke oplyst:} & `r nrow(data4[is.na(data4$catchRegistration),])` 
@@ -536,15 +538,18 @@ pts <- rbind(pts_start, pts_end)
 tracks <- pts %>% group_by(station) %>%
   summarize(geometry = st_union(geometry)) %>% 
   st_cast("LINESTRING") %>%
-  st_as_sf()
+  st_as_sf() %>%
+  st_buffer(0.0001)
 
-coast <- st_read(paste0(coast_string, ".shp"))
+coast <- st_read(paste0(coast_string, ".shp")) %>%
+  st_transform(4326)
+  
 overlap <- st_overlaps(tracks, coast)
 
 ```
 
 ```{r, echo=FALSE, results='asis'}
-if (unique(lengths(overlap)) != 0){
+if (TRUE %in% lengths(overlap) != 0){
   
   "Dele af Turen Ligger på Land, Tjek Start og Slut Coordinaterne" %>% 
       cell_spec(color = "red", font_size = 15, bold = T) %>%

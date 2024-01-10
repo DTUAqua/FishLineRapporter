@@ -1,0 +1,1020 @@
+---
+fontsize: 11pt
+geometry: top=2cm, bottom=2cm, left=1.5cm, right=1.5cm,headsep=1cm
+header-includes:
+- \usepackage[utf8]{inputenc}
+- \usepackage{fancyhdr}
+- \pagestyle{fancy}
+- \fancyfoot{}
+- \usepackage{ragged2e}
+- \linespread{1.15}
+- \usepackage{float}
+- \usepackage{lastpage}
+- \usepackage{tabularx}
+output: pdf_document
+---
+
+```{r set_libraries, include=FALSE, warning=FALSE}
+
+#Libraries used in the r code
+if (!require("pacman")) install.packages("pacman")
+p_load(kableExtra, sqldf, RODBC, plyr, dplyr, haven)
+
+#special for this script
+p_load(data.table, stringr, sf, mapplots, shapefiles, maptools, ggplot2, tidyr, lubridate)
+
+options(knitr.kable.NA = '')
+```
+
+```{r define_input, echo=FALSE}
+
+## Parameters
+year<- 2023
+cruise <- "MON"
+trip <- "3085"
+coast_string <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/CoastLines/Europe/europe_simple_wgs84"
+dfad <- readRDS("//fishline.dtuaqua.dk/dfad-share/dfad.rds")
+sel <- read.csv2("//fishline.dtuaqua.dk/dfad-share/rdsk_select.csv")
+
+# year<- @paramYear
+# cruise <- @paramCruise
+# trip <- @paramTrip
+#coast_string <- "europe_simple_wgs84"
+# dfad <- readRDS("<dfad-path>/dfad.rds")
+#sel <- read.csv2("<dfad-path>/rdsk_select.csv")
+
+```
+
+```{r get data, echo=FALSE}
+
+## from database
+
+channel <- odbcConnect("FishLineDW")
+
+trip <-sqlQuery(channel, paste("SELECT    
+       [tripId]
+      ,[year]
+      ,[cruise]
+      ,[trip]
+      ,[tripLeaderName]
+      ,[contactPersonName]
+      ,[logBldNr]
+      ,[timeZone]
+      ,[dateStart]
+      ,[dateEnd]
+      ,[platform1]
+  FROM      [FishLineDW].[dbo].[trip]
+  WHERE     year IN ('",paste0(year,collapse="','"), "') AND
+            cruise IN ('",paste0(cruise,collapse="','"), "') AND
+            trip IN ('",paste0(trip,collapse="','"), "') 
+  " ,sep = ""))
+
+trip$n_days <- ceiling(as.numeric(difftime(trip$dateEnd, trip$dateStart, units = "days")))
+
+samples <-sqlQuery(channel, paste("SELECT    
+       [sampleId]
+      ,[tripId]
+      ,[station]
+      ,[stationName]
+      ,[gearQuality]
+      ,[dateGearStart]
+      ,[dateGearEnd]
+      ,[fishingtime]
+      ,[dfuArea]
+      ,[statisticalRectangle]
+      ,[latPosStartDec]
+      ,[lonPosStartDec]
+      ,[latPosEndDec]
+      ,[lonPosEndDec]
+      ,[distancePositions]
+      ,[gearType]
+      ,[selectionDevice]
+      ,[meshSize]
+      ,[catchRegistration]
+      ,[speciesRegistration]
+      ,[remark]
+  FROM      [FishLineDW].[dbo].[Sample]
+  WHERE     (tripId IN ('",paste0(trip$tripId,collapse="','"), "')) 
+  " ,sep = ""))
+
+sp_lst <- sqlQuery(channel, paste("SELECT   
+       [sampleId]
+      ,[speciesListId]
+      ,[speciesCode]
+      ,[sexCode] AS sp_lst_sexcode
+      ,[ovigorous]
+      ,[cuticulaHardness]
+      ,[treatment]
+      ,[weightStep0]
+      ,[weightStep1]
+      ,[weightStep2]
+      ,[weightStep3]
+      ,[treatmentFactor]
+      ,[raisingFactor]
+      ,[weightNonRep]
+      ,[number]
+      ,[totalWeight]
+      ,[landingCategory]
+FROM    [FishLineDW].[dbo].[SpeciesList]
+WHERE   (sampleId IN ('",paste0(samples$sampleId,collapse="','"), "')) 
+", sep = ""))
+
+sp_lst_rais <- sqlQuery(channel, paste("SELECT  
+       [speciesListRaisedId]
+      ,[sampleId]
+      ,[speciesCode]
+      ,[weightSubSample]
+      ,[weightTotal]
+      ,[numberSubSample]
+      ,[numberTotal]
+      ,[landingCategory]
+FROM    [FishLineDW].[dbo].[SpeciesListRaised]
+WHERE   (sampleId IN ('",paste0(samples$sampleId,collapse="','"), "')) 
+", sep = ""))
+
+
+#individual fish
+animal <- sqlQuery(channel, paste("SELECT
+       [speciesListId]
+      ,[speciesCode] as speciesCode2
+      ,[individNum]
+      ,[animalId]
+      ,[sexCode]
+      ,[length]
+      ,[weight]
+      ,[number] AS anim_number
+      ,[sizeSortingEU]
+      ,[lengthMeasureUnit]
+      ,[representative]
+      ,[maturityIndex]
+      ,[maturityIndexMethod]
+      ,[parasiteCode]
+      ,[weightLiver]
+      ,[weightGonads]
+  FROM      [FishLineDW].[dbo].[Animal]
+  WHERE     (speciesListId IN ('",paste0(sp_lst$speciesListId,collapse="','"), "')) 
+  " ,sep = ""))
+
+
+age <- sqlQuery(channel, paste("SELECT
+       [animalId]
+      ,[age]
+      ,[agePlusGroup]
+      ,[otolithReadingRemark]
+      ,[genetics]
+  FROM      [FishLineDW].[dbo].[Age]
+  WHERE     (animalId IN (",paste(animal$animalId,collapse = ","),"))
+  " ,sep = ""))
+
+animal <- merge(animal, age, by = "animalId", all.x = T)
+
+## erros from the database
+dbErrors <- sqlQuery(channel, paste("SELECT
+       [transferErrorId]
+      ,[errorType]
+      ,[cruiseId]
+      ,[origin]
+      ,[recordType]
+      ,[recordTypeId]
+      ,[description]
+      ,[logTime]
+  FROM [FishLineDW].[dbo].[ErrorLog]
+  where origin like '",year,"%",cruise,"%",trip,"%'
+" ,sep = ""))
+
+## old length weight records..
+q <- unique(quarter(samples$dateGearStart))
+area <- unique(samples$dfuArea)
+sp <- unique(animal[!is.na(animal$individNum), "speciesCode2"])
+crus <- c("MON", "SEAS")
+
+lw_old <- sqlQuery(channel, paste("SELECT
+       [year]
+      ,[quarterGearStart]
+      ,[speciesCode]
+      ,[length]
+      ,[weight]
+  FROM      [FishLineDW].[dbo].[Animal]
+  WHERE     (year between ",year - 4," and ",year-1," ) AND
+            (dfuArea IN ('", paste(area,collapse = "','"),"')) AND
+            (speciesCode IN ('", paste(sp,collapse = "','"),"')) AND
+            (individNum != 0)
+  " ,sep = ""))
+
+close(channel)
+
+#merge the tables together with the key variables
+dat <- merge(trip, samples, by = "tripId")
+sp_lst <- merge(dat, sp_lst, by = "sampleId")
+sp_lst_rais <- merge(dat, sp_lst_rais, by = "sampleId")
+dat <- merge(sp_lst, animal, by = "speciesListId")
+
+animal <- dat[, c(names(samples), names(animal))]
+ 
+#cut down dfads data to relevent stuff
+dfad <- dfad[dfad$fid %in% dat$platform1, ]
+trip$logBldNr <- str_pad(trip$logBldNr, 10, pad = "0")
+logbook_match <- trip$logBldNr %in% dfad$match_alle
+
+```
+<!-- define header -->
+ 
+\lhead{\footnotesize Tur nummer: `r trip$trip`, `r as.Date(trip$dateStart)` til `r as.Date(trip$dateEnd)`}
+\rhead{\footnotesize Observatør: `r trip$tripLeaderName`}
+\lfoot{\footnotesize Udskrevet: \today }
+\fancyfoot[R]{\thepage}
+
+
+\thispagestyle{empty}
+
+\textbf{\Huge Discard tjek-rapport}
+        
+\vspace{0.1cm}
+\textbf{Tur nummer: `r trip$trip`}
+
+\vspace{1.5cm}
+Foretaget den: `r as.Date(trip$dateStart)` til `r as.Date(trip$dateEnd)`
+        
+\vspace{0.2cm}
+Observatør: `r trip$tripLeaderName`
+
+\vspace{0.7cm}   
+
+\textbf{\LARGE Generelt om turen}
+
+
+\renewcommand{\arraystretch}{1.5}
+\begin{tabularx}{\textwidth}{@{}lXr@{}}
+\textbf{Skipper:} & `r trip$contactPersonName`&\\ 
+\textbf{Kutter:} & `r trip$platform1` &\\
+\textbf{Varighed tur (påbegyndte hele dage):} & `r trip$n_days` &\\
+\textbf{Område:} & `r toString(unique(samples$dfuArea))` &\\
+\textbf{Ices Rectangler:} & `r toString(unique(samples$statisticalRectangle))` &\\
+\textbf{Total antal stationer:} & `r nrow(samples)` &
+\end{tabularx}
+
+\newpage
+
+\tableofcontents 
+
+\newpage
+
+\section{Stationer og prøvetagningsniveau}
+\subsection{Stations Oplysninger}
+```{r station check, echo=FALSE}
+ if (trip$n_days > 5)
+     print("Turen er ret lang, er start og slut-dato Intastet rigtigt" %>% 
+     cell_spec(color = "red", font_size = 10, bold = T) %>%
+     kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+     kable_styling(latex_options = c("hold_position")))
+
+#tjek oparbejdnings nivou
+samples$nivu <- ifelse(samples$catchRegistration == "ALL" & 
+                         samples$speciesRegistration == "ALL", "Fuldt Oparbejdet", "Ikke Oplyst")
+  
+samples$nivu <- ifelse(samples$catchRegistration %in% c("DIS","LAN") |
+                         (samples$speciesRegistration != "ALL" & samples$catchRegistration=="ALL"), 
+                          "Delvist Oparbejdet", samples$nivu)
+
+samples$nivu <- ifelse(samples$catchRegistration=="NON", 
+                          "Ikke Oparbejdet", samples$nivu)
+
+#sampl i tabel og print
+tbl <-samples[, c("sampleId", "dateGearStart", "fishingtime", "gearType", 
+                  "selectionDevice", "meshSize", "gearQuality", "nivu", "remark")]
+tbl[is.na(tbl)] <- ""
+
+tbl %>%
+     kbl(escape = F, longtable = T, booktabs = T, linesep = "",
+         row.names = F, caption = "Stations Oplysinger",
+         col.names = c("Sation", "Start Tid", "Fiske tid", "Gear", "Panle", "Net Str.", 
+                       "Gear Validitet", "Oparbejdning niveau", "Komentare"), align = "l") %>%
+     row_spec(0, bold = TRUE) %>%
+     kable_styling(latex_options = c("striped", "hold_position"), font_size = 8) %>%
+     column_spec(1:4, width = "1.5cm") %>%
+     column_spec(5, width = "2cm")%>%
+     column_spec(6:7, width = "1.5cm")%>%
+     column_spec(8:9, width = "2cm")
+  
+
+```
+
+
+\subsection{Logbogs Sammenligninger}
+```{r logbook check, echo=FALSE, results='asis', cache=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=12}
+
+if (logbook_match != "TRUE") {
+  
+  txt <- c("Logbogblads Nummer Ikke Fundet, Data er muligvis ikke kommet ind i systemet endu, prøv igen om et par dage, eller se nedenstående tabel for mulige matches")
+  #Make table
+  print(txt %>% 
+      cell_spec(color = "red", font_size = 12, bold = T) %>%
+      kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+      kable_styling(latex_options = c("hold_position")) %>%
+       column_spec(1, width = "15cm"))
+  
+  tbl <- unique(dfad[dfad$ldato >= as.Date(trip$dateStart) & dfad$ldato <= as.Date(trip$dateEnd) + 1, 
+              c("fid", "ldato", "afstid", "anktid", "match_alle")])
+  
+  print(tbl %>%
+       kbl(escape = F, longtable = T, booktabs = T, linesep = "",
+           row.names = F, caption = "Mulige Tur/ logbogs nr  matches",
+           col.names = c("fartøj", "land dato", "afs tid", "ank tid", "logbogs nr"), align = "l") %>%
+       row_spec(0, bold = TRUE) %>%
+       kable_styling(latex_options = c("striped", "hold_position"), font_size = 8) %>%
+       column_spec(1, width = "1cm") %>%
+       column_spec(2:5, width = "1.5cm"))
+  
+} else {
+  
+  #formater ting til sammenlignings tabel
+  dfad <- dfad[dfad$match_alle == trip$logBldNr, ]
+  dfad$redskstr[dfad$redskstr == ""] <- 0
+  
+  #dfad data is in CET, but reads in as UTC
+  dfad$afstid <- force_tz(dfad$afstid,"Europe/Paris")
+  
+  #fishine data is in UTC, but reads in as CET (computer timezone)...
+  trip$dateStart <- force_tz(trip$dateStart,"UTC")
+  trip$dateStart <- with_tz(trip$dateStart, "Europe/Paris")
+  
+  #tabel formatering til lang..
+  tbl <- rbind(data.frame(a = "Fartøj", 
+                          b = trip$platform1, 
+                          c = unique(dfad$fid)),
+               data.frame(a = "Start Dato", 
+                          b = as.character(as.Date(trip$dateStart)), 
+                          c = as.character(as.Date(unique(dfad$afstid)))),
+               data.frame(a = "Start tid", 
+                          b = paste0(as.character(as.ITime(trip$dateStart)), " CET"), 
+                          c = paste0(as.character(as.ITime(unique(dfad$afstid))), " CET")),
+               data.frame(a = "Redskab", 
+                          b = toString(unique(samples$gearType)), 
+                          c = toString(substr(unique(dfad$metier_level6), 1, 3))),
+               data.frame(a = "Maskevidde", 
+                          b = toString(unique(samples$meshSize)), 
+                          c = toString(substr(unique(dfad$metier_level6), 9, 13))),
+               data.frame(a = "Selektionsudstyr", 
+                          b = unique(samples$selectionDevice), 
+                          c = sel[sel$Anføres.med.nummer %in% dfad$redskstr, ]$Paneltype))
+  
+  print(tbl %>%
+       kbl(escape = F, longtable = T, booktabs = T, linesep = "",
+           row.names = F, caption = paste0("Oplysninger om Loglbasnummer ", unique(dfad$match_alle)),
+           col.names = c("", "Observatør Information", "Logbogs Information")) %>%
+       row_spec(0, bold = TRUE) %>%
+       kable_styling(latex_options = c("striped", "hold_position"), font_size = 10) %>%
+       column_spec(1:3, width = "3cm"))
+  
+  #tjek om dagende og skibet passer
+  if (abs(difftime(trip$dateStart,  unique(dfad$afstid), units = "days")) > 2 |
+      trip$platform1 != unique(dfad$fid)){
+    
+     print("Skib eller afsejlings dag afviger fra logbogen \n 
+           er logbogsnummer korrekt ?" %>% 
+     cell_spec(color = "red", font_size = 10, bold = T) %>%
+     kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+     kable_styling(latex_options = c("hold_position")))
+  }
+  
+}
+
+
+```
+
+\subsection{Stationer På Kort}
+
+```{r station_plot, echo=FALSE, results='asis', cache=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=12}
+
+#define the map outline
+#setting coordinates for aspect ration:
+asp <- 1/1
+
+xlim <- c(floor(min(samples$lonPosStartDec)),ceiling(max(samples$lonPosStartDec)))
+
+y_l <- ((xlim[2] - xlim[1])/asp)/2
+y_max <- ceiling(max(samples$latPosStartDec)/0.5)*0.5
+
+if (y_max - y_l < min(samples$latPosStartDec)){
+  
+  ylim <- c(y_max - y_l, y_max)
+  
+} else {
+  
+  ylim <- c(floor(min(samples$latPosStartDec)/0.5)*0.5,ceiling(max(samples$latPosStartDec)/0.5)*0.5)
+  xlim <- c(floor(min(samples$lonPosStartDec)),ceiling(max(samples$lonPosStartDec)))
+  
+}
+
+#order the times correctly for the lines to be drawn
+samples <- samples[order(samples$dateGearStart), ]
+samples$st_no <- 1:nrow(samples)
+
+invisible(coast <- read.shapefile(coast_string))
+#make the plot using the mapplots pakage
+p1 <- basemap(xlim, ylim, main = "Stationer")+
+              draw.shape(coast, col="cornsilk")+
+              draw.rect()+
+              segments(x0=samples$lonPosStartDec, y0=samples$latPosStartDec, 
+                       x1=samples$lonPosEndDec, y1=samples$latPosEndDec,
+                cex=0.8, col="darkblue")
+              points(samples$lonPosStartDec, samples$latPosStartDec,  pch=16, col="red", cex=1.5)
+              points(samples$lonPosEndDec, samples$latPosEndDec,  pch=24, col="black",bg="green")
+              pointLabel(x=samples$lonPosStartDec,  y= samples$latPosStartDec,
+                         labels=as.character(samples$station),
+                         cex=1,offset=-1, allowSmallOverlap = FALSE)
+              legend( x="bottomright",
+              legend=c("ICES-område","ICES-kvadrat","Station start","Station slut"),
+                lty=c(1,2,0,0),pch=c(NA,NA,16,24), col = c("grey","grey","red","black"),
+                cex = 0.9, pt.bg=c("white","white","white","green") ,bg=c("white"))
+             
+              
+```
+
+```{r, include=FALSE}
+
+#### points on land
+pts_start <- samples[, c("station", "lonPosStartDec", "latPosStartDec")] %>% 
+        sf::st_as_sf(coords = c("lonPosStartDec","latPosStartDec")) %>% 
+        sf::st_set_crs(4326)
+
+pts_end <- samples[, c("station", "lonPosEndDec", "latPosEndDec")] %>% 
+        sf::st_as_sf(coords = c("lonPosEndDec","latPosEndDec")) %>% 
+        sf::st_set_crs(4326)
+
+pts <- rbind(pts_start, pts_end)
+
+#make into lines
+tracks <- pts %>% group_by(station) %>%
+  summarize(geometry = st_union(geometry)) %>% 
+  st_cast("LINESTRING") %>%
+  st_as_sf() %>%
+  st_buffer(0.0001)
+
+coast <- st_read(paste0(coast_string, ".shp")) %>%
+  st_transform(4326)
+  
+#is the linecrossing land
+overlap <- st_overlaps(tracks, coast)
+
+```
+
+```{r, echo=FALSE, results='asis'}
+if (TRUE %in% lengths(overlap) != 0){
+  
+  "Dele af Turen Ligger på Land, Tjek Start og Slut koordinaterne" %>% 
+      cell_spec(color = "red", font_size = 15, bold = T) %>%
+      kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+      kable_styling(latex_options = c("hold_position")) 
+}
+
+```
+
+
+\newpage
+
+\section{Gennerelle Datatjek}
+
+\subsection{Tilbagemeldinger fra Fiskeline}
+```{r data_errors, results='asis',echo=FALSE,message=FALSE,warning=FALSE,fig.pos='H'}
+
+if (nrow(dbErrors)>0){
+  cat("I tabellen nedenfor ses de seneste fejl fra Fiskeline-databasen. Fejlene
+      kan indikere fejlindtastninger. Databasen opdateres hver nat. Der kan 
+      derfor vise sig fejlmeddelelser lang tid efter at turen blev indtastet,
+      hvis ikke der er foretaget ændringer siden indtastningen. ")  
+  
+  dbErrors <- dbErrors %>% 
+      separate(origin, sep = "->", into = c("year","cruise","trip","station")) %>%
+      mutate(Dato = format(logTime,"%Y/%m/%d")) %>% 
+      arrange(transferErrorId) %>% 
+      dplyr::select(c(12,2,7,10,8,1))  
+
+  dbErrors %>%
+     kbl(escape = F, longtable = T, booktabs = T, linesep = "",
+         row.names = F, caption = "Fejl Fra Fiskeline Databasen",
+         col.names = c("Dato", "Type", "Station", "Beskrivelse", "RecordType", "FejlId"), align = "l") %>%
+     row_spec(0, bold = TRUE) %>%
+     kable_styling(latex_options = c("striped", "hold_position"), font_size = 8) %>%
+     column_spec(1:6, width = "2cm") 
+    
+
+  } else{
+   
+   "Fiskeline-databasen har ikke registreret nogen fejl, når den behandlede indtastningerne om turen." %>% 
+     cell_spec(color = "green", font_size = 10, bold = T) %>%
+     kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+     kable_styling(latex_options = c("hold_position"))
+        
+   }
+
+```
+
+\subsection{Vægtestimering per station}
+I tabellen nedenfor er for hver oparbejdet station angivet den indtastede totalvægt og en udregnet totalvægt.
+Er der stor forskel mellem vægtene, eller kan vægten ikke udregnes, vil det være beskrevet i bemærkningen.
+
+```{r vgt_est, results='asis',echo=FALSE,message=FALSE,warning=FALSE,fig.pos='H'}
+
+if (nrow(data.frame(sp_lst)) > 0) {
+  
+  #calculate the weights being put in, and what is being raised
+  est <- data.table(sp_lst[sp_lst$speciesCode != "DTO", ])
+  est$weightStep3[is.na(est$weightStep3)] <- est[is.na(est$weightStep3), ]$weightStep2 
+  est$weightStep3[is.na(est$weightStep3)] <- est[is.na(est$weightStep3), ]$weightStep1 
+  est$weightStep3[is.na(est$weightStep3)] <- est[is.na(est$weightStep3), ]$weightStep0 
+    
+  est <- est[ ,. (tast = round(sum(weightStep3 * raisingFactor, na.rm = T), 1)),
+                           by = .(sampleId, station)]
+  
+  #calculated from the database
+  setDT(sp_lst_rais)
+  beregnet <- sp_lst_rais[ ,. (calc = round(sum(weightTotal), 1)),
+                           by = (sampleId)]
+
+  #thereshold of when it sems okay
+  est <- merge(est, beregnet, by = "sampleId")
+  est$pct <- round(((est$calc - est$tast) / est$calc)*100)
+  
+  est$bem <- ifelse(est$pct < 20 & est$pct > - 20, " Vægte ok", "Stor forskel i vægte")
+  
+  est$bem[est$bem == "Stor forskel i vægte"] <- cell_spec(est$bem[est$bem == "Stor forskel i vægte"],
+                                                bold=T, background = "red")
+  est <- est[, -1]
+  
+  #print table
+  est %>%
+     kbl(escape = F, longtable = T, booktabs = T, linesep = "",
+         row.names = F, caption = "Vægtestimering per station",
+         col.names = c("Station", "TotalVægt Indtastet", "Totalvægt Beregnet", 
+                       "pct Forskel", "Bemærking"), align = "l") %>%
+     row_spec(0, bold = TRUE) %>%
+     kable_styling(latex_options = c("striped", "hold_position"), font_size = 8) %>%
+     column_spec(1:5, width = "2cm")
+
+  } else {
+  
+   "Der er ikke registreret nogen fangst!" %>% 
+     cell_spec(color = "red", font_size = 10, bold = T) %>%
+     kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+     kable_styling(latex_options = c("hold_position"))
+}
+
+```
+
+\newpage
+
+\subsection{Stikprøvestørrelse per station}
+Denne del skal give et overblik over hvor stor en del af fangsten, der er blevet oparbejdet.
+For hver fuldt oparbejdet station vises en graf, hvor fangsten er opgjort i antal. 
+Søjlerne viser den totale fangst i antal, som aflæses af aksen til venstre.
+Tallet over hver søjle strikprøvestørelsen i antal. \
+
+\vspace{0.1cm}
+
+En længdefordeling, og dermed stikprøven, bør bestå af minimum 50 fisk pr. art, såfremt det er muligt.
+Er tallene røde, betyder det at stikprøven er mindre end 50 fisk, mens det totale antal er 50 eller mere.
+I så fald bør man overveje at tage en større stikprøve, hvis der er mulighed for det.
+
+\vspace{0.5cm}
+\textit{Totalfangsten i antal aflæses af aksen til venstre. Tallene over hver søjle fortæller størrelsen af strikprøven i antal.}
+
+```{r ,echo=FALSE, cache=FALSE,message=FALSE, warning=FALSE,results='asis',fig.width=15, fig.height=12, fig.pos="ht!"}
+if (nrow(data.frame(sp_lst)) > 0) {
+
+  #count number of fish, where there has been samples of numbers ,and plot the sample size versus the estimated whole catch
+  stk <- data.table(sp_lst_rais[sp_lst_rais$numberSubSample != 0, ])
+
+  stk <- stk[ ,. (tot = sum(numberTotal),
+                  sub = sum(numberSubSample)),
+               by = .(station, speciesCode, landingCategory)]
+     
+  for (st in unique(stk$station)) {
+    
+   stk2 <- stk[stk$station == st, ]
+   
+   ## fill "missing" kon / dis with NA, to get nicer plot
+   stk2 <- stk2 %>% 
+      tidyr::as_tibble() %>% 
+      mutate_at(c("speciesCode", "landingCategory"), as.factor) %>% 
+      complete(speciesCode, landingCategory)
+   
+   plot.title <- paste("Station: ", st,"\n", sep="")
+   plot.subtitle <- paste("        ", sep="\n")
+      
+  #plot the plot    
+   p <- ggplot(data=stk2, aes(x=speciesCode, y=tot, fill=landingCategory)) +
+     geom_bar(stat="identity", position = position_dodge2(width = 0.8, preserve = "single")) +
+     geom_text(aes(label=sub), vjust=-1, color="black",
+            position = position_dodge2(width = 0.8, preserve = "single"), size=5)+
+     ggtitle(paste0("Station: ", st)) +
+     labs(x = "Art", y = "Total Antal Fisk")+
+     theme_bw()+
+     theme(legend.key = element_blank(),
+                       axis.title = element_text(size = 16),
+                       axis.text = element_text(size=16),
+                       axis.text.x = element_text(size=16, angle=30,hjust=1),
+                       legend.text = element_text(size=16),
+                       legend.title = element_blank(),
+                       plot.title=element_text(face="bold", size=18))
+   
+   plot(p)
+  }
+  
+  } else {
+  
+   "Der er ikke registreret nogen fangst!" %>% 
+     cell_spec(color = "red", font_size = 10, bold = T) %>%
+     kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+     kable_styling(latex_options = c("hold_position"))
+}
+
+```
+\newpage
+\subsection{Tjek af LAV og enkeltfisk}
+Her laves en kontrol at længde-alder-vægt-tabellen mod enkeltfisk, ej rep.-tabellerne. Hvis antallet af fisk i LAV-tabellerne er lige så store eller mindre end antallet af fisk i enkeltfisk, ej rep-tebellen for en given art, vil det bliver fremhævet i en tabel. I tabellen kan antallet af fisk i LAV og de to enkeltfisk-tabeller. 
+
+
+```{r LAV, results='asis',echo=F,message=F,warning=F,fig.pos='H'}
+
+## No idea how this works....
+singleFish2<-dat %>% 
+  dplyr::group_by(station,speciesCode,sizeSortingEU,landingCategory) %>% 
+  dplyr::summarise(LAV = sum(number[is.na(individNum) & representative=="ja"]),
+                   enkeltfiskRep = sum(anim_number[!is.na(individNum) & 
+                                                representative=="ja"]),
+                   enkeltfiskEjRep = sum(anim_number[!is.na(individNum) &
+                                                  representative=="nej"]),
+                   remark = ifelse(LAV<=enkeltfiskEjRep & LAV>0,
+                                   "Samme antal eller flere fisk i Enkeltfisk, ej rep.\n
+                                   end i LAV. Er det de samme fisk?",
+                                   "")) %>% 
+  dplyr::arrange(station, speciesCode,sizeSortingEU) %>% 
+  dplyr::filter(remark!="") %>%
+  dplyr::ungroup()
+
+if (nrow(singleFish2)>0){
+  
+singleFish2 %>%
+     kbl(escape = F, longtable = T, booktabs = T, linesep = "",
+         row.names = F, caption = "Vægtestimering per station",
+         col.names = c("Station", "Art", "Sort", "Landings-kategori", "LAV", 
+                       "Enkelt-fisk, rep." , "ej rep.", "Bemærkning"), align = "l") %>%
+     row_spec(0, bold = TRUE) %>%
+     kable_styling(latex_options = c("striped", "hold_position"), font_size = 8) %>%
+     column_spec(1:8, width = "1.5cm")
+
+} else{
+  
+  "Der er ingen bemærkninger til LAV og enkeltfisk, ej rep.-tabellerne." %>% 
+     cell_spec(color = "green", font_size = 10, bold = T) %>%
+     kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+     kable_styling(latex_options = c("hold_position"))
+}
+```
+
+
+\subsection{Tjek af registrering, oparbejdningsniveau og landingskattegori}
+Her gives et overblik over de stationer, hvor der virker til at være en uoverensstemmelse mellem det valgte prøvetagningsniveau og/eller oparbejdning og hvad der faktisk er indtastet i artslisten. 
+
+```{r oparbejd, results='asis',echo=F,message=F,warning=F,fig.pos='H'}
+
+#tjek om oplysninger op prøvetagnings nivou er oplyst
+samples$samp_lvl <- ifelse(is.na(samples$catchRegistration) | is.na(samples$speciesRegistration), 
+                           " Prøvetagningsniveau eller udvælgelses af arter ikke oplyst", "OK")
+
+#tjek om de oplyste nivou passer med hvad er oplyst pr art
+samples$samp_lvl <- ifelse((samples$catchRegistration == "ALL" & samples$speciesRegistration == "ALL") &
+                             length(which(sp_lst$speciesCode == "DTO")) == 
+                             length(which(sp_lst$landingCategory %in% c("KON", "DIS"))), 
+                           "Alle arter står som registreret og oparbejdet, men KON eller DIS er kun registreret ved DTO", samples$samp_lvl)
+
+#tjek om prøvetagnigs nivu er korrekt
+samples$samp_lvl <- ifelse(samples$speciesRegistration == "ALL" &
+                             nrow(sp_lst) == 0, 
+                           "Artslisten er tom, men prøvetagningsniveau valgt til ’ALL’", samples$samp_lvl)
+
+
+#tjek om catch registration passer med senere oplysinger
+sp_lst$disck <- ifelse(sp_lst$catchRegistration == "DIS" & sp_lst$landingCategory %in% c("KON", "DIS"), 
+                       "Prøvetagningsniveau = DIS, men der er oplsyninger om KON og/eller IND på artslisten", "OK") 
+
+sp_lst$land <- ifelse(sp_lst$catchRegistration == "LAN" & sp_lst$landingCategory %in% c("SLP", "DIS"), 
+                       "Prøvetagningsniveau = LAN, men der er oplsyninger om DIS og/eller SLP på artslisten", "OK") 
+
+
+sp_lst$no_catch <- ifelse(sp_lst$catchRegistration == "NON" & sp_lst$landingCategory %in% c("KON", "SLP", "DIS"), 
+                       "Prøvetagningsniveau=NON (ingen), men der er oplsyninger på artslisten", "OK") 
+
+
+#mulige uoverenstemmeler
+sp_lst$all_all <- ifelse(sp_lst$catchRegistration == "ALL" & sp_lst$speciesRegistration == "ALL" 
+                         & ! TRUE %in% (sp_lst$landingCategory %in% c("DIS")), 
+                       "Var der 0 discard eller blev discarden ikke oparbejdet?", "OK") 
+
+sp_lst$spørgsmål <- ifelse(sp_lst$landingCategory %in% c("SLP", "IND", "BMS"), 
+                       pasye0("Der er oplysning om",  sp_lst$landingCategory, "på artslisten - er det korrekt?"), 
+                              "OK") 
+
+#samle spørgsmål og svar for men visning...og overblik
+tbl1 <- unique(sp_lst[, c("station", "disck", "land", "no_catch", "all_all", "spørgsmål")])
+tbl1 <- merge(tbl1, samples[, c("station", "samp_lvl")], by = "station")
+
+
+```
+
+\vspace{0.5cm}
+\underline{Registrerings Og Oparbejdnings Niveau}\newline
+`r ifelse(unique(tbl1$samp_lvl) != "OK", tbl1[, c("station", "samp_lvl")], "OK")`
+
+\vspace{0.5cm}
+\underline{Fejl I "Discard" Registreing}\newline
+`r ifelse(unique(tbl1$disck) != "OK", tbl1[, c("station", "disck")], "Ingen Fejl")`
+
+\vspace{0.5cm}
+\underline{Fejl I "Landings" Registreing}\newline
+`r ifelse(unique(tbl1$land) != "OK", tbl1[, c("station", "land")], "Ingen Fejl")`
+
+\vspace{0.5cm}
+\underline{Fejl I "Nul fangsts" Registreing}\newline
+`r ifelse(unique(tbl1$no_catch) != "OK", tbl1[, c("station", "no_catch")], "Ingen Fejl")`
+
+\vspace{0.5cm}
+\underline{Spørgsmål Til "Alt Registreret"}\newline
+`r ifelse(unique(tbl1$all_all) != "OK", tbl1[, c("station", "all_all")], "Ingen Spørgsmål")`
+
+\vspace{0.5cm}
+\underline{Spørgsmål Til "Landings kattegori"}\newline
+`r ifelse(unique(tbl1$spørgsmål) != "OK", tbl1[, c("station", "spørgsmål")], "Ingen Spørgsmål")`
+
+
+\newpage
+\section{Fangst Overblik og Tjek}
+\subsection{Hele Fangsten i Vægt}
+Tabellen herunder viser sikprøvestørrelsen (kg) og trin-0 (kg) for hele turen sammenlagt.
+
+```{r ,echo=FALSE, cache=FALSE,message=FALSE, warning=FALSE,results='asis',fig.width=15, fig.height=12, fig.pos="ht!"}
+
+  #make table over the weights pr landing category for konsume vs discard
+  tbl <- data.table(sp_lst_rais)
+
+  tbl <- tbl[ ,. (sub = round(sum(weightSubSample), 1),
+                        tot = round(sum(weightTotal), 1)),
+             by = .(speciesCode, landingCategory)]
+  
+  if (TRUE == unique(sp_lst_rais$landingCategory %in% c("KON", "DIS"))){
+      
+  tbl <- dcast(tbl, speciesCode ~ landingCategory, value.var = c("sub", "tot"))   
+
+  tbl %>% 
+    kbl(escape = F, longtable = T, booktabs = F, linesep = "",
+       row.names = F, caption = " Strikprøvestørelse i kg og fangsten opganget til trin 0 for hele turen",
+       col.names = c("Art", "DIS", "KON", "DIS","KON"), align = "l") %>%
+    add_header_above(c(" ", "Stikprøve kg" = 2, "Trin 0 kg" = 2)) %>%
+    row_spec(0, bold = TRUE)%>%
+    kable_styling(latex_options = c("striped", "hold_position"), font_size = 8) %>%
+    column_spec(1:5, width = "1.5cm") 
+  } else {
+  
+    tbl %>% 
+      kbl(escape = F, longtable = T, booktabs = F, linesep = "",
+         row.names = F, caption = " Strikprøvestørelse i kg og fangsten opganget til trin 0 for hele turen",
+       col.names = c("Art", "Landings Kattegori", "Stikprøve kg","Trin 0 kg"), align = "l") %>%
+       row_spec(0, bold = TRUE)%>%
+       kable_styling(latex_options = c("striped", "hold_position"), font_size = 8) %>%
+       column_spec(1:4, width = "1.5cm") 
+    
+  }
+  
+
+
+```
+
+\newpage
+
+\subsection{Totalantal, stikprøve og individfisk}
+
+```{r ,echo=FALSE, cache=FALSE,message=FALSE, warning=FALSE,results='asis',fig.width=15, fig.height=12, fig.pos="ht!"}
+
+ #count number sampled by different cattegories, single fish, length measured estimated total catch
+  tbl <- data.table(sp_lst_rais)
+  tbl <- tbl[ ,. (n_tot = round(sum(numberTotal))),
+               by = .(speciesCode, landingCategory)]
+  
+  tbl2 <- data.table(dat)
+  tbl2$n_len <- ifelse(!is.na(tbl2$length) & tbl2$representative == "ja", tbl2$anim_number, 0)
+  tbl2$n_ind <- ifelse(!is.na(tbl2$individNum), tbl2$anim_number, 0)
+
+  tbl2 <- tbl2[ ,. (n_len = round(sum(n_len)),
+                  n_ind = round(sum(n_ind))),
+               by = .(speciesCode, landingCategory)]
+  
+  tbl <- merge(tbl, tbl2, by = c("speciesCode", "landingCategory"), all.x = T)
+  
+  if (TRUE == unique(sp_lst_rais$landingCategory %in% c("KON", "DIS"))){
+  tbl <- dcast(tbl, speciesCode ~ landingCategory, value.var = c("n_tot", "n_len", "n_ind"))   
+
+  #rearange columns 
+  tbl <- tbl[ , c("speciesCode", "n_tot_DIS", "n_len_DIS", "n_ind_DIS", "n_tot_KON",
+           "n_len_KON", "n_ind_KON")]
+  
+  tbl %>% 
+    kbl(escape = F, longtable = T, booktabs = F, linesep = "",
+       row.names = F, caption = "Tabellen viser total antal, antal længdemålinger og individfisk 
+       for hele turen. Står der ’0’, betyder det at arten er registreret i vægt, 
+       men ikke opgjort i antal eller længder.",
+       col.names = c("Art", "Total", "Længder", "Individfisk","Total", 
+                     "Længder", "Individfisk"), align = "l") %>%
+    add_header_above(c(" ", "Antal discard" = 3, " Antal konsum" = 3)) %>%
+    row_spec(0, bold = TRUE)%>%
+    kable_styling(latex_options = c("striped", "hold_position"), font_size = 8) %>%
+    column_spec(1:7, width = "1.5cm")
+  } else {
+  
+    tbl %>% 
+    kbl(escape = F, longtable = T, booktabs = F, linesep = "",
+       row.names = F, caption = "Tabellen viser total antal, antal længdemålinger og individfisk 
+       for hele turen. Står der ’0’, betyder det at arten er registreret i vægt, 
+       men ikke opgjort i antal eller længder.",
+       col.names = c("Art", "Landings Kattegori", "n Total", "n Længder", "n Individfisk"), 
+       align = "l") %>%
+    row_spec(0, bold = TRUE)%>%
+    kable_styling(latex_options = c("striped", "hold_position"), font_size = 8) %>%
+    column_spec(1:5, width = "1.5cm")
+}
+
+```
+
+\newpage
+\subsection{Længde-vægt forhold}
+I de følgende grafer er forholdet mellem længde og vægt plottet for hver art, hvor disse informationer er indsamlet, hvis længder uden vægt findes vises de også her.
+Værdierne sammenlignes med de samme tal, som er hentet fra den øvrige database. Usansynlige værdier er markeret som røde punkter, og disse er summeret i tabellen neders. Usandynlige punkter er defineret som punkter med 9 gange risidual standard afvigelse.  
+
+\vspace{1cm}
+```{r ,echo=FALSE, results='asis', cache=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=7}
+
+#individuals with length but without weight
+odd <- dat[!is.na(dat$individNum) & 
+              !is.na(dat$length) & is.na(dat$weight), ]
+
+if (nrow(odd) != 0){
+   
+  txt <- c("Længder Uden Vægt")
+  
+  print(txt %>% 
+    cell_spec(color = "red", font_size = 15, bold = T) %>%
+    kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+    kable_styling(latex_options = c("hold_position")))
+  
+  
+  #   #Make table
+  print(odd[ , c("year", "trip", "station", "speciesCode", "landingCategory",
+                   "individNum", "length", "weight")] %>%
+          kbl(escape = F, longtable = T, booktabs = T, linesep = "", row.names = F,
+              col.names = c("År", "Tur", "Station", "Art", "Landings-kategori",
+                            "individ-nummer", "Længde (mm)", "Vægt (kg)"), align = "l") %>%
+          row_spec(0, bold = TRUE) %>%
+          kable_styling(latex_options = c("striped", "hold_position")) %>%
+                    column_spec(1:4, width = "1.5cm") %>%
+          column_spec(5:6, width = "2cm") %>%
+          column_spec(7:8, width = "1.5cm"))
+}
+
+
+#length weight plots pr species..
+if (length(sp) > 0){
+#Loop through each species and plot
+fun <- function(i) {
+ #print(i)
+ #subset dataset by sepcies  
+ new <- dat[!is.na(dat$individNum) & dat$speciesCode == sp[i] & 
+              !is.na(dat$length) & !is.na(dat$weight), ]
+ old <- lw_old[lw_old$speciesCode == sp[i] & 
+                !is.na(lw_old$length) & !is.na(lw_old$weight) &
+                lw_old$quarterGearStart == q , ]
+ 
+ #if too few old data try not to limit by quarter
+ if (nrow(old) < 50)
+ old <- lw_old[lw_old$speciesCode == sp[i] & 
+                !is.na(lw_old$length) & !is.na(lw_old$weight), ]
+ 
+ if (nrow(old) > 0 & nrow(new)> 0) {
+ 
+ #outliers from model residuals
+ dat2 <- rbind.fill(old, new) 
+ dat2$log_l <- log(dat2$length)               
+ 
+ mod1 <- lm(log(weight) ~ log_l, data = dat2)
+ dat2$res <- abs(rstandard(mod1))
+  
+ ## Identify the cells with residuals greater than .... industry standard 3, but here 9
+ out_len <- dat2[dat2$y == year & dat2$res >  9, ]
+  
+ #estimate the prediction interval, with evenly generated numbers based on data range
+  ##for plot stuff, convert back to nomal from log...
+ sim.dat = seq(min(dat2$log_l), max(dat2$log_l), length.out=nrow(dat2))
+ preds <- exp(predict(mod1, newdata = data.frame(log_l=sim.dat), 
+                  level=0.99, interval = 'prediction'))
+ sim.dat <- exp(sim.dat)
+ 
+ #plot
+ plot(old$length, old$weight, pch = 16, cex = 0.1, col = "white",
+        main = paste(" Art:", sp[i],"- Område:", area, sep=" "),
+        xlab = "Længde (mm)",
+        ylab = "Vægt (kg)", 
+        cex.main = 1.5,
+        cex.lab = 1.5)+ 
+     polygon(c(rev(sim.dat), sim.dat), c(rev(preds[ ,3]), preds[ ,2]),
+             density=10, col = 'grey', border = NA)+
+     lines(sim.dat, preds[ ,3], lty = 'dashed', col = 'red')+
+     lines(sim.dat, preds[ ,2], lty = 'dashed', col = 'red')+
+     points(new$length, new$weight, pch = 16, cex = 1, col = "blue")+
+     points(out_len$length, out_len$weight, pch = 16, cex = 1, col = "red")
+    
+  
+  # Make table of outliers, 
+  db_diff <- out_len[ , c("year", "trip", "station", "speciesCode", "landingCategory", 
+                   "individNum", "length", "weight")]
+                   
+ } else if (nrow(new) > 0){
+  
+  #Use only data for chosen period, if not enough data is availeble 
+  text<-c(paste0("Ingen Tidligere Data for ", sp[i], " Bruger Kun Indeværende År"))
+  #Make table
+  print(text %>% 
+      cell_spec(color = "blue", font_size = 15, bold = T) %>%
+      kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+      kable_styling(latex_options = c("hold_position"))) 
+  
+  #outliers
+  mod1 <- lm(log(weight) ~ log(length), data = new)
+  new$res <- abs(rstandard(mod1))
+  
+  ## Identify the cells with residuals greater than .... industry standard 3, but here 9
+  out_len <- new[new$res >  9, ]
+  
+  plot(new$length, new$weight, pch = 16, cex = 1, col = "blue",
+        main = paste(paste0("Længde Vægt ", sp[i])),
+          xlab = "Længde [mm]",
+          ylab = "Vægt (kg)",
+          cex.main = 1.5,
+          cex.lab = 1.5)+
+         points(out_len$length, out_len$weight, pch = 16, cex = 1, col = "red")
+  
+  db_diff <- out_len[ , c("year", "trip", "station", "speciesCode", "landingCategory", 
+                   "individNum", "length", "weight")]
+  
+ } 
+}
+temp<-lapply(1:length(sp), fun) #funktion to get data and run the loop/function
+db_diff<-data.frame(do.call("rbind", temp)) #make data frame from the temp file 
+
+
+if (nrow(data.frame(db_diff)) >0) {
+  
+  # Output table of outliers in latex table format
+  
+  cat("\\newpage") 
+  
+  db_diff <- db_diff[order(db_diff$speciesCode),]
+  #Make table
+  db_diff %>%      
+          kbl(escape = F, longtable = T, booktabs = T, linesep = "", row.names = F,
+              col.names = c("År", "Tur", "Station", "Art", "Landings-kategori", 
+                            "individ-nummer", "Længde (mm)", "Vægt (kg)"), align = "l") %>%
+          row_spec(0, bold = TRUE) %>%
+          kable_styling(latex_options = c("striped", "hold_position")) %>%
+          column_spec(1:4, width = "1.5cm") %>%
+          column_spec(5:6, width = "2cm") %>%
+          column_spec(7:8, width = "1.5cm")
+  
+} else {
+  #message if no outliers where found
+  text<-c("Ingen afvigelser i Længde-vægt forhold")
+  #Make table
+  text %>% 
+      cell_spec(color = "green", font_size = 15, bold = T) %>%
+      kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+      kable_styling(latex_options = c("hold_position"))
+}
+
+} else {
+  #message if no measured fish is present for the given period
+  text<-c("Ingen Enkeltfisk")
+  #Make table
+  text %>% 
+      cell_spec(color = "blue", font_size = 15, bold = T) %>%
+      kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+      kable_styling(latex_options = c("hold_position"))
+}
+```
+
+
+
+
+
+
+
+
+
+
