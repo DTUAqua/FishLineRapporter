@@ -119,6 +119,7 @@ downloadSurvey <- function(key,pwd){
 
 # links and passwords for data exports - because this does not belong on github
 exports <- read.csv("data_for_downloader.csv",sep = "\t",stringsAsFactors = F)
+exports <- read.csv("Q:/mynd/RekreativtFiskeri/REKREA/Rekrea-programs/Rekrea-programs/data_for_downloader.csv",sep = "\t",stringsAsFactors = F)
 
 # download the latest exports from SG
 for (u in 1:nrow(exports)){
