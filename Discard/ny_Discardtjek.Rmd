@@ -29,20 +29,24 @@ options(knitr.kable.NA = '')
 ```{r define_input, echo=FALSE}
 
 ## Parameters
-year<- 2023
-cruise <- "MON"
-trip <- "3085"
-coast_string <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/CoastLines/Europe/europe_simple_wgs84"
-dfad <- readRDS("//fishline.dtuaqua.dk/dfad-share/dfad.rds")
-sel <- read.csv2("//fishline.dtuaqua.dk/dfad-share/rdsk_select.csv")
+# year<- 2023
+# cruise <- "MON"
+# trip <- "3079"
+# coast_string <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/CoastLines/Europe/europe_simple_wgs84"
+# dfad <- readRDS("//fishline.dtuaqua.dk/dfad-share/dfad.rds")
+# sel <- read.csv2("//fishline.dtuaqua.dk/dfad-share/rdsk_select.csv")
 
-# year<- @paramYear
-# cruise <- @paramCruise
-# trip <- @paramTrip
-#coast_string <- "europe_simple_wgs84"
-# dfad <- readRDS("<dfad-path>/dfad.rds")
-#sel <- read.csv2("<dfad-path>/rdsk_select.csv")
 
+year<- @paramYear
+cruise <- @paramCruise
+trip <- @paramTrip
+coast_string <- "europe_simple_wgs84"
+dfad <- readRDS("<dfad-path>/dfad.rds")
+sel <- read.csv2("<dfad-path>/rdsk_select.csv")
+
+
+##
+sel$nummer <- str_pad(sel$nummer, 2, pad = "0")
 ```
 
 ```{r get data, echo=FALSE}
@@ -97,6 +101,7 @@ samples <-sqlQuery(channel, paste("SELECT
   WHERE     (tripId IN ('",paste0(trip$tripId,collapse="','"), "')) 
   " ,sep = ""))
 
+if (nrow(samples != 0)){
 sp_lst <- sqlQuery(channel, paste("SELECT   
        [sampleId]
       ,[speciesListId]
@@ -119,6 +124,7 @@ FROM    [FishLineDW].[dbo].[SpeciesList]
 WHERE   (sampleId IN ('",paste0(samples$sampleId,collapse="','"), "')) 
 ", sep = ""))
 
+
 sp_lst_rais <- sqlQuery(channel, paste("SELECT  
        [speciesListRaisedId]
       ,[sampleId]
@@ -132,7 +138,7 @@ FROM    [FishLineDW].[dbo].[SpeciesListRaised]
 WHERE   (sampleId IN ('",paste0(samples$sampleId,collapse="','"), "')) 
 ", sep = ""))
 
-
+if (nrow(sp_lst != 0)){
 #individual fish
 animal <- sqlQuery(channel, paste("SELECT
        [speciesListId]
@@ -155,33 +161,12 @@ animal <- sqlQuery(channel, paste("SELECT
   WHERE     (speciesListId IN ('",paste0(sp_lst$speciesListId,collapse="','"), "')) 
   " ,sep = ""))
 
+#merge the tables together with the key variables
+dat <- merge(trip, samples, by = "tripId")
+sp_lst <- merge(dat, sp_lst, by = "sampleId")
+sp_lst_rais <- merge(dat, sp_lst_rais, by = "sampleId")
 
-age <- sqlQuery(channel, paste("SELECT
-       [animalId]
-      ,[age]
-      ,[agePlusGroup]
-      ,[otolithReadingRemark]
-      ,[genetics]
-  FROM      [FishLineDW].[dbo].[Age]
-  WHERE     (animalId IN (",paste(animal$animalId,collapse = ","),"))
-  " ,sep = ""))
-
-animal <- merge(animal, age, by = "animalId", all.x = T)
-
-## erros from the database
-dbErrors <- sqlQuery(channel, paste("SELECT
-       [transferErrorId]
-      ,[errorType]
-      ,[cruiseId]
-      ,[origin]
-      ,[recordType]
-      ,[recordTypeId]
-      ,[description]
-      ,[logTime]
-  FROM [FishLineDW].[dbo].[ErrorLog]
-  where origin like '",year,"%",cruise,"%",trip,"%'
-" ,sep = ""))
-
+if (nrow(animal != 0)){
 ## old length weight records..
 q <- unique(quarter(samples$dateGearStart))
 area <- unique(samples$dfuArea)
@@ -201,18 +186,31 @@ lw_old <- sqlQuery(channel, paste("SELECT
             (individNum != 0)
   " ,sep = ""))
 
+}
+## erros from the database
+dbErrors <- sqlQuery(channel, paste("SELECT
+       [transferErrorId]
+      ,[errorType]
+      ,[cruiseId]
+      ,[origin]
+      ,[recordType]
+      ,[recordTypeId]
+      ,[description]
+      ,[logTime]
+  FROM [FishLineDW].[dbo].[ErrorLog]
+  where origin like '",year,"%",cruise,"%",trip,"%'
+" ,sep = ""))
+
 close(channel)
 
-#merge the tables together with the key variables
-dat <- merge(trip, samples, by = "tripId")
-sp_lst <- merge(dat, sp_lst, by = "sampleId")
-sp_lst_rais <- merge(dat, sp_lst_rais, by = "sampleId")
-dat <- merge(sp_lst, animal, by = "speciesListId")
+}
 
+dat <- merge(sp_lst, animal, by = "speciesListId")
 animal <- dat[, c(names(samples), names(animal))]
- 
+
+} 
 #cut down dfads data to relevent stuff
-dfad <- dfad[dfad$fid %in% dat$platform1, ]
+dfad <- dfad[dfad$fid %in% trip$platform1, ]
 trip$logBldNr <- str_pad(trip$logBldNr, 10, pad = "0")
 logbook_match <- trip$logBldNr %in% dfad$match_alle
 
@@ -261,12 +259,13 @@ Observatør: `r trip$tripLeaderName`
 
 \section{Stationer og prøvetagningsniveau}
 \subsection{Stations Oplysninger}
-```{r station check, echo=FALSE}
- if (trip$n_days > 5)
-     print("Turen er ret lang, er start og slut-dato Intastet rigtigt" %>% 
+```{r station check, echo=FALSE, results='asis', cache=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=12}
+ if (trip$n_days > 5){
+  print("Turen er ret lang, er start og slut-dato Intastet rigtigt ?" %>% 
      cell_spec(color = "red", font_size = 10, bold = T) %>%
      kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
-     kable_styling(latex_options = c("hold_position")))
+     kable_styling(latex_options = c("hold_position"))) 
+ }
 
 #tjek oparbejdnings nivou
 samples$nivu <- ifelse(samples$catchRegistration == "ALL" & 
@@ -329,7 +328,7 @@ if (logbook_match != "TRUE") {
   
   #formater ting til sammenlignings tabel
   dfad <- dfad[dfad$match_alle == trip$logBldNr, ]
-  dfad$redskstr[dfad$redskstr == ""] <- 0
+  dfad$redskstr[dfad$redskstr == ""] <- "00"
   
   #dfad data is in CET, but reads in as UTC
   dfad$afstid <- force_tz(dfad$afstid,"Europe/Paris")
@@ -356,7 +355,7 @@ if (logbook_match != "TRUE") {
                           c = toString(substr(unique(dfad$metier_level6), 9, 13))),
                data.frame(a = "Selektionsudstyr", 
                           b = unique(samples$selectionDevice), 
-                          c = sel[sel$Anføres.med.nummer %in% dfad$redskstr, ]$Paneltype))
+                          c = sel[sel$nummer %in% dfad$redskstr, ]$Paneltype))
   
   print(tbl %>%
        kbl(escape = F, longtable = T, booktabs = T, linesep = "",
@@ -370,8 +369,8 @@ if (logbook_match != "TRUE") {
   if (abs(difftime(trip$dateStart,  unique(dfad$afstid), units = "days")) > 2 |
       trip$platform1 != unique(dfad$fid)){
     
-     print("Skib eller afsejlings dag afviger fra logbogen \n 
-           er logbogsnummer korrekt ?" %>% 
+     print("Skib eller afsejlings dag afviger fra logbogen. 
+           Er logbogsnummer korrekt ?" %>% 
      cell_spec(color = "red", font_size = 10, bold = T) %>%
      kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
      kable_styling(latex_options = c("hold_position")))
@@ -636,7 +635,7 @@ Her laves en kontrol at længde-alder-vægt-tabellen mod enkeltfisk, ej rep.-tab
 
 
 ```{r LAV, results='asis',echo=F,message=F,warning=F,fig.pos='H'}
-
+if (exists("lw_old")){
 ## No idea how this works....
 singleFish2<-dat %>% 
   dplyr::group_by(station,speciesCode,sizeSortingEU,landingCategory) %>% 
@@ -668,6 +667,13 @@ singleFish2 %>%
   
   "Der er ingen bemærkninger til LAV og enkeltfisk, ej rep.-tabellerne." %>% 
      cell_spec(color = "green", font_size = 10, bold = T) %>%
+     kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+     kable_styling(latex_options = c("hold_position"))
+}
+
+} else{
+  "Der er ingen enkeltfisk eller længdefordelinger" %>% 
+     cell_spec(color = "blue", font_size = 10, bold = T) %>%
      kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
      kable_styling(latex_options = c("hold_position"))
 }
@@ -713,39 +719,38 @@ sp_lst$all_all <- ifelse(sp_lst$catchRegistration == "ALL" & sp_lst$speciesRegis
                        "Var der 0 discard eller blev discarden ikke oparbejdet?", "OK") 
 
 sp_lst$spørgsmål <- ifelse(sp_lst$landingCategory %in% c("SLP", "IND", "BMS"), 
-                       pasye0("Der er oplysning om",  sp_lst$landingCategory, "på artslisten - er det korrekt?"), 
+                       paste0("Der er oplysning om ",  sp_lst$landingCategory, " på artslisten - er det korrekt?"), 
                               "OK") 
 
 #samle spørgsmål og svar for men visning...og overblik
 tbl1 <- unique(sp_lst[, c("station", "disck", "land", "no_catch", "all_all", "spørgsmål")])
 tbl1 <- merge(tbl1, samples[, c("station", "samp_lvl")], by = "station")
 
-
 ```
 
 \vspace{0.5cm}
 \underline{Registrerings Og Oparbejdnings Niveau}\newline
-`r ifelse(unique(tbl1$samp_lvl) != "OK", tbl1[, c("station", "samp_lvl")], "OK")`
+`r ifelse(toString(unique(tbl1$samp_lvl)) != "OK", kbl(tbl1[tbl1$samp_lvl != "OK", c("station", "samp_lvl")]), "OK")`
 
 \vspace{0.5cm}
 \underline{Fejl I "Discard" Registreing}\newline
-`r ifelse(unique(tbl1$disck) != "OK", tbl1[, c("station", "disck")], "Ingen Fejl")`
+`r ifelse(toString(unique(tbl1$disck)) != "OK", kbl(tbl1[tbl1$disck != "OK", c("station", "disck")]), "Ingen Fejl")`
 
 \vspace{0.5cm}
 \underline{Fejl I "Landings" Registreing}\newline
-`r ifelse(unique(tbl1$land) != "OK", tbl1[, c("station", "land")], "Ingen Fejl")`
+`r ifelse(toString(unique(tbl1$land)) != "OK", kbl(tbl1[tbl1$land != "OK", c("station", "land")]), "Ingen Fejl")`
 
 \vspace{0.5cm}
 \underline{Fejl I "Nul fangsts" Registreing}\newline
-`r ifelse(unique(tbl1$no_catch) != "OK", tbl1[, c("station", "no_catch")], "Ingen Fejl")`
+`r ifelse(toString(unique(tbl1$no_catch)) != "OK", kbl(tbl1[tbl1$no_catch != "OK", c("station", "no_catch")]), "Ingen Fejl")`
 
 \vspace{0.5cm}
 \underline{Spørgsmål Til "Alt Registreret"}\newline
-`r ifelse(unique(tbl1$all_all) != "OK", tbl1[, c("station", "all_all")], "Ingen Spørgsmål")`
+`r ifelse(toString(unique(tbl1$all_all)) != "OK", kbl(tbl1[tbl1$all_all != "OK", c("station", "all_all")]), "Ingen Spørgsmål")`
 
 \vspace{0.5cm}
 \underline{Spørgsmål Til "Landings kattegori"}\newline
-`r ifelse(unique(tbl1$spørgsmål) != "OK", tbl1[, c("station", "spørgsmål")], "Ingen Spørgsmål")`
+`r ifelse(toString(unique(tbl1$spørgsmål)) != "OK", kbl(tbl1[tbl1$spørgsmål != "OK", c("station", "spørgsmål")]), "Ingen Spørgsmål")`
 
 
 \newpage
@@ -756,13 +761,13 @@ Tabellen herunder viser sikprøvestørrelsen (kg) og trin-0 (kg) for hele turen 
 ```{r ,echo=FALSE, cache=FALSE,message=FALSE, warning=FALSE,results='asis',fig.width=15, fig.height=12, fig.pos="ht!"}
 
   #make table over the weights pr landing category for konsume vs discard
-  tbl <- data.table(sp_lst_rais)
+  tbl <- data.table(sp_lst_rais[sp_lst_rais$landingCategory %in% c("KON", "DIS"), ])
 
   tbl <- tbl[ ,. (sub = round(sum(weightSubSample), 1),
                         tot = round(sum(weightTotal), 1)),
              by = .(speciesCode, landingCategory)]
   
-  if (TRUE == unique(sp_lst_rais$landingCategory %in% c("KON", "DIS"))){
+  if (! FALSE %in% unique(tbl$landingCategory %in% c("KON", "DIS"))){
       
   tbl <- dcast(tbl, speciesCode ~ landingCategory, value.var = c("sub", "tot"))   
 
@@ -811,7 +816,7 @@ Tabellen herunder viser sikprøvestørrelsen (kg) og trin-0 (kg) for hele turen 
   
   tbl <- merge(tbl, tbl2, by = c("speciesCode", "landingCategory"), all.x = T)
   
-  if (TRUE == unique(sp_lst_rais$landingCategory %in% c("KON", "DIS"))){
+  if (! FALSE %in% unique(tbl$landingCategory %in% c("KON", "DIS"))){
   tbl <- dcast(tbl, speciesCode ~ landingCategory, value.var = c("n_tot", "n_len", "n_ind"))   
 
   #rearange columns 
@@ -882,7 +887,7 @@ if (nrow(odd) != 0){
 
 
 #length weight plots pr species..
-if (length(sp) > 0){
+if (exists("sp")){
 #Loop through each species and plot
 fun <- function(i) {
  #print(i)
