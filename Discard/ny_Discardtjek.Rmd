@@ -29,20 +29,20 @@ options(knitr.kable.NA = '')
 ```{r define_input, echo=FALSE}
 
 ## Parameters
-# year<- 2023
-# cruise <- "MON"
-# trip <- "3079"
-# coast_string <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/CoastLines/Europe/europe_simple_wgs84"
-# dfad <- readRDS("//fishline.dtuaqua.dk/dfad-share/dfad.rds")
-# sel <- read.csv2("//fishline.dtuaqua.dk/dfad-share/rdsk_select.csv")
+year<- 2024
+cruise <- "SEAS"
+trip <- "2181"
+coast_string <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/CoastLines/Europe/europe_simple_wgs84"
+dfad <- readRDS("//fishline.dtuaqua.dk/dfad-share/dfad.rds")
+sel <- read.csv2("//fishline.dtuaqua.dk/dfad-share/rdsk_select.csv")
 
 
-year<- @paramYear
-cruise <- @paramCruise
-trip <- @paramTrip
-coast_string <- "europe_simple_wgs84"
-dfad <- readRDS("<dfad-path>/dfad.rds")
-sel <- read.csv2("<dfad-path>/rdsk_select.csv")
+# year<- @paramYear
+# cruise <- @paramCruise
+# trip <- @paramTrip
+# coast_string <- "europe_simple_wgs84"
+# dfad <- readRDS("<dfad-path>/dfad.rds")
+# sel <- read.csv2("<dfad-path>/rdsk_select.csv")
 
 
 ##
@@ -102,7 +102,7 @@ samples <-sqlQuery(channel, paste("SELECT
   " ,sep = ""))
 
 if (nrow(samples != 0)){
-sp_lst <- sqlQuery(channel, paste("SELECT   
+sp_lst <- sqlQuery(channel, paste("SELECT
        [sampleId]
       ,[speciesListId]
       ,[speciesCode]
@@ -125,7 +125,7 @@ WHERE   (sampleId IN ('",paste0(samples$sampleId,collapse="','"), "'))
 ", sep = ""))
 
 
-sp_lst_rais <- sqlQuery(channel, paste("SELECT  
+sp_lst_rais <- sqlQuery(channel, paste("SELECT
        [speciesListRaisedId]
       ,[sampleId]
       ,[speciesCode]
@@ -213,6 +213,10 @@ animal <- dat[, c(names(samples), names(animal))]
 dfad <- dfad[dfad$fid %in% trip$platform1, ]
 trip$logBldNr <- str_pad(trip$logBldNr, 10, pad = "0")
 logbook_match <- trip$logBldNr %in% dfad$match_alle
+
+#fix underscores
+dfad$match_alle <- gsub("_", "\\\\_", dfad$match_alle)
+trip$logBldNr <- gsub("_", "\\\\_", trip$logBldNr)
 
 ```
 <!-- define header -->
@@ -389,55 +393,64 @@ if (logbook_match != "TRUE") {
 #setting coordinates for aspect ration:
 asp <- 1/1
 
-xlim <- c(floor(min(samples$lonPosStartDec)),ceiling(max(samples$lonPosStartDec)))
+maps <- samples[!is.na(samples$lonPosStartDec) &
+                  !is.na(samples$lonPosEndDec) &
+                  !is.na(samples$latPosStartDec) &
+                  !is.na(samples$latPosEndDec), ]
 
+x <- c(maps$lonPosStartDec, maps$lonPosEndDec)
+y <- c(maps$latPosStartDec, maps$latPosEndDec)
+
+xlim <- c(floor(min(x)),ceiling(max(x)))
 y_l <- ((xlim[2] - xlim[1])/asp)/2
-y_max <- ceiling(max(samples$latPosStartDec)/0.5)*0.5
+y_max <- ceiling(max(y)/0.5)*0.5
 
-if (y_max - y_l < min(samples$latPosStartDec)){
+if (y_max - y_l < min(y)){
   
   ylim <- c(y_max - y_l, y_max)
   
 } else {
   
-  ylim <- c(floor(min(samples$latPosStartDec)/0.5)*0.5,ceiling(max(samples$latPosStartDec)/0.5)*0.5)
-  xlim <- c(floor(min(samples$lonPosStartDec)),ceiling(max(samples$lonPosStartDec)))
+  ylim <- c(floor(min(y)/0.5)*0.5,ceiling(max(y)/0.5)*0.5)
+  xlim <- c(floor(min(x)),ceiling(max(x)))
   
 }
 
 #order the times correctly for the lines to be drawn
-samples <- samples[order(samples$dateGearStart), ]
-samples$st_no <- 1:nrow(samples)
+maps <- maps[order(maps$dateGearStart), ]
+maps$st_no <- 1:nrow(maps)
 
 invisible(coast <- read.shapefile(coast_string))
 #make the plot using the mapplots pakage
 p1 <- basemap(xlim, ylim, main = "Stationer")+
-              draw.shape(coast, col="cornsilk")+
               draw.rect()+
-              segments(x0=samples$lonPosStartDec, y0=samples$latPosStartDec, 
-                       x1=samples$lonPosEndDec, y1=samples$latPosEndDec,
-                cex=0.8, col="darkblue")
-              points(samples$lonPosStartDec, samples$latPosStartDec,  pch=16, col="red", cex=1.5)
-              points(samples$lonPosEndDec, samples$latPosEndDec,  pch=24, col="black",bg="green")
-              pointLabel(x=samples$lonPosStartDec,  y= samples$latPosStartDec,
-                         labels=as.character(samples$station),
+              draw.shape(coast, col="cornsilk")+
+              segments(x0=maps$lonPosStartDec, y0=maps$latPosStartDec, 
+                       x1=maps$lonPosEndDec, y1=maps$latPosEndDec,
+                cex=0.8, col="darkblue")+
+              points(maps$lonPosStartDec, maps$latPosStartDec,  pch=16, col="red", cex=1.5)+
+              points(maps$lonPosEndDec, maps$latPosEndDec,  pch=24, col="black",bg="green")
+              pointLabel(x=maps$lonPosStartDec,  y= maps$latPosStartDec,
+                         labels=as.character(maps$station),
                          cex=1,offset=-1, allowSmallOverlap = FALSE)
               legend( x="bottomright",
               legend=c("ICES-område","ICES-kvadrat","Station start","Station slut"),
                 lty=c(1,2,0,0),pch=c(NA,NA,16,24), col = c("grey","grey","red","black"),
                 cex = 0.9, pt.bg=c("white","white","white","green") ,bg=c("white"))
              
+
+              
               
 ```
 
 ```{r, include=FALSE}
 
 #### points on land
-pts_start <- samples[, c("station", "lonPosStartDec", "latPosStartDec")] %>% 
+pts_start <- maps[, c("station", "lonPosStartDec", "latPosStartDec")] %>% 
         sf::st_as_sf(coords = c("lonPosStartDec","latPosStartDec")) %>% 
         sf::st_set_crs(4326)
 
-pts_end <- samples[, c("station", "lonPosEndDec", "latPosEndDec")] %>% 
+pts_end <- maps[, c("station", "lonPosEndDec", "latPosEndDec")] %>% 
         sf::st_as_sf(coords = c("lonPosEndDec","latPosEndDec")) %>% 
         sf::st_set_crs(4326)
 
@@ -517,32 +530,61 @@ Er der stor forskel mellem vægtene, eller kan vægten ikke udregnes, vil det v�
 
 if (nrow(data.frame(sp_lst)) > 0) {
   
-  #calculate the weights being put in, and what is being raised
-  est <- data.table(sp_lst[sp_lst$speciesCode != "DTO", ])
-  est$weightStep3[is.na(est$weightStep3)] <- est[is.na(est$weightStep3), ]$weightStep2 
-  est$weightStep3[is.na(est$weightStep3)] <- est[is.na(est$weightStep3), ]$weightStep1 
-  est$weightStep3[is.na(est$weightStep3)] <- est[is.na(est$weightStep3), ]$weightStep0 
+  if (any(sp_lst$raisingFactor < 1, na.rm = T)){
     
-  est <- est[ ,. (tast = round(sum(weightStep3 * raisingFactor, na.rm = T), 1)),
-                           by = .(sampleId, station)]
+    st_wrong <-unique(sp_lst[sp_lst$raisingFactor < 1 & 
+                               !is.na(sp_lst$raisingFactor), c("station", "speciesCode")])
+    
+    paste0("Tur ", st_wrong$station, " artskode - ", st_wrong$speciesCode, 
+           ", har en subsample der støre end total fangsten") %>% 
+      cell_spec(color = "red", font_size = 15, bold = T) %>%
+      kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+      kable_styling(latex_options = c("hold_position")) 
+    
+  }
+  
+  #calculate the weights being put in, and what is being raised
+  est <- data.table(sp_lst)
+  
+  est$weightStep3[is.na(est$weightStep3)] <- est[is.na(est$weightStep3), ]$weightStep2 
+  est$weightStep3[is.na(est$weightStep3)] <- est[is.na(est$weightStep3), ]$weightStep1
+  
+  est <- est[, 'wx' := sum(weightStep3, na.rm = T), by=.(sampleId, station)]
+  est$weightStep3[is.na(est$weightStep3)] <- est[is.na(est$weightStep3), ]$weightStep0 
+  
+  #subtract DTO from total 
+  est$totalWeight <- ifelse(est$speciesCode == "DTO" & est$wx == 0, 
+                            est$totalWeight - est$weightStep0, est$totalWeight)
+  est <- est[, 'totalWeight' := min(totalWeight), by=.(sampleId, station)]
+  
+  #sumerize acording to sample level
+  est <- est[est$speciesCode != "DTO"]
+  
+    
+  est <- est[ ,. (tast = round(sum(weightStep3 * raisingFactor, na.rm = T), 1),
+                  tot = round(min(totalWeight, na.rm = T), 1)),
+                           by = .(station)]
   
   #calculated from the database
   setDT(sp_lst_rais)
   beregnet <- sp_lst_rais[ ,. (calc = round(sum(weightTotal), 1)),
-                           by = (sampleId)]
+                           by = .(station)]
 
   #thereshold of when it sems okay
-  est <- merge(est, beregnet, by = "sampleId")
-  est$pct <- round(((est$calc - est$tast) / est$calc)*100)
+  est <- merge(est, beregnet, by = "station")
+  est$pct1 <- round(((est$calc - est$tast) / est$calc)*100)
+  est$pct2 <- round(((est$calc - est$tot) / est$calc)*100)
   
-  est$bem <- ifelse(est$pct < 20 & est$pct > - 20, " Vægte ok", "Stor forskel i vægte")
+  est$bem <- ifelse((est$pct1 < 20 & est$pct1 > - 20), " Vægte ok", "Stor forskel i vægte")
+  est$bem <- ifelse((est$pct2 < 0.01 & est$pct2 > - 0.01), est$bem, "Problem med DTO")
   
   est$bem[est$bem == "Stor forskel i vægte"] <- cell_spec(est$bem[est$bem == "Stor forskel i vægte"],
                                                 bold=T, background = "red")
-  est <- est[, -1]
   
+  est$bem[est$bem == "Problem med DTO"] <- cell_spec(est$bem[est$bem == "Problem med DTO"],
+                                                bold=T, background = "red")
   #print table
-  est %>%
+  est[, -c(4, 6)] %>%
      kbl(escape = F, longtable = T, booktabs = T, linesep = "",
          row.names = F, caption = "Vægtestimering per station",
          col.names = c("Station", "TotalVægt Indtastet", "Totalvægt Beregnet", 
@@ -652,6 +694,41 @@ singleFish2<-dat %>%
   dplyr::filter(remark!="") %>%
   dplyr::ungroup()
 
+
+#########
+#Længder i ejrep som ikke er i rep
+len <- data.table(dat[dat$representative == "nej", ])
+len <- len[ ,. (length = unique(length)/10,
+                type = "ejRep"),
+            by = .(station, speciesCode, landingCategory, sizeSortingEU, individNum)]
+
+len2 <- data.table(dat[dat$representative == "ja", ])
+len2 <- len2[ ,. (length = unique(length)/10,
+                  type2 = "rep"),
+            by = .(station, speciesCode, landingCategory, sizeSortingEU)]
+
+len <- merge(len, len2, by = c("station", "speciesCode", "landingCategory", 
+                               "sizeSortingEU", "length"), all.x = T)
+
+ejrep <- len[is.na(len$type2), ]
+
+if (nrow(ejrep) > 0){
+  
+  cat(paste0("\n\n### Længder i ej-rep som ikke er i rep/ længdefordelingen \n"))
+  
+  print(ejrep[, 1:8] %>%
+         kbl(escape = F, longtable = T, caption = "Manglende rep Længder", 
+             booktabs = T, linesep = "", row.names = F,    
+             col.names = c("År", "Togt", "Tur", "Station", "Art", "Længde", 
+                           "sort", "individNr"), align = "l") %>%
+         row_spec(0, bold = TRUE) %>%
+         kable_styling(latex_options = c("striped", "hold_position")) %>%
+         column_spec(1:8, width = "1.5cm")
+  )
+  
+  
+}
+
 if (nrow(singleFish2)>0){
   
 singleFish2 %>%
@@ -663,7 +740,9 @@ singleFish2 %>%
      kable_styling(latex_options = c("striped", "hold_position"), font_size = 8) %>%
      column_spec(1:8, width = "1.5cm")
 
-} else{
+} 
+
+if (nrow(singleFish2) == 0 & nrow(ejrep) == 0){
   
   "Der er ingen bemærkninger til LAV og enkeltfisk, ej rep.-tabellerne." %>% 
      cell_spec(color = "green", font_size = 10, bold = T) %>%
@@ -685,6 +764,7 @@ Her gives et overblik over de stationer, hvor der virker til at være en uoveren
 
 ```{r oparbejd, results='asis',echo=F,message=F,warning=F,fig.pos='H'}
 
+sp_lst <- sp_lst[sp_lst$speciesCode != "DTO", ]
 #tjek om oplysninger op prøvetagnings nivou er oplyst
 samples$samp_lvl <- ifelse(is.na(samples$catchRegistration) | is.na(samples$speciesRegistration), 
                            " Prøvetagningsniveau eller udvælgelses af arter ikke oplyst", "OK")
@@ -767,7 +847,8 @@ Tabellen herunder viser sikprøvestørrelsen (kg) og trin-0 (kg) for hele turen 
                         tot = round(sum(weightTotal), 1)),
              by = .(speciesCode, landingCategory)]
   
-  if (! FALSE %in% unique(tbl$landingCategory %in% c("KON", "DIS"))){
+  if (! FALSE %in% unique(tbl$landingCategory %in% c("KON", "DIS")) &
+      length(unique(tbl$landingCategory)) > 1 ){
       
   tbl <- dcast(tbl, speciesCode ~ landingCategory, value.var = c("sub", "tot"))   
 
@@ -816,7 +897,8 @@ Tabellen herunder viser sikprøvestørrelsen (kg) og trin-0 (kg) for hele turen 
   
   tbl <- merge(tbl, tbl2, by = c("speciesCode", "landingCategory"), all.x = T)
   
-  if (! FALSE %in% unique(tbl$landingCategory %in% c("KON", "DIS"))){
+  if (! FALSE %in% unique(tbl$landingCategory %in% c("KON", "DIS"))&
+      length(unique(tbl$landingCategory)) > 1 ){
   tbl <- dcast(tbl, speciesCode ~ landingCategory, value.var = c("n_tot", "n_len", "n_ind"))   
 
   #rearange columns 

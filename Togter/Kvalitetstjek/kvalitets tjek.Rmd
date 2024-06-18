@@ -43,7 +43,7 @@ invisible(dk_eez <- read.shapefile('eez_dk_LandAndSea_2019'))
 # #get shapefiles for the map
 # invisible(coast <- read.shapefile('Q:/gis/Dynamisk/GEOdata/BasicLayers/CoastLines/Europe/europe'))
 # invisible(dk_eez <- read.shapefile('Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/EEZ/LandAndSea/eez_dk_LandAndSea_2019'))
-# 
+
 
 
 ## #species of intrest
@@ -61,7 +61,7 @@ trips<-sqlQuery(channel,  paste("SELECT
       ,[trip]
       ,[cruise]
       ,[platform1]
-  FROM      Trip
+  FROM      [FishLineDW].[dbo].[Trip]
   WHERE     year IN ('",paste0(year,collapse="','"), "') AND
             cruise IN ('",paste0(cruise,collapse="','"), "') AND
             trip IN ('",paste0(trip,collapse="','"), "')
@@ -88,7 +88,7 @@ samples<-sqlQuery(channel, paste("SELECT
       ,[gearType]
       ,[windSpeed]
       ,[remark]
-  FROM      Sample
+  FROM      [FishLineDW].[dbo].[Sample]
   WHERE     year IN ('",paste0(year,collapse="','"), "') AND
             cruise IN ('",paste0(cruise,collapse="','"), "') AND
             trip IN ('",paste0(trip,collapse="','"), "') 
@@ -105,7 +105,7 @@ sp_lst <- sqlQuery(channel, paste("SELECT
       ,[weightTotal]
       ,[numberSubSample]
       ,[numberTotal]
-   FROM      SpeciesListRaised
+   FROM      [FishLineDW].[dbo].[SpeciesListRaised]
    WHERE     year IN ('",paste0(year,collapse="','"), "') AND 
              cruise IN ('",paste0(cruise,collapse="','"), "') AND
              trip IN ('",paste0(trip,collapse="','"), "') 
@@ -122,9 +122,8 @@ anim_lst <- sqlQuery(channel, paste("SELECT
       ,[numberSumSamplePerLength]
       ,[numberTotalPerLength]
       ,[weightMean]
-   FROM      AnimalRaised
-   WHERE     (speciesCode IN ('", paste(species,collapse = "','"),"')) AND
-             year IN ('",paste0(year,collapse="','"), "') AND 
+   FROM      [FishLineDW].[dbo].[AnimalRaised]
+   WHERE     year IN ('",paste0(year,collapse="','"), "') AND 
              cruise IN ('",paste0(cruise,collapse="','"), "') AND
              trip IN ('",paste0(trip,collapse="','"), "')
                                 			       ", sep = ""))
@@ -133,8 +132,8 @@ names <- sqlQuery(channel, paste("SELECT
      [speciesCode] 
     ,[dkName]
     ,[latin]
-  FROM   L_Species"
-  ,sep = ""))
+  FROM   [FishLineDW].[dbo].[L_Species]
+  ",sep = ""))
 
 age <- sqlQuery(channel, paste("SELECT   
        [animalId]
@@ -148,7 +147,7 @@ age <- sqlQuery(channel, paste("SELECT
       ,[length]
       ,[age]
       ,[genetics]
-  FROM     Age
+  FROM     [FishLineDW].[dbo].[Age]
   WHERE    year IN ('",paste0(year,collapse="','"), "') AND 
            cruise IN ('",paste0(cruise,collapse="','"), "') AND
            trip IN ('",paste0(trip,collapse="','"), "') 
@@ -165,7 +164,9 @@ animal <- sqlQuery(channel, paste("SELECT
       ,[number]
       ,[length]
       ,[weight]
-    FROM     animal
+      ,[individNum]
+      ,[representative]
+    FROM     [FishLineDW].[dbo].[animal]
     WHERE    year IN ('",paste0(year,collapse="','"), "') AND 
              cruise IN ('",paste0(cruise,collapse="','"), "') AND
              trip IN ('",paste0(trip,collapse="','"), "') AND
@@ -411,8 +412,42 @@ sp_overview <- data.frame(do.call("rbind", temp))
 \subsection{Længde Frekvens}
 ```{r COD length frequency,echo=FALSE, results='asis', cache=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=7}
 
+#Længder i ejrep som ikke er i rep
+len <- data.table(animal[animal$representative == "nej", ])
+len <- len[ ,. (length = unique(length)/10,
+                type = "ejRep"),
+            by = .(year, cruise, trip, station, speciesCode, individNum)]
+
+len2 <- data.table(anim_lst)
+len2 <- len2[ ,. (length = unique(length)/10,
+                  type2 = "rep"),
+            by = .(year, cruise, trip, speciesCode, station)]
+
+len <- merge(len, len2, by = c("year", "cruise", "trip", "station", 
+                               "speciesCode", "length"), all.x = T)
+
+ejrep <- len[is.na(len$type2), ]
+
+if (nrow(ejrep) > 0){
+  
+  cat(paste0("\n\n### Længder i ej-rep som ikke er i rep/ længdefordelingen \n"))
+  
+  print(ejrep[, 1:8] %>%
+         kbl(escape = F, longtable = T, caption = "Manglende rep Længder", 
+             booktabs = T, linesep = "", row.names = F,    
+             col.names = c("År", "Togt", "Tur", "Station", "Art", "Længde", 
+                           "sort", "individNr"), align = "l") %>%
+         row_spec(0, bold = TRUE) %>%
+         kable_styling(latex_options = c("striped", "hold_position")) %>%
+         column_spec(1:8, width = "1.5cm")
+  )
+  
+  
+}
+
+
 species2 <- sort(unique(anim_lst$speciesCode))
-for (jjj in species2) {
+for (jjj in species) {
   
   dat <- setDT(anim_lst[anim_lst$speciesCode == jjj, ])  
 
