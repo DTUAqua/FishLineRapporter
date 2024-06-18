@@ -31,17 +31,17 @@ p_load(plyr, data.table)
 
 ```{r set_parameters, include=FALSE}
 
-yr <- c(@paramYear)
-species <- @paramSpecies
-eventId <- @paramEvent
-expert <- @paramExpert
-trainee <- @paramTrainee
+# yr <- c(@paramYear)
+# species <- @paramSpecies
+# eventId <- @paramEvent
+# expert <- @paramExpert
+# trainee <- @paramTrainee
 
-# yr <- c(2022)
-# species <- c("BLH")
-# eventId <- "24"
-# expert <- "hr"
-# trainee <- "gho"
+yr <- c(2024)
+species <- c("BLH")
+eventId <- "40"
+expert <- "hr"
+trainee <- "gho"
 ```
 
 
@@ -52,12 +52,12 @@ channel <- odbcConnect("FishLine")
 AQ <- sqlQuery(channel, paste("SELECT
        [L_OtolithReadingRemarkID] as otolithReadingRemarkId
       ,[otolithReadingRemark] AS AQ
-  FROM  L_OtolithReadingRemark
+  FROM  [FishLine].[dbo].[L_OtolithReadingRemark]
   ", sep = ""))
 
 event <- sqlQuery(channel, paste("SELECT         
        CONCAT(sdEventId,' - ',name) as ids
-  FROM   SDEvent
+  FROM   [FishLine].[dbo].[SDEvent]
   WHERE  sdEventId = (",eventId,")
   ", sep = ""))
 
@@ -68,7 +68,7 @@ sample <- sqlQuery(channel, paste("SELECT
       ,[catchDate]
       ,[fishLengthMM]
       ,[sexCode]
-  FROM   SDSample
+  FROM   [FishLine].[dbo].[SDSample]
   WHERE  (sdEventId = ",eventId,")
   ", sep = ""))
 
@@ -80,7 +80,7 @@ file <- sqlQuery(channel, paste("SELECT
       ,[scale]
       ,[imageWidth]
       ,[imageHeight]
-  FROM   SDFile
+  FROM   [FishLine].[dbo].[SDFile]
   WHERE  sdSampleId IN (",paste(sample$sdSampleId,collapse = ","),")
   ", sep = ""))
 
@@ -98,7 +98,7 @@ annot <- sqlQuery(channel, paste("SELECT
       ,[edgeStructure]
       ,[age]
       ,[comment]
-  FROM   SDAnnotation
+  FROM   [FishLine].[dbo].[SDAnnotation]
   WHERE  sdFileId IN (",paste(file$sdFileId,collapse = ","),") AND
          createdByUserName IN ('",expert,"' , '",trainee,"') AND
          isFixed = ",0,"
@@ -128,10 +128,12 @@ out <- dcast(out, ...~ createdByUserName, value.var = c("age", "AQ", "edgeStruct
 write.csv(out, paste0(eventId, "_TwoReader_data_", format(Sys.Date(), "%d%m%y"), ".csv"),
             quote = FALSE, row.names = FALSE, na = '')
 
+df4 <- df4[!is.na(df4$age), ]
 ```
 
 
 ```{r make_tables, include=FALSE}
+
 dat <- dcast(df4, animalId + catchDate + fishLengthMM + sexCode ~ createdByUserName, value.var = c("age", "AQ"))
 
 names(dat) <- gsub(expert, "expert", names(dat))

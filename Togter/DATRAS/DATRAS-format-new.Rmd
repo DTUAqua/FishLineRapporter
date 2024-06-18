@@ -113,15 +113,15 @@ p_load(sqldf,RODBC,xtable,maptools,date,lubridate,data.table,tidyr,ggplot2,
 # v_year <- c("2018")
 # art_out <- c()
 
-cruise_all <- c(@paramCruise1)
-v_cruise <- c(@paramCruise2)
-v_year <- c(@paramYear)
-art_out <- c(@paramSpecies)
+# cruise_all <- c(@paramCruise1)
+# v_cruise <- c(@paramCruise2)
+# v_year <- c(@paramYear)
+# art_out <- c(@paramSpecies)
 
-cruise_all <- c("BITS")
-v_cruise <- c("BITS-1")
-v_year <- c("2022")
-# # # art_out <- c("TBM")
+cruise_all <- c("Muslingetogt")
+v_cruise <- c("BV LF BMS mar", "BV LF OES OST mar")
+v_year <- c("2024")
+art_out <- c("BMS")
 # channel <- odbcConnect("FishLineDW")
 # art_out <- sqlQuery(channel, sprintf("SELECT slr.speciesCode
 # FROM FishLineDW.dbo.SpeciesList slr
@@ -136,10 +136,10 @@ v_year <- c("2022")
 # close(channel)
 # art_out <- art_out$speciesCode
 
-cruise_all <- c("TBM")
-v_cruise <- c("Tobisskrabetogt AH")
-v_year <- c("2022")
-art_out <- c("TBM")
+# cruise_all <- c("TBM")
+# v_cruise <- c("Tobisskrabetogt AH")
+# v_year <- c("2022")
+# art_out <- c("TBM")
 
 ```
 

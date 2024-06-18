@@ -29,18 +29,18 @@ p_load(data.table)
 
 ```{r define_input, echo=FALSE}
 
-fid <- c(@paramFid)
-start <-as.Date(@paramStart)
-end <-as.Date(@paramEnd)
-log <- c(@paramLog)
-ldat <- c(@paramLdat)
+# fid <- c(@paramFid)
+# start <-as.Date(@paramStart)
+# end <-as.Date(@paramEnd)
+# log <- c(@paramLog)
+# ldat <- c(@paramLdat)
 
 
-# fid <- "L757"
-# start <-as.Date("2022-05-05")
-# end <-as.Date("2022-05-10")
-# log <- c("0008617390")
-# ldat <- c("2022-05-05")
+fid <- "L757"
+start <-as.Date("2022-05-05")
+end <-as.Date("2022-05-10")
+log <- c("0008617390")
+ldat <- c("2022-05-05")
 
 # fid <- "L757"
 # start <-as.Date("")
@@ -289,3 +289,4 @@ if (exists("txt") & sce != 7){
 }
 ```
 
+Q:/

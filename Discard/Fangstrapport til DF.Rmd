@@ -3,12 +3,11 @@ fontsize: 12pt
 geometry: margin=1in
 classoption: table
 header-includes:
+- \usepackage[utf8]{inputenc}
 - \usepackage{booktabs}
 - \usepackage{longtable}
 - \usepackage{floatrow}
 - \usepackage[T1]{fontenc}
-- \usepackage[danish]{babel}
-- \usepackage[utf8]{inputenc}
 - \usepackage{graphicx}
 - \floatsetup[table]{capposition=top}
 - \usepackage{fancyhdr}
@@ -68,11 +67,14 @@ p_load(sqldf,RODBC,plyr,dplyr,stringr,xtable,ggmap,gplots,grid,ggrepel,reshape2,
 
 
 year<- 2022
-cruise <- 'SEAS'
-trip <- 2002
+cruise <- 'MON'
+trip <- 2962
  
+
+
+##
  channel <- odbcConnect("FishLineDW")
-  multiplot <- sqlQuery(channel, sprintf("select distinct speciesCode from animal where year = %s and cruise = '%s' and trip = '%s' ",year,cruise,trip),stringsAsFactors=FALSE)
+  multiplot <- sqlQuery(channel, sprintf("select distinct speciesCode from [FishLineDW].[dbo].animal where year = %s and cruise = '%s' and trip = '%s' ",year,cruise,trip),stringsAsFactors=FALSE)
  individ <- sqlQuery(channel,
                              paste(sprintf("SELECT A.speciesCode FROM FishLineDW.dbo.Animal A LEFT OUTER JOIN FishLine.dbo.L_Species s ON s.speciesCode = A.speciesCode WHERE A.year = %s   AND A.cruise = '%s'   AND A.trip = '%s'   AND A.individNum != 0 GROUP BY  s.dkName, A.speciesCode ORDER BY A.speciesCode",year,cruise,trip)),
                              stringsAsFactors=FALSE)
@@ -99,14 +101,14 @@ ices_sq_string <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/Ices/ICES_quar
 ########## Collecting data from Fishline ###########
 
 query1<-paste("SELECT Trip.year,Trip.contactPersonName,Trip.contactPersonId , Trip.trip, Trip.cruise, tripLeaderName, dateStart, dateEnd, platform1
-              FROM Trip
+              FROM [FishLineDW].[dbo].Trip
               WHERE     (Trip.year = ",year," and Trip.trip = '",trip,"' and Trip.cruise='",cruise,"')"
              ,sep = "")
 query1
 
 query2<-paste("SELECT AnimalRaised.trip, AnimalRaised.year, AnimalRaised.speciesCode, AnimalRaised.landingCategory, 
               AnimalRaised.numberTotalPerLength, AnimalRaised.length, AnimalRaised.station
-              FROM AnimalRaised
+              FROM [FishLineDW].[dbo].AnimalRaised
               WHERE     (AnimalRaised.year=",year," and AnimalRaised.trip = '",trip,"'and AnimalRaised.cruise='",cruise,"')"
               ,sep = "")
 query2
@@ -115,8 +117,8 @@ query2
 
 query3<-paste("SELECT SpeciesListRaised.trip, SpeciesListRaised.year, SpeciesListRaised.speciesCode, SpeciesListRaised.landingCategory, SpeciesListRaised.numberTotal, SpeciesListRaised.weightTotal, SpeciesListRaised.station, SpeciesListRaised.numberSubSample AS speciesList_numberSubSample,
 SpeciesListRaised.speciesListRaisedId as ID
-   FROM         SpeciesListRaised INNER JOIN
-                      Sample ON SpeciesListRaised.sampleId = Sample.sampleId
+   FROM         [FishLineDW].[dbo].SpeciesListRaised INNER JOIN
+                      [FishLineDW].[dbo].Sample ON [FishLineDW].[dbo].SpeciesListRaised.sampleId = Sample.sampleId
               WHERE     (SpeciesListRaised.year=",year," and SpeciesListRaised.trip = '",trip,"'and SpeciesListRaised.cruise='",cruise,"')"
               ,sep = "")
 query3
@@ -124,15 +126,15 @@ query3
 
 query4<-paste("SELECT Sample.station, Sample.fishingtime, Sample.latPosStartDec AS lat, Sample.lonPosStartDec AS lon, Sample.catchRegistration, Sample.speciesRegistration,Sample.gearType,
   				  Sample.selectionDevice,Sample.meshSize, Sample.dfuArea, Sample.statisticalRectangle, Sample.quarterGearStart,Sample.latPosEndDec AS latEnd, Sample.lonPosEndDec AS lonEnd
-              FROM Sample
+              FROM [FishLineDW].[dbo].Sample
               WHERE     (Sample.year=",year," and Sample.trip = '",trip,"' and Sample.cruise='",cruise,"')"
               ,sep = "")
 query4
 
 query3b<-paste("SELECT SpeciesList.trip, SpeciesList.year,SpeciesList.station,  SpeciesList.speciesCode, 
                        SpeciesList.landingCategory,SpeciesList.number,SpeciesList.speciesListId as ID
-                FROM   SpeciesList INNER JOIN
-                       Sample ON SpeciesList.sampleId = Sample.sampleId
+                FROM   [FishLineDW].[dbo].SpeciesList INNER JOIN
+                       [FishLineDW].[dbo].Sample ON [FishLineDW].[dbo].SpeciesList.sampleId = Sample.sampleId
                 WHERE  (SpeciesList.year=",year," and SpeciesList.trip = '",trip,"'and SpeciesList.cruise='",cruise,"' and 
                        SpeciesList.weightStep0 IS NOT NULL)"
               ,sep = "")
@@ -154,16 +156,16 @@ close(channel)
 
 
 query5<-paste("SELECT Person.name, Person.Address, Person.zipTown, Person.personId
-              FROM Person
+              FROM [FishLine].[dbo].Person
               WHERE     (Person.personId='",data1$contactPersonId,"')"
               ,sep = "")
 query5
 query6<-paste("SELECT L_Species.speciesCode, L_Species.dkName
-              FROM L_Species"
+              FROM [FishLine].[dbo].L_Species"
               ,sep = "")
 query6
 query7<-paste("SELECT L_GearType.gearType, L_GearType.catchOperation
-              FROM L_GearType"
+              FROM [FishLine].[dbo].L_GearType"
               ,sep = "")
 query7
 
@@ -1031,7 +1033,7 @@ Grafen udgøres af `r catchOperation`, hvor både landinger og discard er opgjor
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.width=18, fig.height=10,cache=FALSE, results='asis'}
 mround <- function(x,base){ 
-        base*round(x/base) 
+  base*round(x/base) 
 } 
 
 statArea <- data4[,c("station","dfuArea")]
@@ -1058,19 +1060,18 @@ plot_spec2 <- merge(plot_spec1, data6, by="speciesCode",all.x=TRUE)
 for (i in input_art) {
   
   # if (i %in% data2$speciesCode) {
-    if (i %in% plot_spec2$speciesCode) {
-  
+  if (i %in% plot_spec2$speciesCode) {
+    
     data <- plot_spec2[plot_spec2$speciesCode==i,]
     
     # hard coding garbage as consume (it looks better than showing it as discard)
     data$landingCategory <- ifelse(data$speciesCode %in% 
                                      c("AF1","AF2","AF3","AF4","AF5"), 
-                                    "KON", 
-                                    data$landingCategory)
+                                   "KON", 
+                                   data$landingCategory)
     
     dkfisk <- data$dkName[1]
     
-    cat("\n\n\\subsection{Længdefordeling i antal for",dkfisk,"}", "\n")
     
     #Expand to include KON and DIS for all species
     expand1 <- rbind(data,expand.grid(speciesCode=i,
@@ -1099,11 +1100,14 @@ for (i in input_art) {
     dat.melt$number <- dat.melt$numberTotalPerLength*dat.melt$value
     dat.melt$variable <- factor(dat.melt$variable,
                                 ordered = T, levels = c("DIS","KON"))#,"BMS"))
-  
-    measure <- "mm"
-    # tick <- 10
-    limit <- dat.melt$length_mm[1]
-    if (i =="DVH") { 
+    
+    if (nrow(dat.melt[dat.melt$number > 0, ]) > 0){
+      cat("\n\n\\subsection{Længdefordeling i antal for",dkfisk,"}", "\n")
+        
+      measure <- "mm"
+      # tick <- 10
+      limit <- dat.melt$length_mm[1]
+      if (i =="DVH") { 
         dat.melt$length <- round(3.0947*dat.melt$length + 13.203)
       } else if (i =="HRJ") { 
         dat.melt$length <- round((dat.melt$length+0.7486)/0.2317)
@@ -1115,27 +1119,27 @@ for (i in input_art) {
         # tick <- 5
         limit <- dat.melt$length_mm[1]/10
       }
-    #height <- rbind(height1[,2],height1[,3])
-    #height[is.na(height)] <- 0
-    
-    # for (i in c(25,20,15,10,5,4,3,2,1)){
-    #     print(paste(length(seq(mround(min(c(limit,dat.melt$length),na.rm=T)*.9,i),
-    #                    mround(max(c(limit,dat.melt$length),na.rm=T)*1.1,i),5)),i))
-    #     
-    #     }
-    
-    tick<-NA
-    for (i in c(100,50,40,30,25,20,15,10,8,5,2,1)){
+      #height <- rbind(height1[,2],height1[,3])
+      #height[is.na(height)] <- 0
+      
+      # for (i in c(25,20,15,10,5,4,3,2,1)){
+      #     print(paste(length(seq(mround(min(c(limit,dat.melt$length),na.rm=T)*.9,i),
+      #                    mround(max(c(limit,dat.melt$length),na.rm=T)*1.1,i),5)),i))
+      #     
+      #     }
+      
+      tick<-NA
+      for (i in c(100,50,40,30,25,20,15,10,8,5,2,1)){
         ticks <- length(seq(mround(min(c(limit,dat.melt$length),na.rm=T)*.9,5),
                             mround(max(c(limit,dat.melt$length),na.rm=T)*1.1,5), i))
         
-    
-    if (ticks %in% 6:12) tick <- i
-    if (!is.na(tick)) break
         
-    }
-    if (is.na(tick)) tick <- 0.5
-    
+        if (ticks %in% 6:12) tick <- i
+        if (!is.na(tick)) break
+        
+      }
+      if (is.na(tick)) tick <- 0.5
+      
       plot2 <- ggplot(dat.melt, aes(x=length, y=number)) + 
         # geom_rect(aes(xmin=-Inf, xmax=limit, ymin = Inf, max = Inf),fill="grey",alpha=.5)+
         geom_bar(stat="identity",aes(fill=variable), 
@@ -1145,53 +1149,53 @@ for (i in input_art) {
       if (!is.na(limit)){
         plot2 <- plot2 + 
           geom_vline(aes(xintercept = limit-.5 ,linetype = "limit"),
-                                    color = "red", size = 1)+
+                     color = "red", size = 1)+
           scale_linetype_manual(values = "dashed",name="",
                                 labels=paste0("Mindstemål\n(",limit," ",measure,")"))
-          
+        
       }
-            
-        plot2 <- plot2 + 
-          theme_classic(base_size = 26, base_family = "")+
-          labs(x = paste0("Længde (",measure,")"), y="Antal")+
-          theme(axis.title.y = element_text(vjust = 2),
-                axis.title.x = element_text(vjust = -1),
-                axis.line = element_line(colour = "black"),
-                axis.text.x = element_text(angle = 30, hjust = 1),
-                plot.title = element_text(face="bold",vjust=3,hjust=0))+
-          theme(panel.grid.major = element_line(colour="grey", size=0.5),
-                panel.grid.major.x = element_blank(),
-                panel.border = element_rect(colour = "black", fill=NA, size=1))+
-          theme(
+      
+      plot2 <- plot2 + 
+        theme_classic(base_size = 26, base_family = "")+
+        labs(x = paste0("Længde (",measure,")"), y="Antal")+
+        theme(axis.title.y = element_text(vjust = 2),
+              axis.title.x = element_text(vjust = -1),
+              axis.line = element_line(colour = "black"),
+              axis.text.x = element_text(angle = 30, hjust = 1),
+              plot.title = element_text(face="bold",vjust=3,hjust=0))+
+        theme(panel.grid.major = element_line(colour="grey", size=0.5),
+              panel.grid.major.x = element_blank(),
+              panel.border = element_rect(colour = "black", fill=NA, size=1))+
+        theme(
           #legend.justification = c(1, 1), 
-              legend.position = "right",#c(1, 1), 
-              legend.key.size = unit(0.6, "cm"),
-              legend.text=element_text(size=20),
-              legend.title=element_blank())+
+          legend.position = "right",#c(1, 1), 
+          legend.key.size = unit(0.6, "cm"),
+          legend.text=element_text(size=20),
+          legend.title=element_blank())+
         scale_x_continuous(breaks=seq(0,#mround(min(c(limit,dat.melt$length),na.rm=T)*.9-1,1),
                                       mround(max(c(limit,dat.melt$length),na.rm=T)*1.1,1), tick),
-                          limits = c(mround(min(c(limit,dat.melt$length),na.rm=T)*.9-1,1),
-                                     mround(max(c(limit,dat.melt$length),na.rm=T)*1.1+1,1)))
-          scale_y_continuous(breaks = function(x) seq(ceiling(x[1]), floor(x[2]), by = 1))
-        # if ("BMS" %in% landingcategories){
-          plot2 <- plot2 + scale_fill_manual(values=c("cadetblue3",
-                                                      "Olivedrab"
-                                                      # ,"#B57BA6"
-                                                      ),
-                            labels=c("Genudsat","Landet"
-                                     # ,"Landet fisk under\n mindstemål (BMS)"
-                                     ))
-        # }
-        # if (!("BMS" %in% landingcategories)){
-        #   plot2 <- plot2 + scale_fill_manual(values=c("cadetblue3","Olivedrab"),
-        #                     labels=c("Genudsat","Landet"))
-        # }
-        
-        plot2 <- plot2 + theme(plot.margin=unit(c(0.5,0,1.5,0.5), "cm"))
-
-  plot(plot2)
-        
-        
+                           limits = c(mround(min(c(limit,dat.melt$length),na.rm=T)*.9-1,1),
+                                      mround(max(c(limit,dat.melt$length),na.rm=T)*1.1+1,1)))
+      scale_y_continuous(breaks = function(x) seq(ceiling(x[1]), floor(x[2]), by = 1))
+      # if ("BMS" %in% landingcategories){
+      plot2 <- plot2 + scale_fill_manual(values=c("cadetblue3",
+                                                  "Olivedrab"
+                                                  # ,"#B57BA6"
+      ),
+      labels=c("Genudsat","Landet"
+               # ,"Landet fisk under\n mindstemål (BMS)"
+      ))
+      # }
+      # if (!("BMS" %in% landingcategories)){
+      #   plot2 <- plot2 + scale_fill_manual(values=c("cadetblue3","Olivedrab"),
+      #                     labels=c("Genudsat","Landet"))
+      # }
+      
+      plot2 <- plot2 + theme(plot.margin=unit(c(0.5,0,1.5,0.5), "cm"))
+      
+      plot(plot2)
+    }  
+    
   }
 }
 
@@ -1211,7 +1215,7 @@ species_trip <- as.character(unique(data2$speciesCode))
 
 query_Ind <-paste("SELECT     Animal.year, Animal.trip, Animal.station, Animal.dfuArea, Animal.speciesCode, Animal.individNum, 
                               Animal.length, Animal.number,(Animal.weight/Animal.number)*1000 AS weight,  Animal.cruise
-                   FROM       Animal
+                   FROM       [FishLineDW].[dbo].Animal
                    WHERE      Animal.year IN ('", paste(year_all,collapse = "','"),"') AND 
                               Animal.speciesCode IN ('", paste(species_trip,collapse = "','"),"') AND
                               Animal.dfuArea IN ('", paste(area,collapse = "','"),"') AND

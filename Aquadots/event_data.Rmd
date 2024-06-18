@@ -35,9 +35,9 @@ yr <- c(@paramYear)
 species <- @paramSpecies
 eventId <- @paramEventId
 
-# yr <- c(2022)
-# species <- c("BLH")
-# eventId <- "24"
+# yr <- c(2023)
+# species <- c("RSP")
+# eventId <- "37"
 
 ```
 
@@ -48,7 +48,7 @@ channel <- odbcConnect("FishLine")
 AQ <- sqlQuery(channel, paste("SELECT
        [L_OtolithReadingRemarkID] as otolithReadingRemarkId
       ,[otolithReadingRemark] AS AQ
-  FROM  L_OtolithReadingRemark
+  FROM  fishline.dbo.L_OtolithReadingRemark
   ", sep = ""))
 
 sample <- sqlQuery(channel, paste("SELECT         
@@ -57,7 +57,7 @@ sample <- sqlQuery(channel, paste("SELECT
       ,[fishLengthMM]
       ,[sexCode]
       ,[animalId]
-  FROM   SDSample
+  FROM   fishline.dbo.SDSample
   WHERE  (sdEventId = ",eventId,")
   ", sep = ""))
 
@@ -69,7 +69,7 @@ file <- sqlQuery(channel, paste("SELECT
       ,[scale]
       ,[imageWidth]
       ,[imageHeight]
-  FROM   SDFile
+  FROM   fishline.dbo.SDFile
   WHERE  sdSampleId IN (",paste(sample$sdSampleId,collapse = ","),")
   ", sep = ""))
 
@@ -86,7 +86,7 @@ annot <- sqlQuery(channel, paste("SELECT
       ,[edgeStructure]
       ,[age]
       ,[comment]
-  FROM   SDAnnotation
+  FROM   fishline.dbo.SDAnnotation
   WHERE  sdFileId IN (",paste(file$sdFileId,collapse = ","),") AND
          isFixed = ",0,"
   ", sep = ""))
@@ -98,7 +98,7 @@ close(channel)
 df1 <- merge(sample, file, by = "sdSampleId", all.x = T)
 df2 <- merge(df1, annot, by = "sdFileId", all.x = T)
 
-df2[is.na(df2$otolithReadingRemarkId), "otolithReadingRemarkId"] <- 15
+#df2[is.na(df2$otolithReadingRemarkId), "otolithReadingRemarkId"] <- 15
 df3 <- merge(df2, AQ, by = "otolithReadingRemarkId") 
 
 df3$otolithReadingRemarkId <- NULL
@@ -120,7 +120,7 @@ age <- sqlQuery(channel, paste("SELECT   animalId, individNum, year,
                                                 ageReadName AS ageReadName_FishLine, 
                                                 hatchMonthReaderName,
                                                 remark AS remark_Age
-                                       FROM     Age
+                                       FROM     [FishLineDW].[dbo].Age
                                        WHERE    (animalId IN ('", paste(animals,collapse = "','"),"'))
                                     	 ORDER BY dateGearStart
                                   			        ", sep = ""))
@@ -129,7 +129,7 @@ age <- sqlQuery(channel, paste("SELECT   animalId, individNum, year,
                                                 cruise, trip, station, dfuArea AS area, speciesCode, 
                                                 weight, length AS fishLengthMM,
                                                 remark AS remark_Animal
-                                       FROM     animal
+                                       FROM     [FishLineDW].[dbo].animal
                                        WHERE    (animalId IN ('", paste(animals,collapse = "','"),"'))
                                     	 ORDER BY dateGearStart
                                        	        ", sep = ""))

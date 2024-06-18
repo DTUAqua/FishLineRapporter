@@ -40,11 +40,11 @@ p_load(sm, ggplot2, ggrepel, dbscan)
 
 
 # Paramters to use in R
-y1 <- 2022
-y2 <- 2022
-species <- c("TOR")
-areas <- c(21, 22, 23)
-cruise <- c("KASU-2")
+y1 <- 2023
+y2 <- 2023
+species <- c("ISG")
+areas <- c(20, 21, 22, 23, 24, 25, "4B")
+cruise <- c("BITS-1", "BITS-2", "KASU-1" ,"KASU-2", "IBTS-1")
 Q <- c(1, 2, 3, 4)
 
 if (TRUE %!in% (c(1, 2, 3, 4) %in% Q)){
@@ -82,10 +82,11 @@ age <- sqlQuery(channel, paste("SELECT   animalId, individNum, year,
 
 animal <- sqlQuery(channel, paste("SELECT     animalId, year, quarterGearStart AS quarter,
                                               cruise, trip, station, dfuArea AS area, speciesCode, 
-                                              speciesListId, 
+                                              speciesListId,
+                                              sizeSortingEu,
                                               number, weight, length AS length_mm, 
                                               remark AS remark_animal
-                                     FROM     animal
+                                     FROM     fishlineDW.dbo.animal
                                      WHERE    (speciesCode IN ('", paste(species,collapse = "','"),"')) AND 
                                   	  	      (dfuArea IN ('", paste(areas,collapse = "','"),"')) AND 
                                               (year between ",y1-4," and ",y2," ) AND
@@ -98,7 +99,7 @@ animal <- sqlQuery(channel, paste("SELECT     animalId, year, quarterGearStart A
 speciesList <- sqlQuery(channel, paste("SELECT    year, 
                                               cruise, trip, station, speciesCode, speciesListId,
                                               remark AS remark_speciesList
-                                     FROM     SpeciesList
+                                     FROM     fishlineDW.dbo.SpeciesList
                                      WHERE    (speciesCode IN ('", paste(species,collapse = "','"),"')) AND
                                               (dfuArea IN ('", paste(areas,collapse = "','"),"')) AND 
                                               (year between ",y1," and ",y2," ) AND
@@ -532,31 +533,37 @@ if (nrow(age_fish) != 0){
 \section{Table of Outliers}
 ```{r ,echo=FALSE, results='asis', cache=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=7}
 
+outliers <- outliers[order(outliers$year, outliers$cruise, outliers$trip, outliers$station,
+                           outliers$sizeSortingEu, outliers$individNum ), ]
+
 if (nrow(age_fish) != 0){
   age_outliers <- outliers[outliers$type == "age", 
-                           c("animalId", "speciesCode", "cruise", "date", "station", "individNum", "area",
-                                           "sexCode", "length_mm", "age", "otolithReadingRemark")] #state the variable that should be
+                           c("animalId", "speciesCode", "cruise", "trip", "station", "date",
+                             "sizeSortingEu", "individNum", "area", 
+                             "sexCode", "length_mm", "age",
+                             "otolithReadingRemark")] #state the variable that should be
   
   weight_outliers <- outliers[outliers$type == "weight", 
-                              c("animalId", "speciesCode", "cruise", "date", "station", "individNum", "area",
-                                           "sexCode", "length_mm", "weight")] #state the variable that should be
+                              c("animalId", "speciesCode", "cruise", "trip", "station", "date",
+                               "sizeSortingEu",  "individNum", "area", 
+                               "sexCode", "length_mm", "weight")] 
+  
   ## make a table of outliers found above, if any.
   if (nrow(data.frame(age_outliers)) > 0){
   
+   age_outliers$otolithReadingRemark[age_outliers$otolithReadingRemark == "AQ3_QA"] <- "AQ3-QA"
+     
    print(age_outliers %>%
            kbl(escape = F, longtable = T, caption = "Age outliers", 
-               booktabs = T, linesep = "", row.names = F,    
-               col.names = c("AnimalId", "Species", "Cruise", "Date", "Station", "Fish No", "Area", 
+               booktabs = T, linesep = "", row.names = F,   
+               col.names = c("AnimalId", "Species", "Cruise", "Trip", "Station", "Date", 
+                             "size Sorting", "Fish No", "Area", 
                              "Sex", "Length", "Age", "AQ"), align = "l") %>%
            row_spec(0, bold = TRUE) %>%
-           kable_styling(latex_options = c("striped", "hold_position")) %>%
-           column_spec(1, width = "1.5cm") %>%
-           column_spec(2:3, width = "1.2cm") %>%
-           column_spec(4, width = "2cm") %>%
-           column_spec(5, width = "1.2cm") %>%
-           column_spec(6, width = "1.5cm") %>%
-           column_spec(7:10, width = "1cm") %>%
-           column_spec(11, width = "0.5cm")
+           kable_styling(latex_options = c("striped", "hold_position"), font_size = 8) %>%
+           column_spec(1:5, width = "1.1cm") %>%
+           column_spec(6:7, width = "1.4cm") %>%
+           column_spec(8:13, width = "0.75cm") 
    )
   } else {
     
@@ -574,16 +581,14 @@ if (nrow(age_fish) != 0){
     print(weight_outliers %>%
            kbl(escape = F, longtable = T, caption = "Weight outliers", 
                booktabs = T, linesep = "", row.names = F,    
-               col.names = c("AnimalId", "Species", "Cruise", "Date", "Station", "Fish No", "Area", 
+               col.names = c("AnimalId", "Species", "Cruise", "Trip", "Station", "Date", 
+                             "size Sorting", "Fish No", "Area", 
                              "Sex", "Length", "Weight"), align = "l") %>%
            row_spec(0, bold = TRUE) %>%
-           kable_styling(latex_options = c("striped", "hold_position")) %>%
-           column_spec(1, width = "1.5cm") %>%
-           column_spec(2:3, width = "1.2cm") %>%
-           column_spec(4, width = "2cm") %>%
-           column_spec(5, width = "1.2cm") %>%
-           column_spec(6, width = "1.5cm") %>%
-           column_spec(7:10, width = "1.2cm")
+           kable_styling(latex_options = c("striped", "hold_position"), font_size = 8) %>%
+           column_spec(1:5, width = "1.1cm") %>%
+           column_spec(6:7, width = "1.4cm") %>%
+           column_spec(8:12, width = "0.75cm")
     )
     
   } else {
