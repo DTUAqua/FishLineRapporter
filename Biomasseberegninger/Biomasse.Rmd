@@ -69,8 +69,8 @@ musOmrString <- "Alle_muslingeområder_2019_region_erase2.shp"
 
 #Parameters
 
-year <- c(2021)
-cruise <- c("BV LF BMS april")
+year <- c(1999)
+cruise <- c("BV LF BMS maj")
 species <- "BMS"
 # year <- 2021; cruise <- "BV LB BMS okt"; species <- "BMS"
 # year <- 2020; cruise <- "BV LF BMS april"; species <- "BMS"
@@ -857,6 +857,8 @@ saveRDS(final_data,
 
 
 ```{r save_output, echo=FALSE, warning=FALSE, message=FALSE, eval = T}
+# correction af NA
+#final_data[is.na(final_data)] <- 0
 
 if (length(year) > 1 | length(cruise) > 1) {
 
