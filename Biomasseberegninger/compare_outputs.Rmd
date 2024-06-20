@@ -1,0 +1,201 @@
+---
+title: "biomass_testing_results"
+author: "Kirsten Birch Håkansson, DTU Aqua"
+date: \today
+output: pdf_document
+params:
+  species: BMS
+  old: v14
+  date_old: 20Jun2024
+  new: v15
+  date_new: 20Jun2024
+---
+
+```{r setup, include = F}
+options(scipen = 999)
+
+library(dplyr)
+library(haven)
+library(tidyr)
+library(knitr)
+
+dir_in <- "Q:/mynd/kibi/fiskeline/FishLineRapporter_refs_outputs/Biomasseberegninger/output/"
+dir_out <- "Q:/mynd/kibi/fiskeline/FishLineRapporter_refs_outputs/Biomasseberegninger/output/"
+
+species <- params$species
+v_old <- params$old
+date_old <- params$date_old
+v_new <- params$new
+date_new <- params$date_new
+```
+
+
+```{r get_data, include = F}
+
+old <- readRDS(paste0(dir_in, "Biomasse_", species, "_", v_old, "_", date_old, ".rds"))
+# names(old) <- paste0(names(old), "_old")
+new <- readRDS(paste0(dir_in, "Biomasse_", species, "_", v_new, "_", date_new, ".rds"))
+# names(new) <- paste0(names(new), "_new")
+
+#Rename certain columns in new to make comparison
+colnames(new)[c(19, 20, 21, 22, 24:ncol(new))] <- paste("New", colnames(new)[c(19, 20, 21, 22, 24:ncol(new))], sep = "_")
+
+# Join by as much as possible
+if (species == "BMS") {
+  comp <- as.data.frame(full_join(new, old))
+} else {
+  comp <- as.data.frame(full_join(new, old))
+}
+
+# Replave infinet values with 0
+
+comp[comp == "Inf"] <- 0
+comp[is.na(comp)] <- 0
+```
+
+```{r test, include = F}
+
+#==================================================================
+# Direct comparison
+
+comp_red <- comp[c(1,3:8,19:ncol(comp))]
+
+#comp_red$diff_RedskabDim <- comp_red$RedskabDim-comp_red$New_RedskabDim
+comp_red$diff_Befisket_Areal_m2 <- comp_red$New_BEFISKM2-comp_red$BEFISKM2
+#comp_red$diff_areal_metode <- comp_red$areal_metode == comp_red$New_areal_metode
+
+comp_red$diff_TotalWeight_kg_SMÅ <- comp_red$New_TOTWGTSMA-comp_red$TOTWGTSMA
+comp_red$diff_TotalNumber_SMÅ <- comp_red$New_TOTNUMSMA-comp_red$TOTNUMSMA
+comp_red$diff_MeanLength_cm_SMÅ <- comp_red$New_LENMEANSMA-comp_red$LENMEANSMA
+comp_red$diff_Min_Length_cm_SMÅ <- comp_red$New_LENMINSMA-comp_red$LENMINSMA
+
+comp_red$diff_TotalWeight_kg_STO <- comp_red$New_TOTWGTSTO-comp_red$TOTWGTSTO
+comp_red$diff_TotalNumber_STO <- comp_red$New_TOTNUMSTO-comp_red$TOTNUMSTO
+comp_red$diff_MeanLength_cm_STO <- comp_red$New_LENMEANSTO-comp_red$LENMEANSTO
+comp_red$diff_Min_Length_cm_STO <- comp_red$New_LENMINSTO-comp_red$LENMINSTO
+
+comp_red$diff_TotalWeight_kg <- comp_red$New_TOTWGT-comp_red$TOTWGT
+comp_red$diff_TotalNumber <- comp_red$New_TOTNUM-comp_red$TOTNUM
+
+if (species %in% c("BMS","OES")) {
+  comp_red$diff_MeanLength_cm <- comp_red$New_LENMEAN-comp_red$LENMEAN
+  comp_red$diff_Min_Length_cm <- comp_red$New_LENMIN-comp_red$LENMIN
+} else {
+  comp_red$diff_MeanLength_cm <- 0
+  comp_red$diff_Min_Length_cm <- 0
+}
+
+comp_red$diff_Fangst_kg_m2_SMÅ <- comp_red$New_FANGM2SMA-comp_red$FANGM2SMA
+comp_red$diff_Fangst_kg_m2_STO <- comp_red$New_FANGM2STO-comp_red$FANGM2STO
+comp_red$diff_Fangst_kg_m2 <- comp_red$New_FANGM2-comp_red$FANGM2
+
+spp <- tolower(species)
+
+eval(parse(text=paste0("comp_red$diff_fangst_", spp, "_kg_m2_SMÅ <- 
+                       comp_red$New_FANG", species, "SMA"-comp_red$FANG", species, "SMA")))
+
+eval(parse(text=paste0("comp_red$diff_fangst_", spp, "_kg_m2_STO <- 
+                       comp_red$fangst_", spp, "_kg_m2_STO-comp_red$FANG", species, "STO")))
+
+eval(parse(text=paste0("comp_red$diff_fangst_", spp, "_kg_m2 <- 
+                       comp_red$fangst_", spp, "_kg_m2-comp_red$FANG", species)))
+
+eval(parse(text=paste0("comp_red$diff_Korrigeret_", spp, "_kg_m2 <- 
+                       comp_red$Korrigeret_", spp, "_kg_m2-comp_red$KORR", species)))
+
+if (species == "BMS") {
+ eval(parse(text=paste0("comp_red$diff_Korrigeret_", spp, "_kg_m2_STO <- 
+                        comp_red$Korrigeret_", spp, "_kg_m2_STO-comp_red$KORR", species, "STO")))
+  
+eval(parse(text=paste0("comp_red$diff_Korrigeret_", spp, "_kg_m2_SMÅ <- 
+                       comp_red$Korrigeret_", spp, "_kg_m2_SMÅ-comp_red$KORR", species, "SMA")))
+
+} else {
+  
+  #eval(parse(text=paste0("comp_red$diff_Korrigeret_", spp, "_kg_m2_STO <- 0")))
+  #eval(parse(text=paste0("comp_red$diff_Korrigeret_", spp, "_kg_m2_SMÅ <- 0")))
+}
+
+
+
+
+#Subset for which ones got FALSE
+
+
+eval(parse(text=paste0("Issue_2 <- subset(comp_red, 
+                  
+                  diff_Befisket_Areal_m2 != 0 | is.na(diff_Befisket_Areal_m2) |
+                  diff_TotalWeight_kg_SMÅ != 0 | is.na(diff_TotalWeight_kg_SMÅ) |
+                  diff_TotalNumber_SMÅ != 0 | is.na(diff_TotalNumber_SMÅ)  | 
+                  diff_MeanLength_cm_SMÅ != 0 | is.na(diff_MeanLength_cm_SMÅ)  |
+                  diff_Min_Length_cm_SMÅ != 0 | is.na(diff_Min_Length_cm_SMÅ)  | 
+                  diff_TotalWeight_kg_STO != 0 | is.na(diff_TotalWeight_kg_STO)  |
+                  diff_TotalNumber_STO != 0 | is.na(diff_TotalNumber_STO)  | 
+                  diff_MeanLength_cm_STO != 0 | is.na(diff_MeanLength_cm_STO)  |
+                  diff_Min_Length_cm_STO != 0 | is.na(diff_Min_Length_cm_STO)  | 
+                  diff_TotalWeight_kg != 0 | is.na(diff_TotalWeight_kg)  |
+                  diff_TotalNumber != 0 | is.na(diff_TotalNumber)  | 
+                  diff_MeanLength_cm != 0 | is.na(diff_MeanLength_cm)  |
+                  diff_Min_Length_cm != 0 | is.na(diff_Min_Length_cm)  | 
+                  diff_Fangst_kg_m2 != 0 | is.na(diff_Fangst_kg_m2) |
+                  diff_Fangst_kg_m2_SMÅ != 0 | is.na(diff_Fangst_kg_m2_SMÅ)  |
+                  diff_Fangst_kg_m2_STO != 0 | is.na(diff_Fangst_kg_m2_STO)  | 
+                  diff_fangst_", spp, "_kg_m2 != 0 | is.na(diff_fangst_", spp, "_kg_m2) |
+                  diff_fangst_", spp, "_kg_m2_SMÅ != 0 | is.na(diff_fangst_", spp, "_kg_m2_SMÅ) |
+                  diff_fangst_", spp, "_kg_m2_STO != 0 | is.na(diff_fangst_", spp, "_kg_m2_STO) |
+                  diff_Korrigeret_", spp, "_kg_m2 != 0 | is.na(diff_Korrigeret_", spp, "_kg_m2) 
+                  
+                  )")))
+                  
+# |
+#                   diff_Korrigeret_", spp, "_kg_m2_STO != 0 | is.na(diff_Korrigeret_", spp, "_kg_m2_STO) |
+#                   diff_Korrigeret_", spp, "_kg_m2_SMÅ != 0 | is.na(diff_Korrigeret_", spp, "_kg_m2_SMÅ)
+# diff_RedskabDim != 0 | is.na(diff_RedskabDim) |
+# diff_areal_metode == F |
+
+
+if (v_new == "v3") {
+  
+  DISMETH <- filter(comp_red, New_DISMETH == "Kan ikke udregnes" & !(stationType %in% c('RAM','VV')))
+} else {
+  
+  DISMETH <- c()
+}
+
+```
+
+# Number of issues
+
+`r nrow(Issue_2)`
+
+# Number of record where New_DISMETH == "Kan ikke udregnes" for relevant gears
+This has only been tested for v3 - all records are from invalid hauls
+
+`r nrow(DISMETH)`
+
+```{r export, include = F}
+
+write.csv(Issue_2,
+          file = paste(dir_out, "Biomasse_",species,"_",v_new, "_vs_", v_old,"_",
+                     format(Sys.time(), "%d%b%Y"),".csv",sep = ""),
+          row.names=FALSE, fileEncoding = "UTF-8")
+
+saveRDS(Issue_2,
+          file = paste(dir_out, "Biomasse_",species,"_",v_new, "_vs_", v_old,"_",
+                     format(Sys.time(), "%d%b%Y"),".rds",sep = ""))
+
+if (v_new == "v3") {
+  
+  write.csv(DISMETH,
+          file = paste(dir_out, "Biomasse_distance_problems_",species,"_",
+                     format(Sys.time(), "%d%b%Y"),".csv",sep = ""),
+          row.names=FALSE,fileEncoding = "UTF-8")
+
+  saveRDS(DISMETH,
+          file = paste(dir_out, "Biomasse_distance_problems_",species,"_",
+                     format(Sys.time(), "%d%b%Y"),".rds",sep = ""))
+  
+}
+
+```
+
