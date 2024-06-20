@@ -168,7 +168,7 @@ data <- sqlQuery(channel, paste("SELECT Sample.sampleId, Sample.year, Sample.cru
 FROM     Animal RIGHT OUTER JOIN
                   SpeciesList ON Animal.speciesListId = SpeciesList.speciesListId RIGHT OUTER JOIN
                   Sample ON SpeciesList.sampleId = Sample.sampleId
-WHERE  (Sample.cruise LIKE 'BV LF OES%')", sep = ""), stringsAsFactors = FALSE)
+WHERE  (Sample.cruise LIKE 'BV LF%')", sep = ""), stringsAsFactors = FALSE)
 
 db_message <- sqlQuery(channel,
                        sprintf("SELECT TOP (0) * FROM ErrorLog"),
@@ -180,9 +180,9 @@ ref_sample <- distinct(read.csv(paste0(musOmrString_dir, "ref_table_BEFISKM2_fun
                        BEFISKM2_function)
 
 ref_species <- rename(distinct(read.csv(paste0(musOmrString_dir, "ref_table_KORR_function.csv")), stationType, speciesCode, 
-                        KORR_function, yearStart, yearEnd), STATTYPE = stationType)
+                        KORR_function), STATTYPE = stationType) #, yearStart, yearEnd
 
-ref_species$yearEnd[is.na(ref_species$yearEnd)] <- lubridate::year(lubridate::today())
+# ref_species$yearEnd[is.na(ref_species$yearEnd)] <- lubridate::year(lubridate::today())
 
 ```
 
@@ -523,9 +523,9 @@ Hvis NA i ref_table_BEFISKM2_function.csv, så sættes KORRxxxx = FANGM2
 
 ref_spp <- unique(ref_species$speciesCode)
 
-by <- join_by(STATTYPE, speciesCode, year >= yearStart, year <= yearEnd)
+# by <- join_by(STATTYPE, speciesCode, year >= yearStart, year <= yearEnd)
 
-data3 <- mutate(left_join(ungroup(data2), ref_species, by), KORR_function = 
+data3 <- mutate(left_join(ungroup(data2), ref_species), KORR_function = 
                   ifelse(is.na(KORR_function) & speciesCode %in% ref_spp, "x", 
                          ifelse(is.na(KORR_function) & !(speciesCode %in% ref_spp), "ingen", as.character(KORR_function))))
 
