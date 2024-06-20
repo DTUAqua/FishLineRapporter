@@ -46,7 +46,7 @@ detach("package:Hmisc", unload=TRUE)
 ```
 
 
-```{r define_input_ff, echo=FALSE, eval = T}
+```{r define_input_ff, echo=FALSE, eval = F}
 
 output_dir <- ""
 
@@ -58,10 +58,10 @@ year<- c(@paramYear) ; cruise <- c(@paramCruise);  species <- @paramSpecies
 
 ```
 
-```{r define_input_dev, echo=FALSE, eval = F}
+```{r define_input_dev, echo=FALSE, eval = T}
 
 version_name <- "v14"
-output_dir <- "Q:/mynd/kibi/fishLine/FishLineRapporter/Biomasseberegninger/output/"
+output_dir <- "Q:/mynd/kibi/fiskeline/FishLineRapporter_refs_outputs/Biomasseberegninger/output/"
 
 musOmrString_dir <- "Q:/mynd/kibi/fiskeline/FishLineRapporter/Biomasseberegninger/referencer/"
 musOmrString <- "Alle_muslingeområder_2019_region_erase2.shp"
@@ -128,7 +128,7 @@ makeTable_db_m <- function(data){
 
 ```
 
-```{r getdata_ff, echo=FALSE, message=FALSE, warning=FALSE, eval = T}
+```{r getdata_ff, echo=FALSE, message=FALSE, warning=FALSE, eval = F}
 
 channel <- odbcConnect("FishLineDW")
 data <- sqlQuery(channel, paste("SELECT Sample.sampleId, Sample.year, Sample.cruise, Sample.trip, Sample.station, Sample.stationName, Sample.haulType, Sample.latPosStartText, Sample.lonPosStartText, Sample.latPosEndText, Sample.lonPosEndText, Sample.latPosStartDec,
@@ -157,7 +157,7 @@ ref_species <- rename(distinct(read.csv(paste0(musOmrString_dir, "ref_table_KORR
 ```
 
 
-```{r getdata_all_dev, echo=FALSE, message=FALSE, warning=FALSE, eval = F}
+```{r getdata_all_dev, echo=FALSE, message=FALSE, warning=FALSE, eval = T}
 
 
 channel <- odbcConnect("FishLineDW")
@@ -841,10 +841,10 @@ makeTable(ref_species)
 ```
 
 
-```{r save_output_dev, echo=FALSE, warning=FALSE,message=FALSE, eval = F}
+```{r save_output_dev, echo=FALSE, warning=FALSE,message=FALSE, eval = T}
 
 write.csv(final_data,
-          file = paste(output_dir, "Biomasse_",
+          file = paste(output_dir, "Biomasse_",species,"_",version_name,"_",
                      format(Sys.time(), "%d%b%Y"),".csv",sep = ""),
           row.names=FALSE,fileEncoding = "UTF-8")
 
@@ -856,7 +856,7 @@ saveRDS(final_data,
 ```
 
 
-```{r save_output, echo=FALSE, warning=FALSE, message=FALSE, eval = T}
+```{r save_output, echo=FALSE, warning=FALSE, message=FALSE, eval = F}
 # correction af NA
 #final_data[is.na(final_data)] <- 0
 
@@ -889,3 +889,5 @@ write.csv(ref_species,
           row.names=FALSE,fileEncoding = "UTF-8")
 }
 ```
+
+
