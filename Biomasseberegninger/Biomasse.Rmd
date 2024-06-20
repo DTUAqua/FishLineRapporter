@@ -40,7 +40,7 @@ if (!require(pacman)) {
   install.packages("pacman", repos="http://ftp.ussg.iu.edu/CRAN/")
   library(pacman)
 }
-p_load(sqldf,RODBC,plyr,data.table,tidyr,dplyr,knitr,xtable,Hmisc,sf)
+p_load(sqldf,RODBC,plyr,data.table,tidyr,dplyr,knitr,xtable,Hmisc,sf,lubridate)
 
 detach("package:Hmisc", unload=TRUE)
 ```
@@ -60,7 +60,7 @@ year<- c(@paramYear) ; cruise <- c(@paramCruise);  species <- @paramSpecies
 
 ```{r define_input_dev, echo=FALSE, eval = T}
 
-version_name <- "v14"
+version_name <- "v15"
 output_dir <- "Q:/mynd/kibi/fiskeline/FishLineRapporter_refs_outputs/Biomasseberegninger/output/"
 
 musOmrString_dir <- "Q:/mynd/kibi/fiskeline/FishLineRapporter/Biomasseberegninger/referencer/"
@@ -180,7 +180,9 @@ ref_sample <- distinct(read.csv(paste0(musOmrString_dir, "ref_table_BEFISKM2_fun
                        BEFISKM2_function)
 
 ref_species <- rename(distinct(read.csv(paste0(musOmrString_dir, "ref_table_KORR_function.csv")), stationType, speciesCode, 
-                        KORR_function), STATTYPE = stationType)
+                        KORR_function, yearStart, yearEnd), STATTYPE = stationType)
+
+ref_species$yearEnd[is.na(ref_species$yearEnd)] <- lubridate::year(lubridate::today())
 
 ```
 
@@ -521,7 +523,9 @@ Hvis NA i ref_table_BEFISKM2_function.csv, så sættes KORRxxxx = FANGM2
 
 ref_spp <- unique(ref_species$speciesCode)
 
-data3 <- mutate(left_join(ungroup(data2), ref_species), KORR_function = 
+by <- join_by(STATTYPE, speciesCode, year >= yearStart, year <= yearEnd)
+
+data3 <- mutate(left_join(ungroup(data2), ref_species, by), KORR_function = 
                   ifelse(is.na(KORR_function) & speciesCode %in% ref_spp, "x", 
                          ifelse(is.na(KORR_function) & !(speciesCode %in% ref_spp), "ingen", as.character(KORR_function))))
 
@@ -533,6 +537,9 @@ dat_spp <- c()
 for (spp in levels(fak_spp)) {
   
   dat_spp_sub <- subset(data3, speciesCode == spp)
+  
+  # fak_time <- factor(dat_spp_sub$)
+  
   fak_korr <- factor(dat_spp_sub$KORR_function)
   
   for (j in levels(fak_korr)) {
