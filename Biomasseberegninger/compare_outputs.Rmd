@@ -5,10 +5,10 @@ date: \today
 output: pdf_document
 params:
   species: BMS
-  old: v14
+  old: v17
   date_old: 20Jun2024
-  new: v15
-  date_new: 20Jun2024
+  new: v18
+  date_new: 24Jun2024
 ---
 
 ```{r setup, include = F}
@@ -92,23 +92,23 @@ comp_red$diff_Fangst_kg_m2 <- comp_red$New_FANGM2-comp_red$FANGM2
 spp <- tolower(species)
 
 eval(parse(text=paste0("comp_red$diff_fangst_", spp, "_kg_m2_SMÅ <- 
-                       comp_red$New_FANG", species, "SMA"-comp_red$FANG", species, "SMA")))
+                       comp_red$New_FANG", species, "SMA-comp_red$FANG", species, "SMA")))
 
 eval(parse(text=paste0("comp_red$diff_fangst_", spp, "_kg_m2_STO <- 
-                       comp_red$fangst_", spp, "_kg_m2_STO-comp_red$FANG", species, "STO")))
+                       comp_red$New_FANG", species, "STO-comp_red$FANG", species, "STO")))
 
 eval(parse(text=paste0("comp_red$diff_fangst_", spp, "_kg_m2 <- 
-                       comp_red$fangst_", spp, "_kg_m2-comp_red$FANG", species)))
+                       comp_red$New_FANG", species, "-comp_red$FANG", species)))
 
 eval(parse(text=paste0("comp_red$diff_Korrigeret_", spp, "_kg_m2 <- 
-                       comp_red$Korrigeret_", spp, "_kg_m2-comp_red$KORR", species)))
+                       comp_red$New_KORR", species, "-comp_red$KORR", species)))
 
 if (species == "BMS") {
  eval(parse(text=paste0("comp_red$diff_Korrigeret_", spp, "_kg_m2_STO <- 
-                        comp_red$Korrigeret_", spp, "_kg_m2_STO-comp_red$KORR", species, "STO")))
+                        comp_red$New_KORR", species, "STO-comp_red$KORR", species, "STO")))
   
 eval(parse(text=paste0("comp_red$diff_Korrigeret_", spp, "_kg_m2_SMÅ <- 
-                       comp_red$Korrigeret_", spp, "_kg_m2_SMÅ-comp_red$KORR", species, "SMA")))
+                       comp_red$New_KORR", species, "SMA-comp_red$KORR", species, "SMA")))
 
 } else {
   
