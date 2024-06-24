@@ -128,7 +128,7 @@ makeTable_db_m <- function(data){
 
 ```
 
-```{r getdata_ff, echo=FALSE, message=FALSE, warning=FALSE, eval = F}
+```{r getdata_ff, echo=FALSE, message=FALSE, warning=FALSE, eval = T}
 
 channel <- odbcConnect("FishLineDW")
 data <- sqlQuery(channel, paste("SELECT Sample.sampleId, Sample.year, Sample.cruise, Sample.trip, Sample.station, Sample.stationName, Sample.haulType, Sample.latPosStartText, Sample.lonPosStartText, Sample.latPosEndText, Sample.lonPosEndText, Sample.latPosStartDec,
@@ -152,12 +152,14 @@ close(channel)
 ref_sample <- distinct(read.csv(paste0(musOmrString_dir, "ref_table_BEFISKM2_function.csv"), sep = ";"), gearType, gearVal, STATTYPE, REDSKDIM, 
                        BEFISKM2_function)
 
-ref_species <- rename(distinct(read.csv(paste0(musOmrString_dir, "ref_table_KORR_function.csv")), stationType, speciesCode, 
-                        KORR_function), STATTYPE = stationType)
+ref_species <- rename(distinct(read.csv(paste0(musOmrString_dir, "ref_table_KORR_function_20240624.csv"), sep = ";"), stationType, speciesCode, 
+                        KORR_function, yearStart, yearEnd), STATTYPE = stationType) #
+
+ref_species$yearEnd[is.na(ref_species$yearEnd)] <- lubridate::year(lubridate::today())
 ```
 
 
-```{r getdata_all_dev, echo=FALSE, message=FALSE, warning=FALSE, eval = T}
+```{r getdata_all_dev, echo=FALSE, message=FALSE, warning=FALSE, eval = F}
 
 
 channel <- odbcConnect("FishLineDW")
@@ -213,8 +215,10 @@ db_message <- subset(db_message, cruise %in% cruise)
 ref_sample <- distinct(read.csv(paste0(musOmrString_dir, "ref_table_BEFISKM2_function.csv"), sep = ";"), gearType, gearVal, STATTYPE, REDSKDIM, 
                        BEFISKM2_function)
 
-ref_species <- rename(distinct(read.csv(paste0(musOmrString_dir, "ref_table_KORR_function.csv")), stationType, speciesCode, 
-                        KORR_function), STATTYPE = stationType)
+ref_species <- rename(distinct(read.csv(paste0(musOmrString_dir, "ref_table_KORR_function_20240624.csv"), sep = ";"), stationType, speciesCode, 
+                        KORR_function, yearStart, yearEnd), STATTYPE = stationType) #
+
+ref_species$yearEnd[is.na(ref_species$yearEnd)] <- lubridate::year(lubridate::today())
 
 ```
 
@@ -848,7 +852,7 @@ makeTable(ref_species)
 ```
 
 
-```{r save_output_dev, echo=FALSE, warning=FALSE,message=FALSE, eval = T}
+```{r save_output_dev, echo=FALSE, warning=FALSE,message=FALSE, eval = F}
 
 write.csv(final_data,
           file = paste(output_dir, "Biomasse_",species,"_",version_name,"_",
@@ -863,7 +867,7 @@ saveRDS(final_data,
 ```
 
 
-```{r save_output, echo=FALSE, warning=FALSE, message=FALSE, eval = F}
+```{r save_output, echo=FALSE, warning=FALSE, message=FALSE, eval = T}
 # correction af NA
 #final_data[is.na(final_data)] <- 0
 
