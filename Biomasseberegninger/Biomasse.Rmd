@@ -46,7 +46,7 @@ detach("package:Hmisc", unload=TRUE)
 ```
 
 
-```{r define_input_ff, echo=FALSE, eval = F}
+```{r define_input_ff, echo=FALSE, eval = T}
 
 output_dir <- ""
 
@@ -58,7 +58,7 @@ year<- c(@paramYear) ; cruise <- c(@paramCruise);  species <- @paramSpecies
 
 ```
 
-```{r define_input_dev, echo=FALSE, eval = T}
+```{r define_input_dev, echo=FALSE, eval = F}
 
 version_name <- "v18"
 output_dir <- "Q:/mynd/kibi/fiskeline/FishLineRapporter_refs_outputs/Biomasseberegninger/output/"
