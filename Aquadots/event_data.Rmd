@@ -25,7 +25,6 @@ p_load(kableExtra, sqldf, RODBC, dplyr)
 #special for this script
 p_load(data.table, sm, ggplot2, ggrepel, dbscan)
 
-'%!in%' <- function(x,y)!('%in%'(x,y)) #a "NOT in" statement
 
 ```
 
@@ -36,8 +35,8 @@ species <- @paramSpecies
 eventId <- @paramEventId
 
 # yr <- c(2023)
-# species <- c("RSP")
-# eventId <- "37"
+# species <- c("BLH")
+# eventId <- "40"
 
 ```
 
@@ -54,7 +53,13 @@ AQ <- sqlQuery(channel, paste("SELECT
 sample <- sqlQuery(channel, paste("SELECT         
        [sdSampleId]
       ,[sdEventId]
+      ,[cruise]
+      ,[trip]
+      ,[station]
+      ,[catchDate]
+      ,[DFUArea]
       ,[fishLengthMM]
+      ,[fishWeightG]
       ,[sexCode]
       ,[animalId]
   FROM   fishline.dbo.SDSample
@@ -107,13 +112,22 @@ df3$sdSampleId <- NULL
 df3$comment <- gsub(df3$comment, pattern = "\\.|,|;", replacement = " ")
   
 
-animals <- unique(df2$animalId)
+animals <- as.numeric(unique(df2$animalId))
+animals <- animals[!is.na(animals)]
   
 channel <- odbcConnect("FishLineDW")
+
+animal <- sqlQuery(channel, paste("SELECT     animalId, 
+                                                remark AS remark_Animal
+                                       FROM     [FishLineDW].[dbo].animal
+                                       WHERE    (animalId IN ('", paste(animals,collapse = "','"),"'))
+                                    	 ORDER BY dateGearStart
+                                       	        ", sep = ""))
+
+
 age <- sqlQuery(channel, paste("SELECT   animalId, individNum, year, 
-                                                dateGearStart AS catch_date, quarterGearStart AS quarter,
-                                                cruise, trip, station, 
-                                                speciesCode, sexCode,
+                                                quarterGearStart AS quarter,
+                                                speciesCode,
                                                 age AS age_FishLine, agePlusGroup, 
                                                 otolithWeight, otolithReadingRemark AS AQ_FishLine,
                                                 hatchMonth, hatchMonthRemark,
@@ -124,27 +138,26 @@ age <- sqlQuery(channel, paste("SELECT   animalId, individNum, year,
                                        WHERE    (animalId IN ('", paste(animals,collapse = "','"),"'))
                                     	 ORDER BY dateGearStart
                                   			        ", sep = ""))
-  
-  animal <- sqlQuery(channel, paste("SELECT     animalId, year,
-                                                cruise, trip, station, dfuArea AS area, speciesCode, 
-                                                weight, length AS fishLengthMM,
-                                                remark AS remark_Animal
-                                       FROM     [FishLineDW].[dbo].animal
-                                       WHERE    (animalId IN ('", paste(animals,collapse = "','"),"'))
-                                    	 ORDER BY dateGearStart
-                                       	        ", sep = ""))
-  
-  
-  close(channel)
-  
-  fishline <- merge(age, animal, by = c("animalId" ,"year", "cruise","trip", "station", "speciesCode"))
+
+close(channel)
+
+if (nrow(age) != 0){
+  fishline <- merge(age, animal, by = c("animalId"))
   
   fishline$comment_FishLine <- paste0(fishline$remark_Age, " - ", fishline$remark_Animal)
   fishline$comment_FishLine <- gsub(fishline$comment_FishLine, pattern = "\\.|,|;|NA", replacement = " ")
   fishline$remark_Age <- NULL
   fishline$remark_Animal <- NULL
   
-  out <- merge(df3, fishline, by = c("animalId", "fishLengthMM", "sexCode"))
+  out <- merge(df3, fishline, by = c("animalId"))
+}  else {
+  out <- df3
+  out$speciesCode <- species
+  out$year <- year(out$catchDate)
+  out$quarter <- quarter(out$catchDate)
+  out$individNum <- NA
+}
+  
   
   names(out)[names(out) == "AQ"] <- "AQ_SD"
   names(out)[names(out) == "age"] <- "age_SD"
@@ -152,34 +165,28 @@ age <- sqlQuery(channel, paste("SELECT   animalId, individNum, year,
   names(out)[names(out) == "comment"] <- "comment_SD"
   
   #relocate columns for costom output...
-  out <- out %>% relocate(c(sdEventId, speciesCode, 
-                            area, year, cruise, trip, station, individNum, 
-                            quarter, catch_date, fishLengthMM,
-                            weight,  sexCode,
-                            fileName, path, scale, imageWidth, imageHeight, otolithWeight,
+  out <- out %>% relocate(c(animalId, sdEventId, speciesCode, 
+                            DFUArea, year, cruise, trip, station, individNum, 
+                            quarter, catchDate, fishLengthMM,
+                            fishWeightG,  sexCode,
+                            fileName, path, scale, imageWidth, imageHeight,
                             sdAnalysisParameterId, sdAnnotationId, 
                             isReadOnly, createdTime, modifiedTime, isApproved, 
-                            ageReadName_SD, age_SD, AQ_SD, edgeStructure,
-                            ageReadName_FishLine, age_FishLine, AQ_FishLine, 
-                            hatchMonth, hatchMonthReaderName, hatchMonthRemark,
-                            comment_SD, comment_FishLine), 
-                        .after = animalId)
+                            ageReadName_SD, age_SD, AQ_SD), 
+                        .before = edgeStructure)
 
  
   write.csv(out, paste0("all_data_event_", eventId, format(Sys.Date(), "%d%m%y"), ".csv"),
               quote = FALSE, row.names = FALSE, na = '') 
   
   #wide format
-  setDT(df3)
+  setDT(out)
   #get rid of one user with more than one created age for the same fish, choose the latest
-  df4 <- unique(df3[order(-createdTime)], by=c("animalId", "ageReadName"))
+  df4 <- unique(out[order(-createdTime)], by=c("animalId", "ageReadName_SD"))
 
-  dat <- dcast(df4, animalId ~ ageReadName, value.var = c("age", "AQ", "edgeStructure", "comment"))
+  dat <- dcast(df4, animalId + year + cruise + trip + station + individNum 
+               ~ ageReadName_SD, value.var = c("age_SD", "AQ_SD", "edgeStructure", "comment_SD"))
 
-  dat <- merge(fishline[, c("animalId", "year", "cruise", "trip", "station", "individNum",
-                       "AQ_FishLine", "ageReadName_FishLine", "comment_FishLine",  "age_FishLine")], dat, by = "animalId")
-  
-  
   write.csv(dat, paste0("age_data_event_", eventId, format(Sys.Date(), "%d%m%y"), ".csv"),
               quote = FALSE, row.names = FALSE, na = '') 
 
