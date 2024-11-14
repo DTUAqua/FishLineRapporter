@@ -16,18 +16,17 @@ output: pdf_document
 # year<- @paramYear
 # cruise <- @paramCruise
 # species <- @paramSpecies
-#trip <- '1 OES' #trip number
-gearQuality <- "V"
-redsk_dim <- 1
-areaString <- 'Alle_muslingeområder_2019_region_erase1.shp'
-
-year<- 2019
-cruise <- 'BV LF BMS april'
-species <- "OES"
-# #trip <- '1 OES' #trip number
+# trip <- '1 OES' #trip number
 # gearQuality <- "V"
 # redsk_dim <- 1
-# areaString <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/Muslingeomraader/Alle muslingeområder 2011_region.shp"
+# areaString <- 'Alle_muslingeområder_2019_region_erase1.shp'
+
+year<- 2000
+cruise <- 'BV LF BMS maj'
+species <- "BMS"
+gearQuality <- "V"
+redsk_dim <- 1
+areaString <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/Muslingeomraader/Alle_muslingeområder_2019_region_erase1.shp"
 
 ```
 
@@ -52,17 +51,17 @@ p_load(RODBC,dplyr,sf,data.table,stringr,lwgeom,knitr)
 
 channel <- odbcConnect("FishLineDW")
 data <- sqlQuery(channel, paste("SELECT    Sample.sampleId, Sample.year, Sample.cruise, Sample.trip, Sample.remark, Sample.station, 
-                                           Sample.stationName, Sample.latPosStartText, Sample.lonPosStartText, 
+                                           Sample.stationName, Sample.dateGearStart, Sample.latPosStartText, Sample.lonPosStartText, 
                                            Sample.latPosStartDec, Sample.lonPosStartDec, Sample.distanceBottom,Sample.coursetrack,
                                            Sample.fishingtime, Sample.distancePositions, Sample.gearQuality, 
                                            SpeciesList.speciesCode, SpeciesList.weightStep0, 
                                            SpeciesList.weightStep1, SpeciesList.weightStep2, SpeciesList.weightStep3, 
                                            SpeciesList.raisingFactor, Animal.representative, Animal.individNum, Animal.length, 
                                            Animal.number, Animal.weight, SpeciesList.speciesListId, Animal.animalId, Sample.depthAveGear,
-                                           Sample.gearType
-                                 FROM      Animal RIGHT OUTER JOIN
-                                           SpeciesList ON Animal.speciesListId = SpeciesList.speciesListId RIGHT OUTER JOIN
-                                           Sample ON SpeciesList.sampleId = Sample.sampleId
+                                           Sample.gearType, Sample.depthAvg
+                                 FROM      fishlineDW.dbo.Animal RIGHT OUTER JOIN
+                                           fishlineDW.dbo.SpeciesList ON Animal.speciesListId = SpeciesList.speciesListId RIGHT OUTER JOIN
+                                           fishlineDW.dbo.Sample ON SpeciesList.sampleId = Sample.sampleId
                                  WHERE     Sample.year = (",year, ") AND
                                            Sample.cruise = ('",cruise, "') AND
                                            Sample.gearQuality = 'V' ", sep=""), stringsAsFactors=FALSE)                         
@@ -212,26 +211,25 @@ data3 <- data2[!(grepl("KM", data2$remark)==TRUE),]
 
 ```
   
-  ```{r, include=FALSE}
+```{r, include=FALSE}
   sf::sf_use_s2(FALSE)
-  MUSOMR <- st_read(areaString,stringsAsFactors = F) %>% 
+  MUSOMR <- st_read(areaString,stringsAsFactors = F) %>%
     st_transform(crs=4326)
   MUSOMR <- MUSOMR %>% select(OMRådENUM,OMRådENAV)
-  
+
   data3$lat <- data3$latPosStartDec
   data3$lon <- data3$lonPosStartDec
-  
-  data5 <- st_as_sf(data3, coords = c("lon","lat"),crs = 4326)
-  
+
+  data5 <- st_as_sf(data3[!is.na(data3$lon) & !is.na(data3$lat), ], 
+                    coords = c("lon","lat"),crs = 4326)
+
   data6 <- st_join(data5, MUSOMR)
-  
+
   st_geometry(data6) <- NULL
-  data_omr2 <- data6 %>% 
-    # select(-AREAL,-STATUS,-Area_km2,-Nr,) %>% 
+  data_omr2 <- data6 %>%
+    # select(-AREAL,-STATUS,-Area_km2,-Nr,) %>%
     as.data.frame()
   
-  ```
-
 ```
 
 
@@ -239,9 +237,9 @@ data3 <- data2[!(grepl("KM", data2$remark)==TRUE),]
 ```{r, echo=FALSE, warning=FALSE,message=FALSE}
 
 data_table <- data_omr2 %>%  
-  group_by(sampleId, stationType, year, cruise, trip, station, stationName,
+  group_by(sampleId, stationType, year, cruise, trip, station, stationName, dateGearStart,
            latPosStartText,lonPosStartText, latPosStartDec, lonPosStartDec, OMRådENUM,
-           OMRådENAV, fishingtime, depthAveGear, Befisket_Areal_m2, areal_metode,
+           OMRådENAV, fishingtime, depthAvg, depthAveGear, Befisket_Areal_m2, areal_metode,
            speciesCode,TotalWeight_kg, Length_cm) %>% 
   summarise(Number = sum(TotalNumber,na.rm=T))
 
