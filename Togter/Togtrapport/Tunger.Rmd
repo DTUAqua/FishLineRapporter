@@ -132,12 +132,12 @@ str_gear  <- @paramGear
 str_other  <- @paramOther
 
 
-#year <- 2018#@paramYear # mandatory
-#trip <- c(1,2,4,6,8) # mandatory
+year <- 2023#@paramYear # mandatory
+trip <- c(1,2,4,6) # mandatory
 #par <- "participants.csv"
 #str_cruiseLeader <- "Henrik Degel"#@paramCruiseLeader
-#coastString <- 'M:/123 - FiskeLine/Rapporter/Rapporter/Discardtjek/kort/europe_simple_wgs84'
-#dk_eezString <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/EEZ/DK_EEZ_Jan_2017"
+coastString <- 'Q:/gis/Dynamisk/GEOdata/BasicLayers/CoastLines/Europe/europe_simple_wgs84'
+dk_eezString <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/Boundaries/EEZ/DK_EEZ_Jan_2017"
 
 
 trips <- paste0(trip,collapse = "','")

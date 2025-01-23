@@ -23,7 +23,7 @@ if (!require(pacman)){
 p_load(kableExtra, sqldf, RODBC, dplyr)
 
 #special for this script
-p_load(data.table, lubridate, plyr, suncalc, ggplot2, sm, ggrepel, dbscan, utils)
+p_load(data.table, lubridate, plyr, suncalc, ggplot2, sm, ggrepel, dbscan, zip)
 
 options(scipen=10)
 ```
@@ -44,11 +44,11 @@ options(scipen=10)
 # Paramters to use in R
 y1 <- 2024
 y2 <- 2024
-cruise <- c("BV LF BMS mar", "BV LF OES OST mar")
-species <- c("BMS")
-path <- "Q:/dfad/users/jostou/home/FishLineRapporter/Togter/DATRAS/"
+cruise <- c("Tobisskrabetogt AH", "Tobisskrabetogt REY")
+species <- NULL
+#path <- "Q:/dfad/users/jostou/home/FishLineRapporter/Togter/DATRAS/"
 trip <- c(1)
-#toupload <- "yes"
+toupload <- "Q:/mynd/DATRAS/skrabetogt/" #"Q:/mynd/DATRAS/BITS_upload/"
 
 ```
 
@@ -315,10 +315,19 @@ hh$DataType <- ifelse(hh$HaulVal=='N', "C", "R")
 hh$thermoCline[hh$thermoCline == "Ja"] <- "Y"
 hh$thermoCline[hh$thermoCline == "Nej"] <- "N"
 
+#add the cruise ices code
+hh$Survey <- NA
+hh[hh$cruise %in% c("BITS-1", "KASU-1"), "Survey"] <- "G2916"
+hh[hh$cruise %in% c("BITS-2", "KASI-2"), "Survey"] <- "G8863"
+hh[hh$cruise == "IBTS-1", "Survey"] <- "G1022"
+hh[hh$cruise == "IBTS-2", "Survey"] <- "G2829"
+hh[hh$cruise %like% "Tobiss", "Survey"] <- "D9376"
+
 ## specefic exeptions in HH
 
 # The sandeel dredge survey "Salling" in 2012 is a commercial  survey which we cannot use for scientific studies
 hh <- hh[!(hh$year == 2012 & hh$cruise == "Tobisskrabetogt S."),]
+
 
 ```
 
@@ -400,6 +409,20 @@ ca[! is.na(ca$agePlusGroup), "PlusGr"] <- "+"
 
 #stomach
 ca$StomSamp <- ifelse(! is.na(ca$referenceName), "Y", "N")
+ca[ca$year > 2021 & ca$year < 2024 & 
+     ca$speciesCode == "COD" &
+     ca$length >= 150 &
+     ca$cruise %like% "BIST", "StomSamp"] <- "Y"
+
+ca[ca$year >= 2024 & 
+     ca$speciesCode == "COD|PGH" &
+     ca$cruise %like% "BITS" & ca$genetics == 1, "StomSamp"] <- "Y"
+
+ca[ca$year >= 2024 &
+     ca$speciesCode == "COD" &
+     ca$cruise %like% "KASU" & 
+     ca$length >= 150, "StomSamp"] <- "Y"
+
 
 #genetics
 ca$GenSamp <- ifelse(ca$genetics == 1, "Y", "N")
@@ -424,71 +447,73 @@ ca[!is.na(ca$sexCode) & ca$sexCode == "T", "sexCode"] <- NA
 HH <- data.frame(RecordType = "HH",
                  Quarter = hh$quarterGearStart,
                  Country = "DK",
-                 Ship = hh$Ship,
+                 Platform = hh$Ship,
                  Gear = hh$Gear,
-                 SweepLngt = hh$SweepLngt,
-                 GearEx = hh$GearEx,
+                 SweepLength = hh$SweepLngt,
+                 GearExceptions = hh$GearEx,
                  DoorType = hh$DoorType,
-                 StNo = hh$station,
-                 HaulNo = hh$HaulNo,
+                 StationName = hh$station,
+                 HaulNumber = hh$HaulNo,
                  Year = hh$year,
                  Month = hh$Month,
                  Day = hh$day,
-                 TimeShot = hh$TimeShot,
+                 StartTime = hh$TimeShot,
                  DepthStratum = hh$DepthStratum,
-                 HaulDur = round(hh$fishingtime),
+                 HaulDuration = round(hh$fishingtime),
                  DayNight = hh$DayNight,
-                 ShootLat = hh$latPosStartDec,
-                 ShootLong = hh$lonPosStartDec,
-                 HaulLat = hh$latPosEndDec,
-                 HaulLong = hh$lonPosEndDec,
-                 StatRec = hh$statisticalRectangle,
-                 Depth = round(hh$depthAvg),
-                 HaulVal = hh$HaulVal,
-                 HydroStNo = hh$hydroStnRef,
-                 StdSpecRecCode = 1,
-                 BySpecRecCode = 1,
+                 ShootLatitude = hh$latPosStartDec,
+                 ShootLongitude = hh$lonPosStartDec,
+                 HaulLatitude = hh$latPosEndDec,
+                 HaulLongitude = hh$lonPosEndDec,
+                 StatisticalRectangle = hh$statisticalRectangle,
+                 BottomDepth = round(hh$depthAvg),
+                 HaulValidity = hh$HaulVal,
+                 HydrographicStationID = hh$hydroStnRef,
+                 StandardSpeciesCode = 1,
+                 BycatchSpeciesCode = 1,
                  DataType = hh$DataType,
                  Netopening = round(hh$netOpening, digits = 1),
                  Rigging = NA,
                  Tickler = NA,
                  Distance = hh$Distance,
-                 Warplngt = hh$wireLength,
-                 Warpdia = hh$Warpdia,
-                 WarpDen = hh$WarpDen,
+                 WarpLength = hh$wireLength,
+                 WarpDiameter = hh$Warpdia,
+                 WarpDensity = hh$WarpDen,
                  DoorSurface = hh$DoorSurface,
-                 DoorWgt = hh$DoorWgt,
+                 DoorWeight = hh$DoorWgt,
                  DoorSpread = hh$otterBoardDist,
                  WingSpread = hh$wingSpread,
                  Buoyancy = hh$Buoyancy,
-                 KiteDim = hh$KiteDim,
-                 WgtGroundRope = NA,
-                 TowDir = hh$haulDirection,
-                 GroundSpeed = hh$haulSpeedBot,
+                 KiteArea = hh$KiteDim,
+                 GroundRopeWeight = NA,
+                 TowDirection = hh$haulDirection,
+                 SpeedGround = hh$haulSpeedBot,
                  SpeedWater = hh$haulSpeedWat,
-                 SurCurDir = hh$currentDirectionSrf,
-                 SurCurSpeed = hh$currentSpeedSrf,
-                 BotCurDir = hh$currentDirectionBot,
-                 BotCurSpeed = hh$currentSpeedBo,
-                 WindDir = hh$windDirection,
+                 SurfaceCurrentDirection = hh$currentDirectionSrf,
+                 SurfaceCurrentSpeed = hh$currentSpeedSrf,
+                 BottomCurrentDirection = hh$currentDirectionBot,
+                 BottomCurrentSpeed = hh$currentSpeedBo,
+                 WindDirection = hh$windDirection,
                  WindSpeed = hh$windSpeed,
-                 SwellDir = hh$waveDirection,
+                 SwellDirection = hh$waveDirection,
                  SwellHeight = hh$waveHeigth,
-                 SurTemp = hh$temperatureSrf,
-                 BotTemp = hh$temperatureBot,
-                 SurSal = hh$salinitySrf,
-                 BotSal = hh$salinityBot,
+                 SurfaceTemperature = hh$temperatureSrf,
+                 BottomTemperature = hh$temperatureBot,
+                 SurfaceSalinity = hh$salinitySrf,
+                 BottomSalinity = hh$salinityBot,
                  ThermoCline = hh$thermoCline,
-                 ThClineDepth = hh$thermoClineDepth,
+                 ThermoClineDepth = hh$thermoClineDepth,
                  CodendMesh = hh$meshSize,
                  SecchiDepth = NA,
                  Turbidity = NA,
                  TidePhase = NA,
                  TideSpeed = NA,
-                 PelSampType = hh$PelSampType,
+                 PelagicSamplingType = hh$PelSampType,
                  MinTrawlDepth = hh$MinTrawlDepth,
                  MaxTrawlDepth = hh$MaxTrawlDepth,
-                 SurveyIndexArea = NA)
+                 SurveyIndexArea = NA,
+                 Survey = hh$Survey,
+                 EDMO = 1099)
 
 #coerce NA to -9 according to format
 HH[is.na(HH)] <- "-9"
@@ -497,29 +522,30 @@ HH[is.na(HH)] <- "-9"
 HL <- data.frame(RecordType = "HL",
                  Quarter = hl$quarterGearStart,
                  Country = "DK",
-                 Ship = hl$Ship,
+                 Platform = hl$Ship,
                  Gear = hl$Gear,
-                 SweepLngt = hl$SweepLngt,
-                 GearEx = hl$GearEx,
+                 SweepLength = hl$SweepLngt,
+                 GearExceptions = hl$GearEx,
                  DoorType = hl$DoorType,
-                 StNo = hl$station,
-                 HaulNo = hl$HaulNo,
+                 StationName = hl$station,
+                 HaulNumber = hl$HaulNo,
                  Year = hl$year,
-                 SpecCodeType = "W",
-                 SpecCode = hl$aphiaID,
-                 SpecVal = hl$SpecVal,
-                 Sex = hl$speciesList_sexCode,
-                 TotalNo = hl$numberTotal,
-                 CatIdentifier = 1,
-                 NoMeas = hl$numberSubSample,
-                 SubFactor = hl$SubFactor,
-                 SubWgt = round(hl$weightSubSample*1000),
-                 CatCatchWgt = round(hl$WeightTotal*1000),
-                 LngtCode = ".",
-                 LngtClass = hl$length,
-                 HLNoAtLngt = hl$HLNoAtLngt,
-                 DevStage = hl$ovigorous,
-                 LenMeasType = hl$LenMeasType)
+                 SpeciesCodeType = "W",
+                 SpeciesCode = hl$aphiaID,
+                 SpeciesValidity = hl$SpecVal,
+                 SpeciesSex = hl$speciesList_sexCode,
+                 TotalNumber = hl$numberTotal,
+                 SpeciesCategory = 1,
+                 SubsampledNumber = hl$numberSubSample,
+                 SubsamplingFactor = hl$SubFactor,
+                 SubsampleWeight = round(hl$weightSubSample*1000),
+                 SpeciesCategoryWeight = round(hl$WeightTotal*1000),
+                 LengthCode = ".",
+                 LengthClass = hl$length,
+                 NumberAtLength = hl$HLNoAtLngt,
+                 DevelopmentStage = hl$ovigorous,
+                 LengthType = hl$LenMeasType,
+                 Survey = hl$Survey)
 
 #coerce NA to -9 according to format
 HL[is.na(HL)] <- "-9"
@@ -532,35 +558,36 @@ if (nrow(animal) == 0){
 CA <- data.frame(RecordType = "CA",
                  Quarter = ca$quarterGearStart,
                  Country = "DK",
-                 Ship = ca$Ship,
+                 Platform = ca$Ship,
                  Gear = ca$Gear,
-                 SweepLngt = ca$SweepLngt,
-                 GearEx = ca$GearEx,
+                 SweepLength = ca$SweepLngt,
+                 GearExceptions = ca$GearEx,
                  DoorType = ca$DoorType,
-                 StNo = ca$station,
-                 HaulNo = ca$HaulNo,
+                 StationName = ca$station,
+                 HaulNumber = ca$HaulNo,
                  Year = ca$year,
-                 SpecCodeType = "W",
-                 SpecCode = ca$aphiaID,
+                 SpeciesCodeType = "W",
+                 SpeciesCode = ca$aphiaID,
                  AreaType = 0,
                  AreaCode = ca$statisticalRectangle,
-                 LngtCode = ".",
-                 LngtClass = ca$length,
-                 Sex = ca$sexCode,
-                 Maturity = ca$Maturity,
-                 PlusGr = ca$PlusGr,
-                 AgeRings = ca$age,
-                 CANoAtLngt = ca$number,
-                 IndWgt = ca$weight*1000,
+                 LengthCode = ".",
+                 LengthClass = ca$length,
+                 IndividualSex = ca$sexCode,
+                 IndividualMaturity = ca$Maturity,
+                 AgePlusGroup = ca$PlusGr,
+                 IndividualAge = ca$age,
+                 NumberAtLength = ca$number,
+                 IndividualWeight = ca$weight*1000,
                  MaturityScale = ca$MaturityScale,
                  FishID = ca$animalId,
-                 GenSamp = ca$GenSamp,
-                 StomSamp = ca$StomSamp,
+                 GeneticSamplingFlag = ca$GenSamp,
+                 StomachSamplingFlag = ca$StomSamp,
                  AgeSource = ca$AgeSource,
-                 AgePrepMet = ca$AgePrepMet,
-                 OtGrading = ca$OtGrading,
-                 ParSamp = ca$ParSamp,
-                 LiverWeight = round(ca$weightLiver,2))
+                 AgePreparationMethod = ca$AgePrepMet,
+                 OtolithGrading = ca$OtGrading,
+                 ParasiteSamplingFlag = ca$ParSamp,
+                 LiverWeight = round(ca$weightLiver,2),
+                 Survey = ca$Survey)
 
 #coerce NA to -9 according to format
 CA[is.na(CA)] <- "-9"
@@ -595,6 +622,9 @@ if (!exists("toupload")){
   zip(paste0(path, "DATRAS_", nam, ".zip"), extras = '-j',
       files = paste0(path, "DATRAS_", nam, ".csv"))
   
+   zip::zip(paste0(path, "DATRAS_", nam, ".zip"),
+      files = paste0(path, "DATRAS_", nam, ".csv"),
+      include_directories = FALSE, mode = "cherry-pick")
 }
 
 ```
@@ -611,45 +641,43 @@ if (exists("toupload")){
     
     ##unified header format
     write.table(HH[which(hh$dummy == dum), ], 
-                paste0("Q:/mynd/DATRAS/BITS_upload/to_upload/", nam2, ".csv"), 
+                paste0(toupload, "to_upload/x_", nam2, ".csv"), 
                 row.names = F, quote = F, sep = ",")
     write.table(HL[which(hl$dummy == dum), ], 
-                paste0("Q:/mynd/DATRAS/BITS_upload/to_upload/", nam2, ".csv"), 
+                paste0(toupload, "to_upload/x_", nam2, ".csv"), 
                 row.names = F, quote = F, sep = ",", append = T)
     write.table(CA[which(ca$dummy == dum), ], 
-                paste0("Q:/mynd/DATRAS/BITS_upload/to_upload/", nam2, ".csv"), 
+                paste0(toupload, "to_upload/x_", nam2, ".csv"), 
                 row.names = F, quote = F, sep = ",", append = T)
   }
   
   
   ##individual files
-  write.table(HH, paste0("Q:/mynd/DATRAS/BITS_upload/outputs/HH_", nam, ".csv"), 
+  write.table(HH, paste0(toupload, "outputs/x_HH_", nam, ".csv"), 
               row.names = F, quote = F, sep = ",")
-  write.table(HL, paste0("Q:/mynd/DATRAS/BITS_upload/outputs/HL_", nam, ".csv"), 
+  write.table(HL, paste0(toupload, "outputs/x_HL_", nam, ".csv"), 
               row.names = F, quote = F, sep = ",", append = F)
-  write.table(CA, paste0("Q:/mynd/DATRAS/BITS_upload/outputs/CA_", nam, ".csv"), 
+  write.table(CA, paste0(toupload, "outputs/x_CA_", nam, ".csv"), 
               row.names = F, quote = F, sep = ",", append = F)
   
   #zip with unefied headder for the datras pakage
   ##unified header format
-  write.table(HH, paste0("Q:/mynd/DATRAS/BITS_upload/zips/DATRAS_", nam, ".csv"),
+  write.table(HH, paste0(toupload, "zips/DATRAS_", nam, ".csv"),
               row.names = F, quote = F, sep = ",")
-  write.table(HL, paste0("Q:/mynd/DATRAS/BITS_upload/zips/DATRAS_", nam, ".csv"),
+  write.table(HL, paste0(toupload, "zips/DATRAS_", nam, ".csv"),
               row.names = F, quote = F, sep = ",", append = T)
-  write.table(CA, paste0("Q:/mynd/DATRAS/BITS_upload/zips/DATRAS_", nam, ".csv"),
+  write.table(CA, paste0(toupload, "zips/DATRAS_", nam, ".csv"),
               row.names = F, quote = F, sep = ",", append = T)
   
-  zip(paste0("Q:/mynd/DATRAS/BITS_upload/zips/DATRAS_", nam, ".zip"), extras = '-j',
-      files = paste0("Q:/mynd/DATRAS/BITS_upload/zips/DATRAS_", nam, ".csv"))
+  zip::zip(paste0(toupload, "zips/DATRAS_", nam, ".zip"),
+      files = paste0(toupload, "zips/DATRAS_", nam, ".csv"),
+      include_directories = FALSE, mode = "cherry-pick")
   
-  if (file.exists(paste0("Q:/mynd/DATRAS/BITS_upload/zips/DATRAS_", nam, ".csv"))) {
+  if (file.exists(paste0(toupload, "zips/DATRAS_", nam, ".csv"))) {
     #Delete file if it exists
-    file.remove(paste0("Q:/mynd/DATRAS/BITS_upload/zips/DATRAS_", nam, ".csv"))
+    file.remove(paste0(toupload, "zips/DATRAS_", nam, ".csv"))
   }
-  
-  
 }
-
 
 ```
 
@@ -967,7 +995,6 @@ fun <- function(k) {
            cex.lab = 1.5,
            xaxt="n")+
         axis(1,at=unique(sp_age$age),labels=unique(sp_age$age))+
-        grid()+
         points(sp_age$age, sp_age$length, pch = 16, cex = 1, col = "blue")+
         points(out_age$age, out_age$length, pch = 16, cex = 1, col = "red")
       

@@ -23,7 +23,7 @@ if (!require(pacman)){
 p_load(kableExtra, sqldf, RODBC, dplyr)
 
 #special for this script
-p_load(data.table, sm, ggplot2, ggrepel, dbscan)
+p_load(data.table, sm, ggplot2, ggrepel, dbscan, plyr)
 
 
 ```
@@ -34,9 +34,9 @@ yr <- c(@paramYear)
 species <- @paramSpecies
 eventId <- @paramEventId
 
-# yr <- c(2023)
-# species <- c("BLH")
-# eventId <- "40"
+# yr <- c(2024)
+# species <- c("BRS")
+# eventId <- "49"
 
 ```
 
@@ -104,7 +104,7 @@ df1 <- merge(sample, file, by = "sdSampleId", all.x = T)
 df2 <- merge(df1, annot, by = "sdFileId", all.x = T)
 
 #df2[is.na(df2$otolithReadingRemarkId), "otolithReadingRemarkId"] <- 15
-df3 <- merge(df2, AQ, by = "otolithReadingRemarkId") 
+df3 <- merge(df2, AQ, by = "otolithReadingRemarkId", all.x = T) 
 
 df3$otolithReadingRemarkId <- NULL
 df3$sdFileId <- NULL
@@ -141,6 +141,7 @@ age <- sqlQuery(channel, paste("SELECT   animalId, individNum, year,
 
 close(channel)
 
+
 if (nrow(age) != 0){
   fishline <- merge(age, animal, by = c("animalId"))
   
@@ -150,6 +151,17 @@ if (nrow(age) != 0){
   fishline$remark_Animal <- NULL
   
   out <- merge(df3, fishline, by = c("animalId"))
+  
+  if (nrow(out) < nrow(df3)) {
+    other <- df3[! df3$animalId %in% out$animalId, ]
+    other$speciesCode <- species
+    other$year <- year(other$catchDate)
+    other$quarter <- quarter(other$catchDate)
+    other$individNum <- NA
+    
+    out <- rbind.fill(out, other)
+  }
+    
 }  else {
   out <- df3
   out$speciesCode <- species
@@ -183,7 +195,7 @@ if (nrow(age) != 0){
   setDT(out)
   #get rid of one user with more than one created age for the same fish, choose the latest
   df4 <- unique(out[order(-createdTime)], by=c("animalId", "ageReadName_SD"))
-
+  df4 <- df4[!is.na(df4$ageReadName_SD), ]
   dat <- dcast(df4, animalId + year + cruise + trip + station + individNum 
                ~ ageReadName_SD, value.var = c("age_SD", "AQ_SD", "edgeStructure", "comment_SD"))
 

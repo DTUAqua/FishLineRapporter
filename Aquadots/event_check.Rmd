@@ -459,7 +459,6 @@ if (nrow(age_fish) != 0){
            cex.lab = 1.5,
            xaxt="n")+
         axis(1,at=unique(data$age),labels=unique(data$age))+
-        grid()+
         lines(sort(data$age), fitted(lm_fit)[order(data$age)], col='red', lwd=1.5)+
         points(data$age, data$length_mm, pch = 16, cex = 1, col = "blue")+
         points(outliers$age, outliers$length_mm, pch = 16, cex = 1, col = "red")
@@ -474,7 +473,6 @@ if (nrow(age_fish) != 0){
            cex.lab = 1.5,
            xaxt="n")+
         axis(1,at=unique(data$age),labels=unique(data$age))+
-        grid()+
         points(data$age, data$length_mm, pch = 16, cex = 1, col = "blue")+
         points(outliers$age, outliers$length_mm, pch = 16, cex = 1, col = "red")  
         
