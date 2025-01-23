@@ -31,7 +31,7 @@ options(knitr.kable.NA = '')
 ## Parameters
 year<- 2024
 cruise <- "SEAS"
-trip <- "2209"
+trip <- "2243"
 coast_string <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/CoastLines/Europe/europe_simple_wgs84"
 dfad <- readRDS("//fishline.dtuaqua.dk/dfad-share/dfad.rds")
 sel <- read.csv2("//fishline.dtuaqua.dk/dfad-share/rdsk_select.csv")
@@ -569,7 +569,8 @@ if (nrow(data.frame(sp_lst)) > 0) {
   est <- est[est$speciesCode != "DTO"]
   
     
-  est <- est[ ,. (tast = round(sum(weightStep3 * raisingFactor, na.rm = T), 1),
+  est <- est[ ,. (tast = round(sum(weightStep3 * treatmentFactor 
+                                   * raisingFactor, na.rm = T), 1),
                   tot = round(min(totalWeight, na.rm = T), 1)),
                            by = .(station)]
   
