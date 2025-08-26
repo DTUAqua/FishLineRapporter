@@ -42,13 +42,13 @@ options(scipen=10)
 # 
 
 # Paramters to use in R
-y1 <- 2024
-y2 <- 2024
-cruise <- c("Tobisskrabetogt AH", "Tobisskrabetogt REY")
+y1 <- 2025
+y2 <- 2025
+cruise <- c("BV LF BMS Marts") #, "BITS-1", "KASU-1"
 species <- NULL
-#path <- "Q:/dfad/users/jostou/home/FishLineRapporter/Togter/DATRAS/"
+path <- "Q:/20-forskning/20-dfad/users/jostou/home/FishLineRapporter/Togter/DATRAS/"
 trip <- c(1)
-toupload <- "Q:/mynd/DATRAS/skrabetogt/" #"Q:/mynd/DATRAS/BITS_upload/"
+#toupload <- "Q:/50-radgivning/02-mynd/DATRAS/BITS_upload/" #"Q:/mynd/DATRAS/BITS_upload/"
 
 ```
 
@@ -82,6 +82,7 @@ station <- sqlQuery(channel, paste("SELECT
       ,[lonPosStartDec]
       ,[latPosEndDec]
       ,[lonPosEndDec]
+      ,[DFUArea]
       ,[statisticalRectangle]
       ,[distancePositions]
       ,[depthAvg]
@@ -218,6 +219,25 @@ stomach <- sqlQuery(channel, paste("SELECT
 
 
 close(channel)
+
+## exclude test 0 length hauls
+if (y1 == 2025) {
+  exclude <- c(16, 17, 24, 27, 55, 83, 145) 
+  
+  station <- station[! (station$station %in% exclude & 
+                          station$cruise == "BITS-1"), ]
+  
+  tot_catch <- tot_catch[! (tot_catch$station %in% exclude &
+                              tot_catch$cruise == "BITS-1"), ]
+  
+  len_dist <- len_dist[! (len_dist$station %in% exclude &
+                            len_dist$cruise == "BITS-1"), ]
+  
+  animal <- animal[! (animal$station %in% exclude &
+                        animal$cruise == "BITS-1"), ]
+  
+}
+##
 ```
 
 ```{r HH, include=FALSE}
@@ -409,6 +429,7 @@ ca[! is.na(ca$agePlusGroup), "PlusGr"] <- "+"
 
 #stomach
 ca$StomSamp <- ifelse(! is.na(ca$referenceName), "Y", "N")
+
 ca[ca$year > 2021 & ca$year < 2024 & 
      ca$speciesCode == "COD" &
      ca$length >= 150 &
@@ -447,73 +468,71 @@ ca[!is.na(ca$sexCode) & ca$sexCode == "T", "sexCode"] <- NA
 HH <- data.frame(RecordType = "HH",
                  Quarter = hh$quarterGearStart,
                  Country = "DK",
-                 Platform = hh$Ship,
+                 Ship = hh$Ship,
                  Gear = hh$Gear,
-                 SweepLength = hh$SweepLngt,
-                 GearExceptions = hh$GearEx,
+                 SweepLngt = hh$SweepLngt,
+                 GearEx = hh$GearEx,
                  DoorType = hh$DoorType,
-                 StationName = hh$station,
-                 HaulNumber = hh$HaulNo,
+                 StNo = hh$station,
+                 HaulNo = hh$HaulNo,
                  Year = hh$year,
                  Month = hh$Month,
                  Day = hh$day,
-                 StartTime = hh$TimeShot,
+                 TimeShot = hh$TimeShot,
                  DepthStratum = hh$DepthStratum,
-                 HaulDuration = round(hh$fishingtime),
+                 HaulDur = round(hh$fishingtime),
                  DayNight = hh$DayNight,
-                 ShootLatitude = hh$latPosStartDec,
-                 ShootLongitude = hh$lonPosStartDec,
-                 HaulLatitude = hh$latPosEndDec,
-                 HaulLongitude = hh$lonPosEndDec,
-                 StatisticalRectangle = hh$statisticalRectangle,
-                 BottomDepth = round(hh$depthAvg),
-                 HaulValidity = hh$HaulVal,
-                 HydrographicStationID = hh$hydroStnRef,
-                 StandardSpeciesCode = 1,
-                 BycatchSpeciesCode = 1,
+                 ShootLat = hh$latPosStartDec,
+                 ShootLong = hh$lonPosStartDec,
+                 HaulLat = hh$latPosEndDec,
+                 HaulLong = hh$lonPosEndDec,
+                 StatRec = hh$statisticalRectangle,
+                 Depth = round(hh$depthAvg),
+                 HaulVal = hh$HaulVal,
+                 HydroStNo = hh$hydroStnRef,
+                 StdSpecRecCode = 1,
+                 BySpecRecCode = 1,
                  DataType = hh$DataType,
                  Netopening = round(hh$netOpening, digits = 1),
                  Rigging = NA,
                  Tickler = NA,
                  Distance = hh$Distance,
-                 WarpLength = hh$wireLength,
-                 WarpDiameter = hh$Warpdia,
-                 WarpDensity = hh$WarpDen,
+                 Warplngt = hh$wireLength,
+                 Warpdia = hh$Warpdia,
+                 WarpDen = hh$WarpDen,
                  DoorSurface = hh$DoorSurface,
-                 DoorWeight = hh$DoorWgt,
+                 DoorWgt = hh$DoorWgt,
                  DoorSpread = hh$otterBoardDist,
                  WingSpread = hh$wingSpread,
                  Buoyancy = hh$Buoyancy,
-                 KiteArea = hh$KiteDim,
-                 GroundRopeWeight = NA,
-                 TowDirection = hh$haulDirection,
-                 SpeedGround = hh$haulSpeedBot,
+                 KiteDim = hh$KiteDim,
+                 WgtGroundRope = NA,
+                 TowDir = hh$haulDirection,
+                 GroundSpeed = hh$haulSpeedBot,
                  SpeedWater = hh$haulSpeedWat,
-                 SurfaceCurrentDirection = hh$currentDirectionSrf,
-                 SurfaceCurrentSpeed = hh$currentSpeedSrf,
-                 BottomCurrentDirection = hh$currentDirectionBot,
-                 BottomCurrentSpeed = hh$currentSpeedBo,
-                 WindDirection = hh$windDirection,
+                 SurCurDir = hh$currentDirectionSrf,
+                 SurCurSpeed = hh$currentSpeedSrf,
+                 BotCurDir = hh$currentDirectionBot,
+                 BotCurSpeed = hh$currentSpeedBo,
+                 WindDir = hh$windDirection,
                  WindSpeed = hh$windSpeed,
-                 SwellDirection = hh$waveDirection,
+                 SwellDir = hh$waveDirection,
                  SwellHeight = hh$waveHeigth,
-                 SurfaceTemperature = hh$temperatureSrf,
-                 BottomTemperature = hh$temperatureBot,
-                 SurfaceSalinity = hh$salinitySrf,
-                 BottomSalinity = hh$salinityBot,
+                 SurTemp = hh$temperatureSrf,
+                 BotTemp = hh$temperatureBot,
+                 SurSal = hh$salinitySrf,
+                 BotSal = hh$salinityBot,
                  ThermoCline = hh$thermoCline,
-                 ThermoClineDepth = hh$thermoClineDepth,
+                 ThClineDepth = hh$thermoClineDepth,
                  CodendMesh = hh$meshSize,
                  SecchiDepth = NA,
                  Turbidity = NA,
                  TidePhase = NA,
                  TideSpeed = NA,
-                 PelagicSamplingType = hh$PelSampType,
+                 PelSampType = hh$PelSampType,
                  MinTrawlDepth = hh$MinTrawlDepth,
                  MaxTrawlDepth = hh$MaxTrawlDepth,
-                 SurveyIndexArea = NA,
-                 Survey = hh$Survey,
-                 EDMO = 1099)
+                 SurveyIndexArea = NA)
 
 #coerce NA to -9 according to format
 HH[is.na(HH)] <- "-9"
@@ -522,30 +541,29 @@ HH[is.na(HH)] <- "-9"
 HL <- data.frame(RecordType = "HL",
                  Quarter = hl$quarterGearStart,
                  Country = "DK",
-                 Platform = hl$Ship,
+                 Ship = hl$Ship,
                  Gear = hl$Gear,
-                 SweepLength = hl$SweepLngt,
-                 GearExceptions = hl$GearEx,
+                 SweepLngt = hl$SweepLngt,
+                 GearEx = hl$GearEx,
                  DoorType = hl$DoorType,
-                 StationName = hl$station,
-                 HaulNumber = hl$HaulNo,
+                 StNo = hl$station,
+                 HaulNo = hl$HaulNo,
                  Year = hl$year,
-                 SpeciesCodeType = "W",
-                 SpeciesCode = hl$aphiaID,
-                 SpeciesValidity = hl$SpecVal,
-                 SpeciesSex = hl$speciesList_sexCode,
-                 TotalNumber = hl$numberTotal,
-                 SpeciesCategory = 1,
-                 SubsampledNumber = hl$numberSubSample,
-                 SubsamplingFactor = hl$SubFactor,
-                 SubsampleWeight = round(hl$weightSubSample*1000),
-                 SpeciesCategoryWeight = round(hl$WeightTotal*1000),
-                 LengthCode = ".",
-                 LengthClass = hl$length,
-                 NumberAtLength = hl$HLNoAtLngt,
-                 DevelopmentStage = hl$ovigorous,
-                 LengthType = hl$LenMeasType,
-                 Survey = hl$Survey)
+                 SpecCodeType = "W",
+                 SpecCode = hl$aphiaID,
+                 SpecVal = hl$SpecVal,
+                 Sex = hl$speciesList_sexCode,
+                 TotalNo = hl$numberTotal,
+                 CatIdentifier = 1,
+                 NoMeas = hl$numberSubSample,
+                 SubFactor = hl$SubFactor,
+                 SubWgt = round(hl$weightSubSample*1000),
+                 CatCatchWgt = round(hl$WeightTotal*1000),
+                 LngtCode = ".",
+                 LngtClass = hl$length,
+                 HLNoAtLngt = hl$HLNoAtLngt,
+                 DevStage = hl$ovigorous,
+                 LenMeasType = hl$LenMeasType)
 
 #coerce NA to -9 according to format
 HL[is.na(HL)] <- "-9"
@@ -558,43 +576,42 @@ if (nrow(animal) == 0){
 CA <- data.frame(RecordType = "CA",
                  Quarter = ca$quarterGearStart,
                  Country = "DK",
-                 Platform = ca$Ship,
+                 Ship = ca$Ship,
                  Gear = ca$Gear,
-                 SweepLength = ca$SweepLngt,
-                 GearExceptions = ca$GearEx,
+                 SweepLngt = ca$SweepLngt,
+                 GearEx = ca$GearEx,
                  DoorType = ca$DoorType,
-                 StationName = ca$station,
-                 HaulNumber = ca$HaulNo,
+                 StNo = ca$station,
+                 HaulNo = ca$HaulNo,
                  Year = ca$year,
-                 SpeciesCodeType = "W",
-                 SpeciesCode = ca$aphiaID,
+                 SpecCodeType = "W",
+                 SpecCode = ca$aphiaID,
                  AreaType = 0,
                  AreaCode = ca$statisticalRectangle,
-                 LengthCode = ".",
-                 LengthClass = ca$length,
-                 IndividualSex = ca$sexCode,
-                 IndividualMaturity = ca$Maturity,
-                 AgePlusGroup = ca$PlusGr,
-                 IndividualAge = ca$age,
-                 NumberAtLength = ca$number,
-                 IndividualWeight = ca$weight*1000,
+                 LngtCode = ".",
+                 LngtClass = ca$length,
+                 Sex = ca$sexCode,
+                 Maturity = ca$Maturity,
+                 PlusGr = ca$PlusGr,
+                 AgeRings = ca$age,
+                 CANoAtLngt = ca$number,
+                 IndWgt = ca$weight*1000,
                  MaturityScale = ca$MaturityScale,
                  FishID = ca$animalId,
-                 GeneticSamplingFlag = ca$GenSamp,
-                 StomachSamplingFlag = ca$StomSamp,
+                 GenSamp = ca$GenSamp,
+                 StomSamp = ca$StomSamp,
                  AgeSource = ca$AgeSource,
-                 AgePreparationMethod = ca$AgePrepMet,
-                 OtolithGrading = ca$OtGrading,
-                 ParasiteSamplingFlag = ca$ParSamp,
-                 LiverWeight = round(ca$weightLiver,2),
-                 Survey = ca$Survey)
+                 AgePrepMet = ca$AgePrepMet,
+                 OtGrading = ca$OtGrading,
+                 ParSamp = ca$ParSamp,
+                 LiverWeight = round(ca$weightLiver,2))
 
 #coerce NA to -9 according to format
 CA[is.na(CA)] <- "-9"
 }
 ```
 
-```{r outputs, echo=FALSE, cache=FALSE, message=FALSE, warning=FALSE}
+```{r outputs, echo=FALSE, cache=FALSE, message=FALSE, warning=FALSE, eval = TRUE}
 if (!exists("toupload")){ 
   
   nam <- format(Sys.Date(),"%d%m%y")
@@ -619,17 +636,14 @@ if (!exists("toupload")){
   write.table(CA, paste0(path, "DATRAS_", nam, ".csv"),
               row.names = F, quote = F, sep = ",", append = T)
   
-  zip(paste0(path, "DATRAS_", nam, ".zip"), extras = '-j',
-      files = paste0(path, "DATRAS_", nam, ".csv"))
-  
-   zip::zip(paste0(path, "DATRAS_", nam, ".zip"),
+  zip::zip(paste0(path, "DATRAS_", nam, ".zip"),
       files = paste0(path, "DATRAS_", nam, ".csv"),
       include_directories = FALSE, mode = "cherry-pick")
 }
 
 ```
 
-```{r outputs2, echo=FALSE, cache=FALSE, message=FALSE, warning=FALSE}
+```{r outputs2, echo=FALSE, cache=FALSE, message=FALSE, warning=FALSE, eval = TRUE}
 if (exists("toupload")){
   nam <- format(Sys.Date(),"%d%m%y")
   
@@ -641,23 +655,23 @@ if (exists("toupload")){
     
     ##unified header format
     write.table(HH[which(hh$dummy == dum), ], 
-                paste0(toupload, "to_upload/x_", nam2, ".csv"), 
+                paste0(toupload, "to_upload/", nam2, ".csv"), 
                 row.names = F, quote = F, sep = ",")
     write.table(HL[which(hl$dummy == dum), ], 
-                paste0(toupload, "to_upload/x_", nam2, ".csv"), 
+                paste0(toupload, "to_upload/", nam2, ".csv"), 
                 row.names = F, quote = F, sep = ",", append = T)
     write.table(CA[which(ca$dummy == dum), ], 
-                paste0(toupload, "to_upload/x_", nam2, ".csv"), 
+                paste0(toupload, "to_upload/", nam2, ".csv"), 
                 row.names = F, quote = F, sep = ",", append = T)
   }
   
   
   ##individual files
-  write.table(HH, paste0(toupload, "outputs/x_HH_", nam, ".csv"), 
+  write.table(HH, paste0(toupload, "outputs/HH_", nam, ".csv"), 
               row.names = F, quote = F, sep = ",")
-  write.table(HL, paste0(toupload, "outputs/x_HL_", nam, ".csv"), 
+  write.table(HL, paste0(toupload, "outputs/HL_", nam, ".csv"), 
               row.names = F, quote = F, sep = ",", append = F)
-  write.table(CA, paste0(toupload, "outputs/x_CA_", nam, ".csv"), 
+  write.table(CA, paste0(toupload, "outputs/CA_", nam, ".csv"), 
               row.names = F, quote = F, sep = ",", append = F)
   
   #zip with unefied headder for the datras pakage

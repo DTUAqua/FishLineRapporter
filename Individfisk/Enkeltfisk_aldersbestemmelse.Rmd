@@ -45,11 +45,11 @@ area_val <- c(@paramArea)
 species_val <- c(@paramSpecies)
 
 # Paramters to use in R
-#y1 <- 2016
-#y2 <- 2016
-#cruise_val <- c('MON', 'SEAS')
-#area_val <- c(21, 22, 23)
-#species_val <- c('TNG')
+# y1 <- 2016
+# y2 <- 2016
+# cruise_val <- c('MON', 'SEAS')
+# area_val <- c(21, 22, 23)
+# species_val <- c('TNG')
 
 ```
 
@@ -57,6 +57,7 @@ species_val <- c(@paramSpecies)
 ```{r get_data, include=FALSE}
 
 channel <- odbcConnect("FishLineDW")
+
 ind_fish <- sqlQuery(channel, paste("SELECT   a.animalId, a.year, a.cruise, a.trip, a.tripType, 
                                               a.station, a.dateGearStart, a.quarterGearStart, 
                                               a.dfuArea, a.statisticalRectangle, a.gearQuality, 
@@ -67,9 +68,9 @@ ind_fish <- sqlQuery(channel, paste("SELECT   a.animalId, a.year, a.cruise, a.tr
                                               b.age, a.maturityIndex, a.maturityIndexMethod, a.weightGutted, 
                                               a.weightLiver, a.weightGonads, a.numVertebra, 
                                               c.referenceName AS reference
-                                     FROM     Animal AS a LEFT OUTER JOIN
-                                                 Age AS b ON a.animalId = b.animalId LEFT OUTER JOIN
-                                                     R_AnimalReference AS c ON a.animalId = c.animalId
+                                     FROM     [FishLineDW].[dbo].Animal AS a LEFT OUTER JOIN
+                                                 [FishLineDW].[dbo].Age AS b ON a.animalId = b.animalId LEFT OUTER JOIN
+                                                     [FishLineDW].[dbo].R_AnimalReference AS c ON a.animalId = c.animalId
                                      WHERE    (a.individNum > 0) AND 
                                   			  (a.speciesCode IN ('", paste(species_val,collapse = "','"),"')) AND 
                                   			  (a.dfuArea IN ('", paste(area_val,collapse = "','"),"')) AND 
@@ -78,8 +79,20 @@ ind_fish <- sqlQuery(channel, paste("SELECT   a.animalId, a.year, a.cruise, a.tr
                                   	ORDER BY   a.dateGearStart
                                 			        ", sep = ""))
 
+harb <- sqlQuery(channel, paste("SELECT
+ [year]
+,[cruise]
+,[trip]
+,[harbourSample]
+FROM [FishLineDW].[dbo].[Trip]
+WHERE     (year IN ('",paste0(ind_fish$year, collapse="','"), "')) AND
+          (cruise IN ('",paste0(ind_fish$cruise, collapse="','"), "')) AND
+          (trip IN ('",paste0(ind_fish$trip, collapse="','"), "'))
+" ,sep = ""))
+
 close(channel)
 
+ind_fish <- merge(ind_fish, harb, by = c("year", "cruise", "trip"), all.x = T)
 
 ```
 
@@ -87,7 +100,7 @@ close(channel)
 
 # Calculate number of fish per year, cruise, area and species
 # Show total number of fish and number of aged/not aged fish 
-tot_fish <- ddply(ind_fish, .(year, cruise, dfuArea, speciesCode),
+tot_fish <- ddply(ind_fish, .(year, cruise, dfuArea, harbourSample, speciesCode),
 					        summarize, antal = sum(number), 
 					        antalAldret = sum(!is.na(age)),
 					        antalIkkeAldret = sum(is.na(age)))
@@ -103,7 +116,7 @@ tot_fish <- ddply(ind_fish, .(year, cruise, dfuArea, speciesCode),
 ind_fish$Maaned <- format(ind_fish$dateGearStart, "%d/%m") #alternativ til ovenstående
 
 # Reduce the number of columns to be written from ind_fish
-ind_fish_red <- ind_fish[,c("cruise","Maaned","dfuArea","statisticalRectangle","station","speciesCode",
+ind_fish_red <- ind_fish[,c("cruise","Maaned","dfuArea","harbourSample","statisticalRectangle","station","speciesCode",
                             "sizeSortingEU","individNum","length_mm","weightUR_g","sexCode","maturityIndex")]
 #ind_fish_red <- ind_fish[,c("cruise","dateGearStart","dfuArea","statisticalRectangle","station","speciesCode",
  #                           "sizeSortingEU","individNum","length_mm","weightUR_g","sexCode","maturityIndex")]
@@ -113,7 +126,7 @@ ind_fish_red <- ind_fish[,c("cruise","Maaned","dfuArea","statisticalRectangle","
 #ind_fish_red[ order(ind_fish_red$cruise), ] 
 
 #rename to what Frank wanted (3. september 2020)
-names(ind_fish_red) <- c("Togt","Dato","Omr.","Sq.","Stat.","Art","Sort.","Fisk nr.","mm","kg UR","sex","modenh.")
+names(ind_fish_red) <- c("Togt","Dato","Omr.","havn","Sq.","Stat.","Art","Sort.","Fisk nr.","mm","kg UR","sex","modenh.")
 
 ind_fish_red$Alder <- ""
 ind_fish_red$Læsb. <- "" #Læsbarhed
@@ -145,6 +158,11 @@ ind_fish_red$Kantstr. <- "" #Kantstruktur
 #If one wants to get output as csv (eg for Excel) then this section has to be made 
 #readable to R again (10. september 2020 - Kristian Plet-Hansen)
 
+if (! FALSE %in% is.na(harb$harbourSample)) {
+  ind_fish_red$havn <- NULL
+  tot_fish$harbourSample <- NULL
+}
+  
 #Output single fish information
 write.csv(ind_fish_red, paste0("EnkeltfiskAlder_", format(Sys.Date(), "%d%m%y"), ".csv"),
           quote = FALSE, row.names = FALSE, na = '')

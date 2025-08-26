@@ -21,7 +21,7 @@ if (!require("pacman")) install.packages("pacman")
 p_load(kableExtra, sqldf, RODBC, plyr, dplyr, haven)
 
 #special for this script
-p_load(data.table, stringr, sf, mapplots, shapefiles, maptools, ggplot2, tidyr, lubridate)
+p_load(data.table, stringr, sf, mapplots, shapefiles, maptools, ggplot2, tidyr, lubridate, car)
 
 options(knitr.kable.NA = '')
 ```
@@ -29,12 +29,12 @@ options(knitr.kable.NA = '')
 ```{r define_input, echo=FALSE}
 
 ## Parameters
-year<- 2024
-cruise <- "SEAS"
-trip <- "2243"
-coast_string <- "Q:/gis/Dynamisk/GEOdata/BasicLayers/CoastLines/Europe/europe_simple_wgs84"
-dfad <- readRDS("//fishline.dtuaqua.dk/dfad-share/dfad.rds")
-sel <- read.csv2("//fishline.dtuaqua.dk/dfad-share/rdsk_select.csv")
+year<- 2025
+cruise <- "MON"
+tripId <- "3166"
+coast_string <- "Q:/20-forskning/12-gis/Dynamisk/GEOdata/BasicLayers/CoastLines/Europe/europe_simple_wgs84"
+dfad <- readRDS("//aqua-pkfweb21.win.dtu.dk/dfad-share/dfad.rds")
+sel <- read.csv2("//aqua-pkfweb21.win.dtu.dk/dfad-share/rdsk_select.csv")
 
 
 # year<- @paramYear
@@ -70,7 +70,7 @@ trip <-sqlQuery(channel, paste("SELECT
   FROM      [FishLineDW].[dbo].[trip]
   WHERE     year IN ('",paste0(year,collapse="','"), "') AND
             cruise IN ('",paste0(cruise,collapse="','"), "') AND
-            trip IN ('",paste0(trip,collapse="','"), "') 
+            trip IN ('",paste0(tripId,collapse="','"), "') 
   " ,sep = ""))
 
 trip$n_days <- ceiling(as.numeric(difftime(trip$dateEnd, trip$dateStart, units = "days")))
@@ -178,6 +178,7 @@ lw_old <- sqlQuery(channel, paste("SELECT
       ,[quarterGearStart]
       ,[speciesCode]
       ,[length]
+      ,[lengthMeasureUnit]
       ,[weight]
   FROM      [FishLineDW].[dbo].[Animal]
   WHERE     (year between ",year - 4," and ",year-1," ) AND
@@ -198,7 +199,7 @@ dbErrors <- sqlQuery(channel, paste("SELECT
       ,[description]
       ,[logTime]
   FROM [FishLineDW].[dbo].[ErrorLog]
-  where origin like '",year,"%",cruise,"%",trip,"%'
+  where origin like '",year,"%",cruise,"%",tripId,"%'
 " ,sep = ""))
 
 close(channel)
@@ -367,6 +368,9 @@ if (logbook_match != "TRUE") {
                data.frame(a = "Selektionsudstyr", 
                           b = unique(samples$selectionDevice), 
                           c = panel))
+  
+  #fix underscores
+  tbl$c <- gsub("_", "\\\\_", tbl$c)
   
   print(tbl %>%
        kbl(escape = F, longtable = T, booktabs = T, linesep = "",
@@ -707,6 +711,25 @@ singleFish2<-dat %>%
   dplyr::filter(remark!="") %>%
   dplyr::ungroup()
 
+#########
+#potentielle enhedsfejl
+names(animal)[names(animal) == "speciesCode2"] <- "speciesCode"
+
+units <- unique(rbind(animal[ , c("speciesCode", "lengthMeasureUnit")],
+                      lw_old[lw_old$year == year-1 , c("speciesCode", "lengthMeasureUnit")]))
+units <- units[units$speciesCode %in% 
+                 units$speciesCode[duplicated(units$speciesCode)], ]
+
+if (nrow(units) > 0){
+  
+  cat(paste0("\n\n### Tjek længdemålings enheden i følgende arter \n"))
+  
+  toString(unique(units$speciesCode)) %>% 
+     cell_spec(color = "red", font_size = 10, bold = T) %>%
+     kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+     kable_styling(latex_options = c("hold_position"))
+  
+}
 
 #########
 #Længder i ejrep som ikke er i rep

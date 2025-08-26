@@ -35,12 +35,14 @@ p_load(kableExtra, sqldf, RODBC, dplyr, lubridate, data.table)
 
 # y1 <- @paramYear1
 # y2 <- @paramYear2
+#areas <- c(@paramArea)
 # species <- c(@paramSpecies)
 
 # Paramters to use in R
 y1 <- 2021
 y2 <- 2021
-species <- c("TBM")
+areas <- c(20, 21)
+species <- c("SIL")
 
 
 ```
@@ -58,7 +60,8 @@ dat <- sqlQuery(channel,
                       Sample.latPosEndText, Sample.lonPosStartText, Sample.lonPosEndText, 
                       Sample.latPosStartDec, Sample.lonPosStartDec, Sample.latPosEndDec, 
                       Sample.lonPosEndDec, Sample.dateGearStart, SpeciesList.speciesCode, 
-                      SpeciesList.sizeSortingDFU, SpeciesList.landingCategory, SpeciesList.treatment,
+                      SpeciesList.sizeSortingDFU, SpeciesList.landingCategory, 
+                      SpeciesList.treatment, SpeciesList.speciesListId,
                       Animal.representative, Animal.individNum, Animal.length, Animal.lengthMeasureUnit,
                       SpeciesList.sexCode AS sp_sexcode, Animal.sexCode, Animal.number AS AnimalNumber, 
                       Animal.weight, Animal.treatmentFactor, Animal.parasiteCode, Animal.maturityIndex,
@@ -68,17 +71,54 @@ dat <- sqlQuery(channel,
                       Age.hatchMonthReaderId, Age.hatchMonthReaderName, Sample.remark AS remarkSample, 
                       Animal.remark AS remarkAnimal, Age.remark AS remarkAge, Age.hatchMonthRemark, 
                       Age.genetics, Age.visualStock, Age.geneticStock
-            FROM      Sample INNER JOIN
-                      SpeciesList ON Sample.sampleId = SpeciesList.sampleId INNER JOIN
-                      Animal ON SpeciesList.speciesListId = Animal.speciesListId INNER JOIN
-                      Trip ON Sample.tripId = Trip.tripId LEFT OUTER JOIN
-                      Age ON Animal.animalId = Age.animalId
+            FROM      [FishLineDW].[dbo].Sample INNER JOIN
+                      [FishLineDW].[dbo].SpeciesList ON Sample.sampleId = SpeciesList.sampleId INNER JOIN
+                      [FishLineDW].[dbo].Animal ON SpeciesList.speciesListId = Animal.speciesListId INNER JOIN
+                      [FishLineDW].[dbo].Trip ON Sample.tripId = Trip.tripId LEFT OUTER JOIN
+                      [FishLineDW].[dbo].Age ON Animal.animalId = Age.animalId
             WHERE     (Sample.year between ",y1," and ",y2," ) AND 
-                      (SpeciesList.speciesCode IN ('", paste(species,collapse = "','"),"'))
+                      (SpeciesList.speciesCode IN ('", paste(species,collapse = "','"),"')) AND
+                      (Sample.dfuArea IN ('", paste(areas,collapse = "','"),"')) AND
+            (Animal.individNum != 0)
             ORDER BY  Sample.dateGearStart
                       ", sep = ""))
-                     
+                    
+
+#length dist
+len_dist <- sqlQuery(channel, paste("SELECT
+       [speciesListRaisedId] AS speciesListId
+      ,[speciesCode]
+      ,[year]
+      ,[cruise]
+      ,[trip]
+      ,[tripType]
+      ,[station]
+      ,[DFUArea]
+      ,[dateGearStart]
+      ,[cuticulaHardness]
+      ,[ovigorous]
+      ,[broodingPhase]
+      ,[landingCategory]
+      ,[dfuBase_Category]
+      ,[quarterGearStart] AS quarter
+      ,[sizeSortingEU] AS sortering
+      ,[sizeSortingDFU] AS opdeling
+      ,[speciesList_sexCode] AS kønsOpdelt
+      ,[length]
+      ,[numberTotalPerLength]
+  FROM      [FishLineDW].[dbo].[AnimalRaised]
+  WHERE     (speciesListRaisedId IN ('",paste0(dat$speciesListId, collapse="','"), "'))
+  " ,sep = ""))
+
 close(channel)
+
+len_dist <- merge(len_dist, unique(dat[, c("speciesListId", "sampleId")]))
+
+setDT(len_dist)
+len_dist <- len_dist[ ,. (numAtLngtRaised = sum(numberTotalPerLength, na.rm = T)),
+                      by = .(sampleId, DFUArea,
+                             year, cruise, trip, station, speciesCode,
+                             length)]
 
 dat$labJournalNum <- ifelse((dat$labJournalNum == '' | is.na(dat$labJournalNum)) & dat$tripType == "HVN",
                             dat$station, dat$labJournalNum)
@@ -90,14 +130,14 @@ dat$date <- date(dat$dateGearStart)
 channel <- odbcConnect("FishLineDW")
 animalReference<-sqlQuery(channel,
                   paste("SELECT  animalId, referenceId
-                         FROM     R_AnimalReference
+                         FROM     [FishLineDW].[dbo].R_AnimalReference
                                           ", sep = ""))
 close(channel)
 
 channel <- odbcConnect("FishLine")
 L_reference<-sqlQuery(channel,
                   paste("SELECT  L_referenceId AS referenceId, description
-                        FROM     L_Reference
+                        FROM     [FishLine].[dbo].L_Reference
                                ", sep = ""))
 close(channel)
 
@@ -133,6 +173,9 @@ write.csv2(merged2, paste0(names, "_", y1, "_", y2, "_Data_", Sys.Date(), ".csv"
            quote = FALSE, row.names = FALSE, na = '')
 
 
+write.csv2(len_dist, paste0("lenDist_", names, "_", y1, "_", y2, "_Data_", Sys.Date(), ".csv"),
+           quote = FALSE, row.names = FALSE, na = '')
+
 title<-c(paste0(Sys.Date(), ".csv"))
 ```
 
@@ -151,3 +194,8 @@ title<-c(paste0(Sys.Date(), ".csv"))
 \textbf{\Large Art:}
 \textbf{\Large `r species`}\
 \vspace{0.5cm}
+
+
+Two outputs to file, one with all positional / station information together with individual fish data. The other is length distributions of the species, with raised numbers. 
+
+

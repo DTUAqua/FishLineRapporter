@@ -42,9 +42,9 @@ p_load(sm, ggplot2, ggrepel, dbscan)
 # Paramters to use in R
 y1 <- 2024
 y2 <- 2024
-species <- c("TBM")
-areas <- c(20, "4A", "4B", "4C")
-cruise <- c("TBM24")
+species <- c("SKR")
+areas <- c(21)
+cruise <- c("SEAS")
 Q <- c(1, 2, 3, 4)
 
 if (TRUE %!in% (c(1, 2, 3, 4) %in% Q)){
@@ -139,7 +139,7 @@ write.csv(age_fish, paste0("age_fish_", format(Sys.Date(), "%d%m%y"), ".csv"),
 #get rid of records where the otolith could not be read, to make analysis esier
 age_fish <- age_fish[!is.na(age_fish$age) & !is.na(age_fish$length_mm), ]
 
-if ("" %in% Q) {
+if ("" %in% Q & nrow(age_fish) != 0) {
   age_fish$quarter <- "All"
   animal$quarter <- "All"}
 ```
@@ -531,10 +531,12 @@ if (nrow(age_fish) != 0){
 \section{Table of Outliers}
 ```{r ,echo=FALSE, results='asis', cache=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=7}
 
-outliers <- outliers[order(outliers$year, outliers$cruise, outliers$trip, outliers$station,
+if (nrow(age_fish) != 0){
+  
+  outliers <- outliers[order(outliers$year, outliers$cruise, outliers$trip, outliers$station,
                            outliers$sizeSortingEu, outliers$individNum ), ]
 
-if (nrow(age_fish) != 0){
+
   age_outliers <- outliers[outliers$type == "age", 
                            c("animalId", "speciesCode", "cruise", "trip", "station", "date",
                              "sizeSortingEu", "individNum", "area", 

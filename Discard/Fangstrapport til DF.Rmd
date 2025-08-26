@@ -66,9 +66,9 @@ p_load(sqldf,RODBC,plyr,dplyr,stringr,xtable,ggmap,gplots,grid,ggrepel,reshape2,
 # FID <- @paramFid
 
 
-year<- 2022
-cruise <- 'MON'
-trip <- 2962
+year<- 2025
+cruise <- 'SEAS'
+trip <- 2307
  
 
 
@@ -260,7 +260,7 @@ catchOperation <- ifelse(unique(CatchType$catchOperation) %in% c("A","G","C","E"
 catchOperation <- ifelse(unique(CatchType$catchOperation) %in% c("D"),"kast",catchOperation)
 
 catchOperation2 <- ifelse(catchOperation=="stationer","station",catchOperation)
-catchOperation3 <- paste(toupper(substr(catchOperation2, 1, 1)), substr(catchOperation2, 2, nchar(catchOperation2)), sep="")
+catchOperation3 <- unique(paste(toupper(substr(catchOperation2, 1, 1)), substr(catchOperation2, 2, nchar(catchOperation2)), sep=""))
 if (catchOperation3=="Træk") {catchOperation3 <- "Nummer"}
 
 
@@ -627,7 +627,13 @@ data3$landingCategory <- ifelse(data3$speciesCode %in% c("AF1","AF2","AF3","AF4"
 data3[data3$numberTotal==0,"numberTotal"] <- data3[data3$numberTotal==0,]$number
 
 #List of stations to ensure using only those where all landings have been evaluated
-SL <- as.matrix(apply(as.matrix(data4[,c(1,5,6)]), 1, function(x) if (is.na(x[2])==FALSE & x[2] =="ALL" & x[3] =="ALL") { x[1] }))
+if (nrow(data4) > 1){
+  SL <- as.matrix(apply(as.matrix(data4[,c(1,5,6)]), 1, function(x) if (is.na(x[2])==FALSE & x[2] =="ALL" & x[3] =="ALL") { x[1] }))
+} else{
+  SL <- data4$station
+}
+
+
 station_list <- as.numeric(data.frame(SL)[data.frame(SL)[1]!='NULL'])
 
 #Subsets of data for evaluated stations only

@@ -36,13 +36,13 @@ p_load(data.table)
 # ldat <- c(@paramLdat)
 
 
-fid <- "L757"
-start <-as.Date("2022-05-05")
-end <-as.Date("2022-05-10")
-log <- c("0008617390")
-ldat <- c("2022-05-05")
+fid <- "L232"
+start <-as.Date("")
+end <-as.Date("")
+log <- c("4476581")
+ldat <- c("")
 
-# fid <- "L757"
+# fid <- " L232"
 # start <-as.Date("")
 # end <-as.Date("")
 # log <- c("0008617390")
@@ -53,9 +53,9 @@ ldat <- c("2022-05-05")
 ```{r import_data, echo=FALSE, cache = FALSE}
 
 #dfad <- readRDS("<dfad-path>/dfad.rds")
-dfad <- readRDS("//fishline.dtuaqua.dk/dfad-share/dfad.rds")
+dfad <- readRDS("//aqua-pkfweb21.win.dtu.dk/dfad-share/dfad.rds")
 
-havn <-  haven::read_sas("Q:/mynd/SAS Library/FD_Format/lplads.sas7bdat")   
+havn <-  haven::read_sas("Q:/50-radgivning/02-mynd/SAS Library/FD_Format/lplads.sas7bdat")   
 names(havn)[1:2] <- c("lplads", "lhavn")
 
 ```
@@ -111,7 +111,7 @@ if (nrow(dat) == 0){
     txt <- "Ingen data kunne findes for det indtastede Fartøj"
     sce = 7
   }
-  
+
   dat <- dfad[dfad$fid == fid, ]
 }
 
