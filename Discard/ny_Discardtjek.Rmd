@@ -29,20 +29,20 @@ options(knitr.kable.NA = '')
 ```{r define_input, echo=FALSE}
 
 ## Parameters
-year<- 2025
-cruise <- "MON"
-tripId <- "3166"
-coast_string <- "Q:/20-forskning/12-gis/Dynamisk/GEOdata/BasicLayers/CoastLines/Europe/europe_simple_wgs84"
-dfad <- readRDS("//aqua-pkfweb21.win.dtu.dk/dfad-share/dfad.rds")
-sel <- read.csv2("//aqua-pkfweb21.win.dtu.dk/dfad-share/rdsk_select.csv")
+# year<- 2025
+# cruise <- "MON"
+# tripId <- "3166"
+# coast_string <- "Q:/20-forskning/12-gis/Dynamisk/GEOdata/BasicLayers/CoastLines/Europe/europe_simple_wgs84"
+# dfad <- readRDS("//aqua-pkfweb21.win.dtu.dk/dfad-share/dfad.rds")
+# sel <- read.csv2("//aqua-pkfweb21.win.dtu.dk/dfad-share/rdsk_select.csv")
 
 
-# year<- @paramYear
-# cruise <- @paramCruise
-# trip <- @paramTrip
-# coast_string <- "europe_simple_wgs84"
-# dfad <- readRDS("<dfad-path>/dfad.rds")
-# sel <- read.csv2("<dfad-path>/rdsk_select.csv")
+year<- @paramYear
+cruise <- @paramCruise
+trip <- @paramTrip
+coast_string <- "europe_simple_wgs84"
+dfad <- readRDS("<dfad-path>/dfad.rds")
+sel <- read.csv2("<dfad-path>/rdsk_select.csv")
 
 
 ##
@@ -471,8 +471,10 @@ pts <- rbind(pts_start, pts_end)
 tracks <- pts %>% group_by(station) %>%
   summarize(geometry = st_union(geometry)) %>% 
   st_cast("LINESTRING") %>%
-  st_as_sf() %>%
-  st_buffer(0.0001)
+  st_as_sf() 
+
+tracks$dist_nm <- as.numeric(st_length(tracks))*0.000539956803
+tracks <- st_buffer(tracks, 0.0001)
 
 coast <- st_read(paste0(coast_string, ".shp")) %>%
   st_transform(4326)
@@ -488,6 +490,14 @@ if (TRUE %in% lengths(overlap) != 0){
   "Dele af Turen Ligger på Land, Tjek Start og Slut koordinaterne" %>% 
       cell_spec(color = "red", font_size = 15, bold = T) %>%
       kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+      kable_styling(latex_options = c("hold_position")) 
+}
+
+if (TRUE %in% tracks$dist_nm > 10){
+  
+  "Meget langt slæb på en station, tjek start og slut koordinaterne" %>% 
+      cell_spec(color = "red", font_size = 15, bold = T) %>%
+      kbl(booktabs = T, escape = F, col.names = NULL)  %2>%  
       kable_styling(latex_options = c("hold_position")) 
 }
 
@@ -755,8 +765,9 @@ if (nrow(ejrep) > 0){
   print(ejrep[, 1:8] %>%
          kbl(escape = F, longtable = T, caption = "Manglende rep Længder", 
              booktabs = T, linesep = "", row.names = F,    
-             col.names = c("År", "Togt", "Tur", "Station", "Art", "Længde", 
-                           "sort", "individNr"), align = "l") %>%
+             col.names = c("Station", "Art", "Landings-kategori", 
+                           "sort", "længde", "individNr", "type", "type2"), 
+             align = "l") %>%
          row_spec(0, bold = TRUE) %>%
          kable_styling(latex_options = c("striped", "hold_position")) %>%
          column_spec(1:8, width = "1.5cm")
