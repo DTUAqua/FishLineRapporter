@@ -36,10 +36,10 @@ p_load(data.table)
 # ldat <- c(@paramLdat)
 
 
-fid <- "L232"
+fid <- "RI427"
 start <-as.Date("")
 end <-as.Date("")
-log <- c("4476581")
+log <- c("0000900753")
 ldat <- c("")
 
 # fid <- " L232"
@@ -236,9 +236,22 @@ if (!exists("txt") & sce != 6){
 ```{r print bonus out3, echo=FALSE, cache = FALSE}
 #this outputs alternative subset of data, if errors with subsetting has occured
 if (exists("out3")){
-  cat("Landunger pr træk", "\n")
+  cat("Landinger pr træk", "\n")
   
-   out3 %>%
+  cols = c("start_br_pos", "slut_br_pos", "start_lg_pos", "slut_lg_pos") 
+  out3 <- data.frame(out3)
+  for(i in 1:length(cols)){
+    
+    pos <- as.character(out3[, cols[i]])
+    pos <- do.call(rbind, strsplit(pos, split='\\.'))
+    
+    deg <- pos[, 1]
+    min <- round(as.numeric(paste0(0, ".", pos[, 2])) * 60, 5)
+    
+    out3[, cols[i]] <- paste0(deg, "° ", min, "'")
+  }
+  
+  out3 %>%
        kbl(escape = F, longtable = T, booktabs = T, linesep = "", 
            row.names = F, caption = "Fisketid og Position",
            col.names = c("fartøj", "logbogs nr", "start tid", "slut tid", 
@@ -288,5 +301,3 @@ if (exists("txt") & sce != 7){
 
 }
 ```
-
-Q:/

@@ -36,10 +36,10 @@ p_load(data.table, sm, ggplot2, ggrepel, dbscan)
 # eventType <- @paramEventType
 # eventName <- @paramEventName
 
-year <- c(2024)
+year <- c(2025)
 species <- "TOR"
 eventType <- 1  #(1 = årsaflæsning, 2 = sammenlæsning, 3 = reference)
-eventName <- "2024 TOR 24"
+eventName <- "2025 TOR 20,21"
 
 
 ```
@@ -202,6 +202,7 @@ age_fish[ , coments_col] <- lapply(age_fish[ , coments_col], gsub, pattern = "\\
 
 write.csv(age_fish, paste0("age_event_", l_type$description, "_", format(Sys.Date(), "%d%m%y"), ".csv"),
             quote = FALSE, row.names = FALSE, na = '')
+
 
 ```
 
@@ -397,7 +398,7 @@ if (nrow(age_fish) != 0){
     #create headder
     cat(paste0("\n\n## ", "Year ", years[k], "\n")) 
     ##subset by species
-    fish <- age_fish[age_fish$year == years[k], ] 
+    fish <- age_fish[age_fish$year == years[k] & !is.na(age_fish$age), ] 
     qtr <- sort(unique(fish$quarter))
     
     fun <- function(kk) {

@@ -29,20 +29,20 @@ options(knitr.kable.NA = '')
 ```{r define_input, echo=FALSE}
 
 ## Parameters
-# year<- 2025
-# cruise <- "MON"
-# tripId <- "3166"
-# coast_string <- "Q:/20-forskning/12-gis/Dynamisk/GEOdata/BasicLayers/CoastLines/Europe/europe_simple_wgs84"
-# dfad <- readRDS("//aqua-pkfweb21.win.dtu.dk/dfad-share/dfad.rds")
-# sel <- read.csv2("//aqua-pkfweb21.win.dtu.dk/dfad-share/rdsk_select.csv")
+year<- 2025
+cruise <- "MON"
+tripId <- "3227"
+coast_string <- "Q:/20-forskning/12-gis/Dynamisk/GEOdata/BasicLayers/CoastLines/Europe/europe_simple_wgs84"
+dfad <- readRDS("//aqua-pkfweb21.win.dtu.dk/dfad-share/dfad.rds")
+sel <- read.csv2("//aqua-pkfweb21.win.dtu.dk/dfad-share/rdsk_select.csv")
 
 
-year<- @paramYear
-cruise <- @paramCruise
-trip <- @paramTrip
-coast_string <- "europe_simple_wgs84"
-dfad <- readRDS("<dfad-path>/dfad.rds")
-sel <- read.csv2("<dfad-path>/rdsk_select.csv")
+# year<- @paramYear
+# cruise <- @paramCruise
+# trip <- @paramTrip
+# coast_string <- "europe_simple_wgs84"
+# dfad <- readRDS("<dfad-path>/dfad.rds")
+# sel <- read.csv2("<dfad-path>/rdsk_select.csv")
 
 
 ##
@@ -91,6 +91,7 @@ samples <-sqlQuery(channel, paste("SELECT
       ,[latPosEndDec]
       ,[lonPosEndDec]
       ,[distancePositions]
+      ,[distanceBottom]
       ,[gearType]
       ,[selectionDevice]
       ,[meshSize]
@@ -482,10 +483,12 @@ coast <- st_read(paste0(coast_string, ".shp")) %>%
 #is the linecrossing land
 overlap <- st_overlaps(tracks, coast)
 
+##
+
 ```
 
 ```{r, echo=FALSE, results='asis'}
-if (TRUE %in% lengths(overlap) != 0){
+if (TRUE %in% (lengths(overlap) != 0)){
   
   "Dele af Turen Ligger på Land, Tjek Start og Slut koordinaterne" %>% 
       cell_spec(color = "red", font_size = 15, bold = T) %>%
@@ -493,14 +496,42 @@ if (TRUE %in% lengths(overlap) != 0){
       kable_styling(latex_options = c("hold_position")) 
 }
 
-if (TRUE %in% tracks$dist_nm > 10){
+if (TRUE %in% (tracks$dist_nm > 10)){
   
-  "Meget langt slæb på en station, tjek start og slut koordinaterne" %>% 
-      cell_spec(color = "red", font_size = 15, bold = T) %>%
-      kbl(booktabs = T, escape = F, col.names = NULL)  %2>%  
+  "Lang slæbestreg, dobbeltjek start og slut koordinaterne" %>% 
+      cell_spec(color = "orange", font_size = 15, bold = T) %>%
+      kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
       kable_styling(latex_options = c("hold_position")) 
 }
 
+samples$lengthDiff <- samples$distancePositions - samples$distanceBottom
+
+if (TRUE %in% (samples$lengthDiff > 3)){
+  
+    "Stor forskel i udregnet distance fra position og hastighed, tjek start og slut koordinaterne eller tider" %>% 
+      cell_spec(color = "red", font_size = 10, bold = T) %>%
+      kbl(booktabs = T, escape = F, col.names = NULL)  %>%  
+      kable_styling(latex_options = c("hold_position")) 
+  
+  
+  out <- samples[, c("station", "distancePositions", "distanceBottom", "lengthDiff")]
+  out <- round(out, 2)
+  
+  out$lengthDiff[out$lengthDiff > 3] <- 
+    cell_spec(out$lengthDiff[out$lengthDiff > 3],
+              bold=T, background = "red")
+  
+  #print table
+  out %>%
+     kbl(escape = F, longtable = T, booktabs = T, linesep = "",
+         row.names = F, caption = "Vægtestimering per station",
+         col.names = c("Station", "Distance fra koordinater", "distance fra hastiged og tid", 
+                       "forskel i distance"), align = "l") %>%
+     row_spec(0, bold = TRUE) %>%
+     kable_styling(latex_options = c("striped", "hold_position"), font_size = 8) %>%
+     column_spec(1:4, width = "2cm")
+  
+}
 ```
 
 
@@ -617,7 +648,7 @@ if (nrow(data.frame(sp_lst)) > 0) {
          col.names = c("Station", "TotalVægt Indtastet", "Totalvægt Beregnet", 
                        "pct Forskel", "Bemærking"), align = "l") %>%
      row_spec(0, bold = TRUE) %>%
-     kable_styling(latex_options = c("striped", "hold_position"), font_size = 8) %>%
+     kable_styling(latex_options = c("hold_position"), font_size = 8) %>%
      column_spec(1:5, width = "2cm")
 
   } else {
@@ -1040,10 +1071,7 @@ fun <- function(i) {
  
  mod1 <- lm(log(weight) ~ log_l, data = dat2)
  dat2$res <- abs(rstandard(mod1))
-  
- ## Identify the cells with residuals greater than .... industry standard 3, but here 9
- out_len <- dat2[dat2$y == year & dat2$res >  9, ]
-  
+
  #estimate the prediction interval, with evenly generated numbers based on data range
   ##for plot stuff, convert back to nomal from log...
  sim.dat = seq(min(dat2$log_l), max(dat2$log_l), length.out=nrow(dat2))
@@ -1051,6 +1079,22 @@ fun <- function(i) {
                   level=0.99, interval = 'prediction'))
  sim.dat <- exp(sim.dat)
  
+ # outliers = outside prediction area + 15 % because biology
+      sim.dat[1] <- sim.dat[1]-1
+      sim.dat[length(sim.dat)] <- sim.dat[length(sim.dat)]+1
+      x <- c(rev(sim.dat), sim.dat)
+      y1 <- c(rev(preds[ ,3])+(rev(preds[ ,3])*0.15))
+      y2 <- c(preds[ ,2]-(preds[ ,2]*0.15))
+
+      polygon <- st_sfc(st_polygon(list(cbind(c(x, x[1]), c(y1, y2, y1[1]))))) |>
+        data.frame()|>
+        st_as_sf()
+      
+      new <- st_as_sf(new, coords = c("length", "weight"), remove = F)
+      new$outlier <- lengths(st_intersects(new, polygon)) == 0
+      
+      out_len <- st_drop_geometry(new[new$outlier == TRUE, ])
+      
  #plot
  plot(old$length, old$weight, pch = 16, cex = 0.1, col = "white",
         main = paste(" Art:", sp[i],"- Område:", area, sep=" "),
@@ -1058,12 +1102,14 @@ fun <- function(i) {
         ylab = "Vægt (kg)", 
         cex.main = 1.5,
         cex.lab = 1.5,
-        xlim = c(range(c(old$length, new$length))[1], range(c(old$length, new$length))[2]),
-        ylim = c(range(c(old$weight, new$weight))[1], range(c(old$weight, new$weight))[2]))+
-     polygon(c(rev(sim.dat), sim.dat), c(rev(preds[ ,3]), preds[ ,2]),
-             density=10, col = 'grey', border = NA)+
-     lines(sim.dat, preds[ ,3], lty = 'dashed', col = 'red')+
-     lines(sim.dat, preds[ ,2], lty = 'dashed', col = 'red')+
+        xlim = c(range(c(old$length, new$length))[1], 
+                 range(c(old$length, new$length))[2]),
+        ylim = c(range(c(old$weight, new$weight))[1], 
+                 range(c(old$weight, new$weight))[2]))+
+     polygon(x, c(y1, y2),
+                density=10, col = 'grey', border = NA)+
+     lines(sim.dat, rev(y1), lty = 'dashed', col = 'red')+
+     lines(sim.dat, y2, lty = 'dashed', col = 'red')+
      points(new$length, new$weight, pch = 16, cex = 1, col = "blue")+
      points(out_len$length, out_len$weight, pch = 16, cex = 1, col = "red")
  
@@ -1102,31 +1148,35 @@ fun <- function(i) {
   db_diff <- out_len[ , c("year", "trip", "station", "speciesCode", "landingCategory", 
                    "individNum", "length", "weight")]
   
- } 
-}
-temp<-lapply(1:length(sp), fun) #funktion to get data and run the loop/function
-db_diff<-data.frame(do.call("rbind", temp)) #make data frame from the temp file 
-
-
-if (nrow(data.frame(db_diff)) >0) {
+ }else {
+      db_diff <- data.frame(c())
+ }
+ 
+ if (nrow(db_diff) > 0) {
   
-  # Output table of outliers in latex table format
+    # Output table of outliers in latex table format
   
-  cat("\\newpage") 
-  
-  db_diff <- db_diff[order(db_diff$speciesCode),]
-  #Make table
-  db_diff %>%      
+    db_diff <- db_diff[order(db_diff$speciesCode),]
+    #Make table
+    print(db_diff %>%      
           kbl(escape = F, longtable = T, booktabs = T, linesep = "", row.names = F,
-              col.names = c("År", "Tur", "Station", "Art", "Landings-kategori", 
+              col.names = c("År", "Togt", "Tur", "Station", "Art", "Landings-kategori", 
                             "individ-nummer", "Længde (mm)", "Vægt (kg)"), align = "l") %>%
           row_spec(0, bold = TRUE) %>%
           kable_styling(latex_options = c("striped", "hold_position")) %>%
           column_spec(1:4, width = "1.5cm") %>%
           column_spec(5:6, width = "2cm") %>%
-          column_spec(7:8, width = "1.5cm")
+          column_spec(7:8, width = "1.5cm"))
   
-} else {
+    }
+ 
+}
+temp<-lapply(1:length(sp), fun) #funktion to get data and run the loop/function
+db_diff<-data.frame(do.call("rbind", temp)) #make data frame from the temp file 
+
+
+if (nrow(data.frame(db_diff))  == 0) {
+  
   #message if no outliers where found
   text<-c("Ingen afvigelser i Længde-vægt forhold")
   #Make table
